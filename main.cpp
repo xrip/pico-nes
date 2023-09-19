@@ -163,14 +163,14 @@ static joypad_bits_t input_bits = { false, false, false, false, false, false, fa
 #if USE_NESPAD
 void nespad_tick() {
     nespad_read();
-    input_bits.a |= !(nespad_state & 0x01);
-    input_bits.b |= !(nespad_state & 0x02);
-    input_bits.select |= !(nespad_state & 0x04);
-    input_bits.start |= !(nespad_state & 0x08);
-    input_bits.up |= !(nespad_state & 0x10);
-    input_bits.down |= !(nespad_state & 0x20);
-    input_bits.left |= !(nespad_state & 0x40);
-    input_bits.right |= !(nespad_state & 0x80);
+    input_bits.a &= !(nespad_state & 0x01);
+    input_bits.b &= !(nespad_state & 0x02);
+    input_bits.select &= !(nespad_state & 0x04);
+    input_bits.start &= !(nespad_state & 0x08);
+    input_bits.up &= !(nespad_state & 0x10);
+    input_bits.down &= !(nespad_state & 0x20);
+    input_bits.left &= !(nespad_state & 0x40);
+    input_bits.right &= !(nespad_state & 0x80);
 }
 #endif
 
