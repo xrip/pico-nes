@@ -7,6 +7,34 @@ include(pico_sdk_import.cmake)
 
 project(dendy C CXX ASM)
 pico_sdk_init()
+SET(GCC_RELEASENODEBUG_FLAGS "-O2 -DNDEBUG")
+SET(CMAKE_ASM_FLAGS_RELEASENODEBUG
+        "${GCC_RELEASENODEBUG_FLAGS}"
+        CACHE STRING "Flags used by the ASM compiler during REL_O2 builds."
+        FORCE)
+
+SET(CMAKE_CXX_FLAGS_RELEASENODEBUG
+        "${GCC_RELEASENODEBUG_FLAGS}"
+        CACHE STRING "Flags used by the C++ compiler during REL_O2 builds."
+        FORCE)
+SET(CMAKE_C_FLAGS_RELEASENODEBUG
+        "${GCC_RELEASENODEBUG_FLAGS}"
+        CACHE STRING "Flags used by the C compiler during REL_O2 builds."
+        FORCE)
+SET(CMAKE_EXE_LINKER_FLAGS_RELEASENODEBUG
+        ""
+        CACHE STRING "Flags used for linking binaries during REL_O2 builds."
+        FORCE)
+SET(CMAKE_SHARED_LINKER_FLAGS_RELEASENODEBUG
+        ""
+        CACHE STRING "Flags used by the shared libraries linker during REL_O2 builds."
+        FORCE)
+MARK_AS_ADVANCED(
+        CMAKE_CXX_FLAGS_RELEASENODEBUG
+        CMAKE_ASM_FLAGS_RELEASENODEBUG
+        CMAKE_C_FLAGS_RELEASENODEBUG
+        CMAKE_EXE_LINKER_FLAGS_RELEASENODEBUG
+        CMAKE_SHARED_LINKER_FLAGS_RELEASENODEBUG)
 
 add_subdirectory(infones)
 add_subdirectory(drivers/vga)

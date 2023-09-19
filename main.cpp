@@ -338,13 +338,6 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
     static constexpr int A = 1 << 0;
     static constexpr int B = 1 << 1;
 
-#if USE_PS2_KBD
-    ps2kbd.tick();
-#endif
-
-#if USE_NESPAD
-    nespad_tick();
-#endif
     int gamepad_state = ((gamepad_bits.left||gamepad_bits_joy1.left) ? LEFT : 0) |
                         ((gamepad_bits.right||gamepad_bits_joy1.right) ? RIGHT : 0) |
                         ((gamepad_bits.up||gamepad_bits_joy1.up) ? UP : 0) |
@@ -493,6 +486,13 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
 
 
 int InfoNES_LoadFrame() {
+#if USE_PS2_KBD
+    ps2kbd.tick();
+#endif
+
+#if USE_NESPAD
+    nespad_tick();
+#endif
     return 0;
 }
 
