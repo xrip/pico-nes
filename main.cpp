@@ -35,95 +35,7 @@
 #include "nespad.h"
 
 #endif
-//#define FLASH_TARGET_OFFSET (512 * 1024)
-//const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET);
 
-struct joypad_bits_t {
-    bool a: true;
-    bool b: true;
-    bool select: true;
-    bool start: true;
-    bool right: true;
-    bool left: true;
-    bool up: true;
-    bool down: true;
-};
-
-static joypad_bits_t keyboard_bits = { true, true, true, true, true, true, true, true };    //Keyboard
-static joypad_bits_t joypad_bits = { true, true, true, true, true, true, true, true };      //Joypad
-
-#if USE_NESPAD
-
-void nespad_tick() {
-    nespad_read();
-
-//-----------------------------------------------------------------------------
-    joypad_bits.a = !(nespad_state & 0x01);
-    joypad_bits.b = !(nespad_state & 0x02);
-    joypad_bits.start = !(nespad_state & 0x04);
-    joypad_bits.select = !(nespad_state & 0x08);
-    joypad_bits.up = !(nespad_state & 0x10);
-    joypad_bits.down = !(nespad_state & 0x20);
-    joypad_bits.left = !(nespad_state & 0x40);
-    joypad_bits.right = !(nespad_state & 0x80);
-}
-
-#endif
-
-inline bool checkNESMagic(const uint8_t *data) {
-    bool ok = false;
-    int nIdx;
-    if (memcmp(data, "NES\x1a", 4) == 0) {
-        uint8_t MapperNo = *(data + 6) >> 4;
-        for (nIdx = 0; MapperTable[nIdx].nMapperNo != -1; ++nIdx) {
-            if (MapperTable[nIdx].nMapperNo == MapperNo) {
-                ok = true;
-                break;
-            }
-        }
-        // if (!ok)
-        // {
-        //     printf("checkNESMagic: skipped rom with invalid mapper #%d\n", MapperNo);
-        // }
-    }
-    return ok;
-}
-
-#if USE_PS2_KBD
-
-static bool isInReport(hid_keyboard_report_t const *report, const unsigned char keycode) {
-    for (unsigned char i: report->keycode) {
-        if (i == keycode) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void
-__not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report, hid_keyboard_report_t const *prev_report) {
-    /* printf("HID key report modifiers %2.2X report ", report->modifier);
-    for (unsigned char i: report->keycode)
-        printf("%2.2X", i);
-    printf("\r\n");
-     */
-
-    keyboard_bits.start = !isInReport(report, 0x28);
-    keyboard_bits.select = !isInReport(report, 0x2A);
-    keyboard_bits.a = !isInReport(report, 0x1D);
-    keyboard_bits.b = !isInReport(report, 0x1B);
-    keyboard_bits.up = !isInReport(report, 0x52);
-    keyboard_bits.down = !isInReport(report, 0x51);
-    keyboard_bits.left = !isInReport(report, 0x50);
-    keyboard_bits.right = !isInReport(report, 0x4F);
-    //-------------------------------------------------------------------------
-}
-
-Ps2Kbd_Mrmltr ps2kbd(
-        pio1,
-        0,
-        process_kbd_report);
-#endif
 
 static const sVmode *vmode = nullptr;
 struct semaphore vga_start_semaphore;
@@ -140,16 +52,6 @@ resolution_t resolution = RESOLUTION_TEXTMODE;
 // final wave buffer
 int fw_wr, fw_rd;
 int final_wave[2][735 + 1]; /* 44100 (just in case)/ 60 = 735 samples per sync */
-
-
-void draw_text(char *string, uint8_t x, uint8_t y, uint8_t color, uint8_t bgcolor) {
-    uint8_t len = strlen(string);
-    len = len < 80 ? len : 80;
-    memcpy(&textmode[y][x], string, len);
-    memset(&colors[y][x], (color << 4) | (bgcolor & 0xF), len);
-}
-
-
 static FATFS fs;
 
 bool saveSettingsAndReboot = false;
@@ -163,6 +65,7 @@ static constexpr uintptr_t NES_BATTERY_SAVE_ADDR = 0x100D0000; // 256K
 
 #define X2(a) (a | (a << 8))
 #define VGA_RGB_222(r, g, b) X2((r << 4) | (g << 2) | b)
+
 const WORD __not_in_flash_func(NesPalette)[64] = {
 VGA_RGB_222(0x7c >> 6, 0x7c >> 6, 0x7c >> 6),
 VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0xfc >> 6),
@@ -245,6 +148,89 @@ VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
 VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
 };
 
+struct joypad_bits_t {
+    bool a: true;
+    bool b: true;
+    bool select: true;
+    bool start: true;
+    bool right: true;
+    bool left: true;
+    bool up: true;
+    bool down: true;
+};
+static joypad_bits_t input_bits = { false, false, false, false, false, false, false, false };    // Keyboard
+
+#if USE_NESPAD
+void nespad_tick() {
+    nespad_read();
+    input_bits.a |= !(nespad_state & 0x01);
+    input_bits.b |= !(nespad_state & 0x02);
+    input_bits.select |= !(nespad_state & 0x04);
+    input_bits.start |= !(nespad_state & 0x08);
+    input_bits.up |= !(nespad_state & 0x10);
+    input_bits.down |= !(nespad_state & 0x20);
+    input_bits.left |= !(nespad_state & 0x40);
+    input_bits.right |= !(nespad_state & 0x80);
+}
+#endif
+
+#if USE_PS2_KBD
+
+
+static bool isInReport(hid_keyboard_report_t const *report, const unsigned char keycode) {
+    for (unsigned char i: report->keycode) {
+        if (i == keycode) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report, hid_keyboard_report_t const *prev_report) {
+    /* printf("HID key report modifiers %2.2X report ", report->modifier);
+    for (unsigned char i: report->keycode)
+        printf("%2.2X", i);
+    printf("\r\n");
+     */
+    input_bits.start = isInReport(report, 0x28);
+    input_bits.select = isInReport(report, 0x2A);
+    input_bits.a = isInReport(report, 0x1D);
+    input_bits.b = isInReport(report, 0x1B);
+    input_bits.up = isInReport(report, 0x52);
+    input_bits.down = isInReport(report, 0x51);
+    input_bits.left = isInReport(report, 0x50);
+    input_bits.right = isInReport(report, 0x4F);
+    //-------------------------------------------------------------------------
+}
+
+Ps2Kbd_Mrmltr ps2kbd(
+        pio1,
+        0,
+        process_kbd_report);
+#endif
+
+inline bool checkNESMagic(const uint8_t *data) {
+    bool ok = false;
+    int nIdx;
+    if (memcmp(data, "NES\x1a", 4) == 0) {
+        uint8_t MapperNo = *(data + 6) >> 4;
+        for (nIdx = 0; MapperTable[nIdx].nMapperNo != -1; ++nIdx) {
+            if (MapperTable[nIdx].nMapperNo == MapperNo) {
+                ok = true;
+                break;
+            }
+        }
+    }
+    return ok;
+}
+
+void draw_text(char *string, uint8_t x, uint8_t y, uint8_t color, uint8_t bgcolor) {
+    uint8_t len = strlen(string);
+    len = len < 80 ? len : 80;
+    memcpy(&textmode[y][x], string, len);
+    memset(&colors[y][x], (color << 4) | (bgcolor & 0xF), len);
+}
+
 uint32_t getCurrentNVRAMAddr() {
     int slot = 0;
 
@@ -265,9 +251,7 @@ uint32_t getCurrentNVRAMAddr() {
 #define GAMEINDEXPOS 3
 #define ADVANCEPOS 4
 #define VOLUMEINDICATORPOS 5
-#define MODEPOS 8
-#define VOLUMEPOS 9
-#define BACKLIGHTPOS 10
+
 
 // Save NES Battery RAM (about 58 Games exist with save battery)
 // Problem: First call to saveNVRAM  after power up is ok
@@ -360,14 +344,14 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
 #if USE_NESPAD
     nespad_tick();
 #endif
-    int gamepad_state = (keyboard_bits.left ? 0 : LEFT) |
-                        (keyboard_bits.right ? 0 : RIGHT) |
-                        (keyboard_bits.up ? 0 : UP) |
-                        (keyboard_bits.down ? 0 : DOWN) |
-                        (keyboard_bits.start ? 0 : START) |
-                        (keyboard_bits.select ? 0 : SELECT) |
-                        (keyboard_bits.a ? 0 : A) |
-                        (keyboard_bits.b ? 0 : B) |
+    int gamepad_state = (input_bits.left ? LEFT : 0) |
+                        (input_bits.right ? RIGHT : 0) |
+                        (input_bits.up ? UP : 0) |
+                        (input_bits.down ? DOWN : 0) |
+                        (input_bits.start ? START : 0) |
+                        (input_bits.select ? SELECT : 0) |
+                        (input_bits.a ? A : 0) |
+                        (input_bits.b ? B : 0) |
                         0;
 
     ++rapidFireCounter;
@@ -779,23 +763,16 @@ void rom_file_selector() {
        nespad_tick();
 #endif
 //-----------------------------------------------------------------------------
-        joypad_bits.up = keyboard_bits.up && joypad_bits.up;
-        joypad_bits.down = keyboard_bits.down && joypad_bits.down;
-        joypad_bits.left = keyboard_bits.left && joypad_bits.left;
-        joypad_bits.right = keyboard_bits.right && joypad_bits.right;
-        joypad_bits.a = keyboard_bits.a && joypad_bits.a;
-        joypad_bits.b = keyboard_bits.b && joypad_bits.b;
-        joypad_bits.select = keyboard_bits.select && joypad_bits.select;
-        joypad_bits.start = keyboard_bits.start && joypad_bits.start;
+
 //-----------------------------------------------------------------------------
-        if (!joypad_bits.start) {
+        if (input_bits.start) {
             /* copy the rom from the SD card to flash and start the game */
             char pathname[255];
             sprintf(pathname, "NES\\%s", filenames[selected]);
             load_cart_rom_file(pathname);
             break;
         }
-        if (!joypad_bits.down) {
+        if (input_bits.down) {
             /* select the next rom */
             draw_text(filenames[selected], 0, selected, 0xFF, 0x00);
             selected++;
@@ -804,7 +781,7 @@ void rom_file_selector() {
             draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
             sleep_ms(150);
         }
-        if (!joypad_bits.up) {
+        if (input_bits.up) {
             /* select the previous rom */
             draw_text(filenames[selected], 0, selected, 0xFF, 0x00);
             if (selected == 0) {
@@ -815,7 +792,7 @@ void rom_file_selector() {
             draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
             sleep_ms(150);
         }
-        if (!joypad_bits.right) {
+        if (input_bits.right) {
             /* select the next page */
             num_page++;
             numfiles = rom_file_selector_display_page(filenames, num_page);
@@ -829,7 +806,7 @@ void rom_file_selector() {
             draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
             sleep_ms(150);
         }
-        if ((!joypad_bits.left) && num_page > 0) {
+        if ((input_bits.left) && num_page > 0) {
             /* select the previous page */
             num_page--;
             numfiles = rom_file_selector_display_page(filenames, num_page);
