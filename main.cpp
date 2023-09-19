@@ -156,19 +156,22 @@ struct joypad_bits_t {
     bool down: true;
 };
 static joypad_bits_t gamepad_bits = { false, false, false, false, false, false, false, false };
+static joypad_bits_t gamepad_bits_joy1 = { false, false, false, false, false, false, false, false };
+static joypad_bits_t gamepad_bits_joy2 = { false, false, false, false, false, false, false, false };
 
 #if USE_NESPAD
 
 void nespad_tick() {
     nespad_read();
-    gamepad_bits.a |= (nespad_state & 0x01) != 0;
-    gamepad_bits.b |= (nespad_state & 0x02) != 0;
-    gamepad_bits.select |= (nespad_state & 0x04) != 0;
-    gamepad_bits.start |= (nespad_state & 0x08) != 0;
-    gamepad_bits.up |= (nespad_state & 0x10) != 0;
-    gamepad_bits.down |= (nespad_state & 0x20) != 0;
-    gamepad_bits.left |= (nespad_state & 0x40) != 0;
-    gamepad_bits.right |= (nespad_state & 0x80) != 0;
+
+    gamepad_bits_joy1.a = (nespad_state & 0x01) != 0;
+    gamepad_bits_joy1.b = (nespad_state & 0x02) != 0;
+    gamepad_bits_joy1.select = (nespad_state & 0x04) != 0;
+    gamepad_bits_joy1.start = (nespad_state & 0x08) != 0;
+    gamepad_bits_joy1.up = (nespad_state & 0x10) != 0;
+    gamepad_bits_joy1.down = (nespad_state & 0x20) != 0;
+    gamepad_bits_joy1.left = (nespad_state & 0x40) != 0;
+    gamepad_bits_joy1.right = (nespad_state & 0x80) != 0;
 }
 
 #endif
@@ -342,15 +345,16 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
 #if USE_NESPAD
     nespad_tick();
 #endif
-    int gamepad_state = (gamepad_bits.left ? LEFT : 0) |
-                        (gamepad_bits.right ? RIGHT : 0) |
-                        (gamepad_bits.up ? UP : 0) |
-                        (gamepad_bits.down ? DOWN : 0) |
-                        (gamepad_bits.start ? START : 0) |
-                        (gamepad_bits.select ? SELECT : 0) |
-                        (gamepad_bits.a ? A : 0) |
-                        (gamepad_bits.b ? B : 0) |
+    int gamepad_state = ((gamepad_bits.left||gamepad_bits_joy1.left) ? LEFT : 0) |
+                        ((gamepad_bits.right||gamepad_bits_joy1.right) ? RIGHT : 0) |
+                        ((gamepad_bits.up||gamepad_bits_joy1.up) ? UP : 0) |
+                        ((gamepad_bits.down||gamepad_bits_joy1.down) ? DOWN : 0) |
+                        ((gamepad_bits.start||gamepad_bits_joy1.start) ? START : 0) |
+                        ((gamepad_bits.select||gamepad_bits_joy1.select) ? SELECT : 0) |
+                        ((gamepad_bits.a||gamepad_bits_joy1.a) ? A : 0) |
+                        ((gamepad_bits.b||gamepad_bits_joy1.b) ? B : 0) |
                         0;
+
 
     ++rapidFireCounter;
     bool reset = false;
@@ -450,37 +454,43 @@ return 735;
 #define buffermax 1280
 void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, const BYTE *wave3, const BYTE *wave4,
                          const BYTE *wave5) {
-    static int16_t samples_out[2][buffermax * 2];
-    static int i_active_buf = 0;
-    static int inx = 0;
+    static int16_t samples_out[2][buffermax*2];
+    static int i_active_buf=0;
+    static int inx=0;
 
 
-    for (int i = 0; i < samples; i++) {
+
+
+    for (int i = 0; i < samples; i++)
+    {
+        int r,l;
+
+        //mono
+//            l=(((unsigned char)wave1[i] + (unsigned char)wave2[i] + (unsigned char)wave3[i] + (unsigned char)wave4[i] + (unsigned char)wave5[i])-640)<<5;
+//            r=l;
+
         int w1 = *wave1++;
         int w2 = *wave2++;
         int w3 = *wave3++;
         int w4 = *wave4++;
         int w5 = *wave5++;
         //            w3 = w2 = w4 = w5 = 0;
-        int l = w1 * 6 + w2 * 3 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
-        int r = w1 * 3 + w2 * 6 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
-        /*
-        samples_out[i_active_buf][inx * 2] =
-                (((unsigned char) wave1[i] + (unsigned char) wave2[i] + (unsigned char) wave3[i] +
-                  (unsigned char) wave4[i] + (unsigned char) wave5[i]) - 640) << 5;
-        samples_out[i_active_buf][inx * 2 + 1] = samples_out[i_active_buf][inx * 2];
-         */
-        samples_out[i_active_buf][inx * 2] = l;
-                samples_out[i_active_buf][inx * 2 + 1] = r;
-        if (inx++ >= i2s_config.dma_trans_count) {
-            inx = 0;
+        l = w1 * 6 + w2 * 3 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
+        r = w1 * 3 + w2 * 6 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
+
+        samples_out[i_active_buf][inx*2]=l*2;
+        samples_out[i_active_buf][inx*2+1]=r*2;
+        if(inx++>=i2s_config.dma_trans_count)
+        {
+            inx=0;
             i2s_dma_write(&i2s_config, reinterpret_cast<const int16_t *>(samples_out[i_active_buf]));
-            i_active_buf ^= 1;
+            i_active_buf^=1;
 
         }
     }
 
 }
+
 
 int InfoNES_LoadFrame() {
     return 0;
@@ -690,17 +700,18 @@ void rom_file_selector() {
 #if USE_NESPAD
         nespad_tick();
 #endif
+        sleep_ms(100);
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-        if (gamepad_bits.start) {
+        if (gamepad_bits.start||gamepad_bits_joy1.start) {
             /* copy the rom from the SD card to flash and start the game */
             char pathname[255];
             sprintf(pathname, "NES\\%s", filenames[selected]);
             load_cart_rom_file(pathname);
             break;
         }
-        if (gamepad_bits.down) {
+        if (gamepad_bits.down||gamepad_bits_joy1.down) {
             /* select the next rom */
             draw_text(filenames[selected], 0, selected, 0xFF, 0x00);
             selected++;
@@ -709,7 +720,7 @@ void rom_file_selector() {
             draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
             sleep_ms(150);
         }
-        if (gamepad_bits.up) {
+        if (gamepad_bits.up||gamepad_bits_joy1.up) {
             /* select the previous rom */
             draw_text(filenames[selected], 0, selected, 0xFF, 0x00);
             if (selected == 0) {
@@ -720,7 +731,7 @@ void rom_file_selector() {
             draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
             sleep_ms(150);
         }
-        if (gamepad_bits.right) {
+        if (gamepad_bits.right||gamepad_bits_joy1.right) {
             /* select the next page */
             num_page++;
             numfiles = rom_file_selector_display_page(filenames, num_page);
@@ -734,7 +745,7 @@ void rom_file_selector() {
             draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
             sleep_ms(150);
         }
-        if ((gamepad_bits.left) && num_page > 0) {
+        if ((gamepad_bits.left||gamepad_bits_joy1.left) && num_page > 0) {
             /* select the previous page */
             num_page--;
             numfiles = rom_file_selector_display_page(filenames, num_page);
@@ -746,6 +757,7 @@ void rom_file_selector() {
         tight_loop_contents();
     }
 }
+
 
 bool loadAndReset() {
     rom_file_selector();
