@@ -221,7 +221,7 @@ extern BYTE ChrBuf[];
 
 extern BYTE ChrBufUpdate;
 
-extern BYTE PalTable[];
+extern WORD PalTable[];
 
 /*-------------------------------------------------------------------*/
 /*  APU and Pad resources                                            */

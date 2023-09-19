@@ -222,7 +222,7 @@ void __not_in_flash_func(InfoNES_SetLineBuffer)(BYTE *p, WORD size)
 BYTE ChrBufUpdate;
 
 /* Palette Table */
-BYTE PalTable[32];
+WORD PalTable[32];
 
 /* Table for Mirroring */
 BYTE PPU_MirrorTable[][4] =
@@ -855,7 +855,7 @@ int __not_in_flash_func(InfoNES_HSync)()
 
 namespace
 {
-  void __not_in_flash_func(compositeSprite)(const uint8_t *pal,
+  void __not_in_flash_func(compositeSprite)(const uint16_t *pal,
                                             const uint8_t *spr,
                                             uint8_t *buf)
   {
