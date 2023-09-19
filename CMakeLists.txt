@@ -10,6 +10,7 @@ pico_sdk_init()
 
 add_subdirectory(infones)
 add_subdirectory(drivers/vga)
+add_subdirectory(drivers/audio)
 add_subdirectory(drivers/ps2kbd)
 add_subdirectory(drivers/nespad)
 add_subdirectory(drivers/fatfs)
@@ -33,6 +34,7 @@ target_link_libraries(dendy PRIVATE
         infones
 
         vga
+        audio
         ps2kbd
         nespad
         sdcard
@@ -71,8 +73,8 @@ target_compile_definitions(dendy PRIVATE
         # NES Gamepad
         USE_NESPAD
         NES_GPIO_CLK=14
-        NES_GPIO_DATA=15
-        NES_GPIO_LAT=16
+        NES_GPIO_DATA=16
+        NES_GPIO_LAT=15
 
         # Other
         FF_USE_FIND

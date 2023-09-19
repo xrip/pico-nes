@@ -104,7 +104,7 @@ void i2s_init(i2s_config_t *i2s_config) {
     pwm_config c_pwm=pwm_get_default_config();
     pwm_config_set_clkdiv(&c_pwm,1.0);
     //pwm_config_set_wrap(&c_pwm,(1<<12)-1);//MAX PWM value
-    pwm_config_set_wrap(&c_pwm,clock_get_hz(clk_sys)/44100);//MAX PWM value
+    pwm_config_set_wrap(&c_pwm,clock_get_hz(clk_sys)/(i2s_config->sample_freq));//MAX PWM value
     pwm_init(slice_num,&c_pwm,true);
 
     //Для синхронизации используем другой произвольный канал ШИМ

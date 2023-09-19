@@ -19,6 +19,7 @@
 #include "InfoNES_pAPU.h"
 
 #include "vga.h"
+#include "audio.h"
 #include "f_util.h"
 #include "ff.h"
 #include "VGA_ROM_F16.h"
@@ -47,9 +48,6 @@ typedef enum {
 } resolution_t;
 resolution_t resolution = RESOLUTION_TEXTMODE;
 
-// final wave buffer
-int fw_wr, fw_rd;
-int final_wave[2][735 + 1]; /* 44100 (just in case)/ 60 = 735 samples per sync */
 static FATFS fs;
 
 bool saveSettingsAndReboot = false;
@@ -64,7 +62,8 @@ static constexpr uintptr_t NES_BATTERY_SAVE_ADDR = 0x100D0000; // 256K
 #define X2(a) (a | (a << 8))
 #define VGA_RGB_222(r, g, b) X2((r << 4) | (g << 2) | b)
 
-const WORD __not_in_flash_func(NesPalette)[64] = {
+const WORD __not_in_flash_func(NesPalette)
+[64] = {
 VGA_RGB_222(0x7c >> 6, 0x7c >> 6, 0x7c >> 6),
 VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0xfc >> 6),
 VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0xbc >> 6),
@@ -159,6 +158,7 @@ struct joypad_bits_t {
 static joypad_bits_t gamepad_bits = { false, false, false, false, false, false, false, false };
 
 #if USE_NESPAD
+
 void nespad_tick() {
     nespad_read();
     gamepad_bits.a |= (nespad_state & 0x01) != 0;
@@ -170,6 +170,7 @@ void nespad_tick() {
     gamepad_bits.left |= (nespad_state & 0x40) != 0;
     gamepad_bits.right |= (nespad_state & 0x80) != 0;
 }
+
 #endif
 
 #if USE_PS2_KBD
@@ -184,7 +185,8 @@ static bool isInReport(hid_keyboard_report_t const *report, const unsigned char 
     return false;
 }
 
-void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report, hid_keyboard_report_t const *prev_report) {
+void
+__not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report, hid_keyboard_report_t const *prev_report) {
     /* printf("HID key report modifiers %2.2X report ", report->modifier);
     for (unsigned char i: report->keycode)
         printf("%2.2X", i);
@@ -423,8 +425,15 @@ void InfoNES_ReleaseRom() {
     VROM = nullptr;
 }
 
+i2s_config_t i2s_config;
 void InfoNES_SoundInit() {
+    i2s_config = i2s_get_default_config();
+    i2s_config.sample_freq = 44100;
+    i2s_config.dma_trans_count = i2s_config.sample_freq / 60;
+    i2s_volume(&i2s_config, 0);
+    i2s_init(&i2s_config);
 }
+
 
 int InfoNES_SoundOpen(int samples_per_sync, int sample_rate) {
     return 0;
@@ -439,109 +448,39 @@ int __not_in_flash_func(InfoNES_GetSoundBufferSize)
 return 735;
 }
 
-int volume = 40;
-#define piezolevelmax 12800
 #define buffermax 1280
-#define FW_VOL_MAX 100
-float overdrive = 1.0f;
-
-void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, const BYTE *wave3, const BYTE *wave4, const BYTE *wave5)
-{
-    int i;
-
-    for (i = 0; i < samples; i++)
-    {
-        final_wave[fw_wr][i] = (unsigned char)wave1[i] + (unsigned char)wave2[i] + (unsigned char)wave3[i] + (unsigned char)wave4[i] + (unsigned char)wave5[i];
-    }
-    final_wave[fw_wr][i] = -1;
-    fw_wr = 1 - fw_wr;
-
-#ifdef SPEAKER_ENABLED
+void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, const BYTE *wave3, const BYTE *wave4,
+                         const BYTE *wave5) {
+    static int16_t samples_out[2][buffermax * 2];
+    static int i_active_buf = 0;
+    static int inx = 0;
 
 
-    if (final_wave[fw_rd][i] > 0)
-            {
-                //volume setting 0-50 : 0-100 volume output
-                //volume 51-100 : 1.1 - 4.0 overdrive multiplyer.
-                uint16_t volumelevel = final_wave[fw_rd][i];
-                uint16_t pwm_piezo_level_volume, pwm_speaker_level_volume;
-
-                if (volume > 0 && volume < 51)
-                {
-                    //0-50
-                    pwm_piezo_level_volume = (volumelevel * piezolevelmax / (float)buffermax) * (volume * 2) / FW_VOL_MAX;
-                    pwm_speaker_level_volume = volumelevel * (volume * 2) / FW_VOL_MAX;
-                    overdrive = 1.0f;//for display
-                }
-                else if (volume > 50)
-                {
-                    overdrive =(((volume-50)  * 2.92f) / (FW_VOL_MAX * 0.5f))  + 1.08f; //0.02 - 1 * 2.92f + 1.08f = 1.1-4.0f
-                    //100 volume so no reduction. * overdrive
-                    pwm_piezo_level_volume =ceil(volumelevel *  overdrive * piezolevelmax / (float)buffermax);
-                    pwm_speaker_level_volume =ceil( volumelevel * overdrive);
-                    //clipping
-                    if (pwm_piezo_level_volume > piezolevelmax) {
-                        pwm_piezo_level_volume = piezolevelmax;
-                    }
-                       if (pwm_speaker_level_volume > buffermax) {
-                            pwm_speaker_level_volume = buffermax;
-                    }
-                }
-                else {
-                    pwm_piezo_level_volume = 0;
-                    pwm_speaker_level_volume = 0;
-                }
-
-
-                pwm_set_gpio_level(26, pwm_speaker_level_volume);
-
-            }
-            else
-            {
-                //pwm_set_gpio_level(11, 0);
-                pwm_set_gpio_level(26, 0);
-            }
-#else
-
-
-    if (final_wave[fw_rd][i] > 0)
-    {
-        //volume setting 0-50 : 0-100 volume output
-        //volume 51-100 : 1.1 - 4.0 overdrive multiplyer.
-        uint16_t volumelevel = final_wave[fw_rd][i];
-        uint16_t pwm_piezo_level_volume;
-
-        if (volume > 0 && volume < 51)
-        {
-            //0-50
-            pwm_piezo_level_volume = (volumelevel * piezolevelmax / (float)buffermax) * (volume * 2) / FW_VOL_MAX;
-            overdrive = 1.0f;//for display
-        }
-        else if (volume > 50)
-        {
-            overdrive = (((volume - 50) * 2.92f) / (FW_VOL_MAX * 0.5f)) + 1.08f; //0.02 - 1 * 2.92f + 1.08f = 1.1-4.0f
-            //100 volume so no reduction. * overdrive
-            pwm_piezo_level_volume = ceil(volumelevel * overdrive * piezolevelmax / (float)buffermax);
-            //clipping
-            if (pwm_piezo_level_volume > piezolevelmax) {
-                pwm_piezo_level_volume = piezolevelmax;
-            }
+    for (int i = 0; i < samples; i++) {
+        int w1 = *wave1++;
+        int w2 = *wave2++;
+        int w3 = *wave3++;
+        int w4 = *wave4++;
+        int w5 = *wave5++;
+        //            w3 = w2 = w4 = w5 = 0;
+        int l = w1 * 6 + w2 * 3 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
+        int r = w1 * 3 + w2 * 6 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
+        /*
+        samples_out[i_active_buf][inx * 2] =
+                (((unsigned char) wave1[i] + (unsigned char) wave2[i] + (unsigned char) wave3[i] +
+                  (unsigned char) wave4[i] + (unsigned char) wave5[i]) - 640) << 5;
+        samples_out[i_active_buf][inx * 2 + 1] = samples_out[i_active_buf][inx * 2];
+         */
+        samples_out[i_active_buf][inx * 2] = l;
+                samples_out[i_active_buf][inx * 2 + 1] = r;
+        if (inx++ >= i2s_config.dma_trans_count) {
+            inx = 0;
+            i2s_dma_write(&i2s_config, reinterpret_cast<const int16_t *>(samples_out[i_active_buf]));
+            i_active_buf ^= 1;
 
         }
-        else {
-            pwm_piezo_level_volume = 0;
-
-        }
-        pwm_set_gpio_level(11, pwm_piezo_level_volume);
-
-    }
-    else
-    {
-        pwm_set_gpio_level(11, 0);
-
     }
 
-#endif
 }
 
 int InfoNES_LoadFrame() {
@@ -551,17 +490,27 @@ int InfoNES_LoadFrame() {
 WORD lb[256];
 
 
-void __not_in_flash_func(InfoNES_PreDrawLine)(int line){
-    InfoNES_SetLineBuffer(lb,sizeof(lb));
+void __not_in_flash_func(InfoNES_PreDrawLine)
+(
+int line
+){
+InfoNES_SetLineBuffer(lb,
+sizeof(lb));
 }
 
 #define X2(a) (a | (a << 8))
-void __not_in_flash_func(InfoNES_PostDrawLine)(int line){
-    for(int x = 0; x< NES_DISP_WIDTH; x++) SCREEN[line][x] = lb[x];
+void __not_in_flash_func(InfoNES_PostDrawLine)
+(
+int line
+){
+for(
+int x = 0;
+x< NES_DISP_WIDTH; x++) SCREEN[line][x] = lb[x];
 }
 
 
 #define CHECK_BIT(var, pos) (((var)>>(pos)) & 1)
+
 /* Renderer loop on Pico's second core */
 void __time_critical_func(render_loop)() {
     multicore_lockout_victim_init();
@@ -593,14 +542,13 @@ void __time_critical_func(render_loop)() {
                 break;
             case RESOLUTION_NATIVE:
                 for (int x = 0; x < NES_DISP_WIDTH * 2; x += 2)
-                    (uint16_t &) linebuf->line[64+x] = X2(SCREEN[y / 2][x / 2]);
+                    (uint16_t &) linebuf->line[64 + x] = X2(SCREEN[y / 2][x / 2]);
         }
 
 
     }
 
 }
-
 
 
 /**
@@ -741,7 +689,7 @@ void rom_file_selector() {
 #endif
 
 #if USE_NESPAD
-       nespad_tick();
+        nespad_tick();
 #endif
 //-----------------------------------------------------------------------------
 
@@ -812,7 +760,7 @@ bool loadAndReset() {
         return false;
     }
 
-   loadNVRAM();
+    loadNVRAM();
 
     if (InfoNES_Reset() < 0) {
         printf("NES reset error.\n");
@@ -846,17 +794,6 @@ int main() {
 #if USE_NESPAD
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
 #endif
-    final_wave[0][0] = final_wave[1][0] = -1; //click fix
-    fw_wr = fw_rd = 0;
-    //multicore_launch_core1(fw_callback);
-    // initialise audio pwm pin
-    int audio_pwm_slice_number = pwm_gpio_to_slice_num(26);
-    pwm_config audio_pwm_cfg = pwm_get_default_config();
-
-    gpio_set_function(26, GPIO_FUNC_PWM);
-    pwm_set_gpio_level(26, 0);
-    pwm_config_set_wrap(&audio_pwm_cfg, 12799);
-    pwm_init(audio_pwm_slice_number, &audio_pwm_cfg, true);
 
     // util::dumpMemory((void *)NES_FILE_ADDR, 1024);
     sem_init(&vga_start_semaphore, 0, 1);
