@@ -499,22 +499,13 @@ int InfoNES_LoadFrame() {
 WORD lb[256];
 
 
-void __not_in_flash_func(InfoNES_PreDrawLine)
-(
-int line
-){
-InfoNES_SetLineBuffer(lb,
-sizeof(lb));
+void __not_in_flash_func(InfoNES_PreDrawLine)(int line){
+InfoNES_SetLineBuffer(SCREEN[line], NES_DISP_WIDTH);
 }
 
 #define X2(a) (a | (a << 8))
-void __not_in_flash_func(InfoNES_PostDrawLine)
-(
-int line
-){
-for(
-int x = 0;
-x< NES_DISP_WIDTH; x++) SCREEN[line][x] = lb[x];
+void __not_in_flash_func(InfoNES_PostDrawLine)(int line){
+//for(int x = 0;x< NES_DISP_WIDTH; x++) SCREEN[line][x] = lb[x];
 }
 
 
@@ -553,10 +544,7 @@ void __time_critical_func(render_loop)() {
                 for (int x = 0; x < NES_DISP_WIDTH * 2; x += 2)
                     (uint16_t &) linebuf->line[64 + x] = X2(SCREEN[y / 2][x / 2]);
         }
-
-
     }
-
 }
 
 

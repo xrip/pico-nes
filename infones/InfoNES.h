@@ -336,7 +336,7 @@ void InfoNES_GetSprHitY();
 /* Develop character data */
 void InfoNES_SetupChr();
 
-void InfoNES_SetLineBuffer(WORD *p, WORD size);
+void InfoNES_SetLineBuffer(BYTE *p, WORD size);
 
 void *InfoNes_GetRAM(size_t *size);
 
