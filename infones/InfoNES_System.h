@@ -69,7 +69,7 @@ int InfoNES_SoundOpen(int samples_per_sync, int sample_rate);
 void InfoNES_SoundClose(void);
 
 /* Sound Output 5 Waves - 2 Pulse, 1 Triangle, 1 Noise, 1 DPCM */
-void InfoNES_SoundOutput(int samples, BYTE *wave1, BYTE *wave2, BYTE *wave3, BYTE *wave4, BYTE *wave5);
+void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, const BYTE *wave3, const BYTE *wave4, const BYTE *wave5);
 int InfoNES_GetSoundBufferSize();
 
 /* Print system message */

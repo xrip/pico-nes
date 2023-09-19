@@ -1,5 +1,3 @@
-
-
 #include <cstdio>
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
@@ -252,7 +250,6 @@ uint32_t getCurrentNVRAMAddr() {
 #define ADVANCEPOS 4
 #define VOLUMEINDICATORPOS 5
 
-
 // Save NES Battery RAM (about 58 Games exist with save battery)
 // Problem: First call to saveNVRAM  after power up is ok
 // Second call  causes a crash in flash_range_erase()
@@ -448,7 +445,7 @@ int volume = 40;
 #define FW_VOL_MAX 100
 float overdrive = 1.0f;
 
-void InfoNES_SoundOutput(int samples, BYTE *wave1, BYTE *wave2, BYTE *wave3, BYTE *wave4, BYTE *wave5)
+void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, const BYTE *wave3, const BYTE *wave4, const BYTE *wave5)
 {
     int i;
 
@@ -573,8 +570,7 @@ void __time_critical_func(render_loop)() {
 
     sem_acquire_blocking(&vga_start_semaphore);
     VgaInit(vmode, 640, 480);
-    uint64_t et, nt;
-    int i;
+
     while (linebuf = get_vga_line()) {
         uint32_t y = linebuf->row;
 
@@ -806,7 +802,9 @@ void rom_file_selector() {
 
 bool loadAndReset() {
     rom_file_selector();
-    memset(&SCREEN, 0, sizeof(SCREEN));
+    memset(&textmode, 0x00, sizeof(textmode));
+    memset(&colors, 0x00, sizeof(colors));
+    sleep_ms(50);
     resolution = RESOLUTION_NATIVE;
 
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
@@ -814,9 +812,7 @@ bool loadAndReset() {
         return false;
     }
 
-    if (loadNVRAM() == false) {
-        return false;
-    }
+   loadNVRAM();
 
     if (InfoNES_Reset() < 0) {
         printf("NES reset error.\n");
