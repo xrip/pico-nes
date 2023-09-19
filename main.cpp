@@ -163,14 +163,14 @@ static joypad_bits_t gamepad_bits = { false, false, false, false, false, false, 
 #if USE_NESPAD
 void nespad_tick() {
     nespad_read();
-    gamepad_bits.a &= !(nespad_state & 0x01);
-    gamepad_bits.b &= !(nespad_state & 0x02);
-    gamepad_bits.select &= !(nespad_state & 0x04);
-    gamepad_bits.start &= !(nespad_state & 0x08);
-    gamepad_bits.up &= !(nespad_state & 0x10);
-    gamepad_bits.down &= !(nespad_state & 0x20);
-    gamepad_bits.left &= !(nespad_state & 0x40);
-    gamepad_bits.right &= !(nespad_state & 0x80);
+    gamepad_bits.a |= (nespad_state & 0x01) != 0;
+    gamepad_bits.b |= (nespad_state & 0x02) != 0;
+    gamepad_bits.select |= (nespad_state & 0x04) != 0;
+    gamepad_bits.start |= (nespad_state & 0x08) != 0;
+    gamepad_bits.up |= (nespad_state & 0x10) != 0;
+    gamepad_bits.down |= (nespad_state & 0x20) != 0;
+    gamepad_bits.left |= (nespad_state & 0x40) != 0;
+    gamepad_bits.right |= (nespad_state & 0x80) != 0;
 }
 #endif
 
@@ -224,10 +224,10 @@ inline bool checkNESMagic(const uint8_t *data) {
     return ok;
 }
 
-void draw_text(char *string, uint8_t x, uint8_t y, uint8_t color, uint8_t bgcolor) {
-    uint8_t len = strlen(string);
+void draw_text(char *text, uint8_t x, uint8_t y, uint8_t color, uint8_t bgcolor) {
+    uint8_t len = strlen(text);
     len = len < 80 ? len : 80;
-    memcpy(&textmode[y][x], string, len);
+    memcpy(&textmode[y][x], text, len);
     memset(&colors[y][x], (color << 4) | (bgcolor & 0xF), len);
 }
 
@@ -494,25 +494,10 @@ void InfoNES_SoundOutput(int samples, BYTE *wave1, BYTE *wave2, BYTE *wave3, BYT
                     pwm_piezo_level_volume = 0;
                     pwm_speaker_level_volume = 0;
                 }
-                switch (1)
-                {
-                case 0: // piezo only
-                    pwm_set_gpio_level(11, pwm_piezo_level_volume);
-                    pwm_set_gpio_level(1, 0);
-                    break;
-                case 1: // speaker only
-                    //pwm_set_gpio_level(11, 0);
-                    pwm_set_gpio_level(26, pwm_speaker_level_volume);
-                    break;
-                case 2: // both only
-                    pwm_set_gpio_level(11, pwm_piezo_level_volume);
-                    pwm_set_gpio_level(1, pwm_speaker_level_volume);
-                    break;
-                case 3: // mute all
-                    pwm_set_gpio_level(11, 0);
-                    pwm_set_gpio_level(1, 0);
-                    break;
-                }
+
+
+                pwm_set_gpio_level(26, pwm_speaker_level_volume);
+
             }
             else
             {
