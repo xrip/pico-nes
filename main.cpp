@@ -158,19 +158,19 @@ struct joypad_bits_t {
     bool up: true;
     bool down: true;
 };
-static joypad_bits_t input_bits = { false, false, false, false, false, false, false, false };    // Keyboard
+static joypad_bits_t gamepad_bits = { false, false, false, false, false, false, false, false };
 
 #if USE_NESPAD
 void nespad_tick() {
     nespad_read();
-    input_bits.a &= !(nespad_state & 0x01);
-    input_bits.b &= !(nespad_state & 0x02);
-    input_bits.select &= !(nespad_state & 0x04);
-    input_bits.start &= !(nespad_state & 0x08);
-    input_bits.up &= !(nespad_state & 0x10);
-    input_bits.down &= !(nespad_state & 0x20);
-    input_bits.left &= !(nespad_state & 0x40);
-    input_bits.right &= !(nespad_state & 0x80);
+    gamepad_bits.a &= !(nespad_state & 0x01);
+    gamepad_bits.b &= !(nespad_state & 0x02);
+    gamepad_bits.select &= !(nespad_state & 0x04);
+    gamepad_bits.start &= !(nespad_state & 0x08);
+    gamepad_bits.up &= !(nespad_state & 0x10);
+    gamepad_bits.down &= !(nespad_state & 0x20);
+    gamepad_bits.left &= !(nespad_state & 0x40);
+    gamepad_bits.right &= !(nespad_state & 0x80);
 }
 #endif
 
@@ -192,14 +192,14 @@ void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report
         printf("%2.2X", i);
     printf("\r\n");
      */
-    input_bits.start = isInReport(report, 0x28);
-    input_bits.select = isInReport(report, 0x2A);
-    input_bits.a = isInReport(report, 0x1D);
-    input_bits.b = isInReport(report, 0x1B);
-    input_bits.up = isInReport(report, 0x52);
-    input_bits.down = isInReport(report, 0x51);
-    input_bits.left = isInReport(report, 0x50);
-    input_bits.right = isInReport(report, 0x4F);
+    gamepad_bits.start = isInReport(report, 0x28);
+    gamepad_bits.select = isInReport(report, 0x2A);
+    gamepad_bits.a = isInReport(report, 0x1D);
+    gamepad_bits.b = isInReport(report, 0x1B);
+    gamepad_bits.up = isInReport(report, 0x52);
+    gamepad_bits.down = isInReport(report, 0x51);
+    gamepad_bits.left = isInReport(report, 0x50);
+    gamepad_bits.right = isInReport(report, 0x4F);
     //-------------------------------------------------------------------------
 }
 
@@ -344,14 +344,14 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
 #if USE_NESPAD
     nespad_tick();
 #endif
-    int gamepad_state = (input_bits.left ? LEFT : 0) |
-                        (input_bits.right ? RIGHT : 0) |
-                        (input_bits.up ? UP : 0) |
-                        (input_bits.down ? DOWN : 0) |
-                        (input_bits.start ? START : 0) |
-                        (input_bits.select ? SELECT : 0) |
-                        (input_bits.a ? A : 0) |
-                        (input_bits.b ? B : 0) |
+    int gamepad_state = (gamepad_bits.left ? LEFT : 0) |
+                        (gamepad_bits.right ? RIGHT : 0) |
+                        (gamepad_bits.up ? UP : 0) |
+                        (gamepad_bits.down ? DOWN : 0) |
+                        (gamepad_bits.start ? START : 0) |
+                        (gamepad_bits.select ? SELECT : 0) |
+                        (gamepad_bits.a ? A : 0) |
+                        (gamepad_bits.b ? B : 0) |
                         0;
 
     ++rapidFireCounter;
@@ -765,14 +765,14 @@ void rom_file_selector() {
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-        if (input_bits.start) {
+        if (gamepad_bits.start) {
             /* copy the rom from the SD card to flash and start the game */
             char pathname[255];
             sprintf(pathname, "NES\\%s", filenames[selected]);
             load_cart_rom_file(pathname);
             break;
         }
-        if (input_bits.down) {
+        if (gamepad_bits.down) {
             /* select the next rom */
             draw_text(filenames[selected], 0, selected, 0xFF, 0x00);
             selected++;
@@ -781,7 +781,7 @@ void rom_file_selector() {
             draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
             sleep_ms(150);
         }
-        if (input_bits.up) {
+        if (gamepad_bits.up) {
             /* select the previous rom */
             draw_text(filenames[selected], 0, selected, 0xFF, 0x00);
             if (selected == 0) {
@@ -792,7 +792,7 @@ void rom_file_selector() {
             draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
             sleep_ms(150);
         }
-        if (input_bits.right) {
+        if (gamepad_bits.right) {
             /* select the next page */
             num_page++;
             numfiles = rom_file_selector_display_page(filenames, num_page);
@@ -806,7 +806,7 @@ void rom_file_selector() {
             draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
             sleep_ms(150);
         }
-        if ((input_bits.left) && num_page > 0) {
+        if ((gamepad_bits.left) && num_page > 0) {
             /* select the previous page */
             num_page--;
             numfiles = rom_file_selector_display_page(filenames, num_page);
