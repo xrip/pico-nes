@@ -60,9 +60,9 @@ const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET);
 static constexpr uintptr_t NES_BATTERY_SAVE_ADDR = 0x100D0000; // 256K
 
 #define X2(a) (a | (a << 8))
-#define VGA_RGB_222(r, g, b) X2((r << 4) | (g << 2) | b)
+#define VGA_RGB_222(r, g, b) ((r << 4) | (g << 2) | b)
 
-const WORD __not_in_flash_func(NesPalette)
+const BYTE __not_in_flash_func(NesPalette)
 [64] = {
 VGA_RGB_222(0x7c >> 6, 0x7c >> 6, 0x7c >> 6),
 VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0xfc >> 6),
