@@ -210,8 +210,8 @@ WORD *WorkFrame;
 WORD WorkFrameIdx;
 #else
 // WORD WorkFrame[ NES_DISP_WIDTH * NES_DISP_HEIGHT ];
-BYTE *WorkLine = nullptr;
-void __not_in_flash_func(InfoNES_SetLineBuffer)(BYTE *p, WORD size)
+WORD *WorkLine = nullptr;
+void __not_in_flash_func(InfoNES_SetLineBuffer)(WORD *p, WORD size)
 {
   assert(size >= NES_DISP_WIDTH);
   WorkLine = p;
@@ -857,7 +857,7 @@ namespace
 {
   void __not_in_flash_func(compositeSprite)(const uint16_t *pal,
                                             const uint8_t *spr,
-                                            uint8_t *buf)
+                                            uint16_t *buf)
   {
     auto sprEnd = spr + NES_DISP_WIDTH;
     do
@@ -905,7 +905,7 @@ void __not_in_flash_func(InfoNES_DrawLine)()
   int nYBit;
   WORD *pPalTbl;
   BYTE *pAttrBase;
-  BYTE *pPoint;
+  WORD *pPoint;
   int nNameTable;
   BYTE *pbyNameTable;
   BYTE *pbyChrData;
@@ -1178,7 +1178,7 @@ void __not_in_flash_func(InfoNES_DrawLine)()
     /*-------------------------------------------------------------------*/
     if (!(PPU_R1 & R1_CLIP_BG))
     {
-      BYTE *pPointTop;
+      WORD *pPointTop;
 
       // pPointTop = &WorkFrame[PPU_Scanline * NES_DISP_WIDTH];
       pPointTop = WorkLine;
@@ -1191,7 +1191,7 @@ void __not_in_flash_func(InfoNES_DrawLine)()
     if (PPU_UpDown_Clip &&
         (SCAN_ON_SCREEN_START > PPU_Scanline || PPU_Scanline > SCAN_BOTTOM_OFF_SCREEN_START))
     {
-      BYTE *pPointTop;
+      WORD *pPointTop;
 
       // pPointTop = &WorkFrame[PPU_Scanline * NES_DISP_WIDTH];
       pPointTop = WorkLine;
@@ -1451,7 +1451,7 @@ void __not_in_flash_func(InfoNES_DrawLine)()
     /*-------------------------------------------------------------------*/
     if (!(PPU_R1 & R1_CLIP_SP))
     {
-      BYTE *pPointTop;
+      WORD *pPointTop;
 
       // pPointTop = &WorkFrame[PPU_Scanline * NES_DISP_WIDTH];
       pPointTop = WorkLine;
