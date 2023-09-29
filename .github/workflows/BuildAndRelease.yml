@@ -81,7 +81,7 @@ jobs:
           - name: Show release info using picotool
             run: |
                  export PICO_SDK_PATH=$HOME/pico-sdk && \
-                 $HOME/picotool/build/picotool info build/${{ env.APP_NAME }}.uf2 && \
+                 $HOME/picotool/build/picotool info bin/Release/${{ env.APP_NAME }}.uf2 && \
                  echo "-----------------------------" 
 
           - name: Create release
@@ -89,7 +89,7 @@ jobs:
             if: startsWith(github.ref, 'refs/tags/')
             with:
                 files: |
-                       bin/${{ env.APP_NAME }}.uf2
+                       bin/Release/${{ env.APP_NAME }}.uf2
 
                 body_path: CHANGELOG.md
           
