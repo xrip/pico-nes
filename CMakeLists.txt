@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.13)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
 include(pico_sdk_import.cmake)
 
@@ -68,6 +72,7 @@ target_link_libraries(dendy PRIVATE
         sdcard
         fatfs
 
+        pico_runtime
         pico_stdlib
         pico_multicore
         hardware_dma

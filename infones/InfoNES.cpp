@@ -974,9 +974,9 @@ void __not_in_flash_func(InfoNES_DrawLine)()
     /*  Rendering of the block of the left end                           */
     /*-------------------------------------------------------------------*/
 
-    pbyNameTable = PPUBANK[nNameTable] + nY * 32 + nX;
+    pbyNameTable = PPUBANK[nNameTable] + (nY << 5) + nX;
     pbyChrData = PPU_BG_Base + (*pbyNameTable << 6) + nYBit;
-    pAttrBase = PPUBANK[nNameTable] + 0x3c0 + (nY / 4) * 8;
+    pAttrBase = PPUBANK[nNameTable] + 0x3c0 + ((nY / 4) << 3);
 #if 0
     pPalTbl = &PalTable[(((pAttrBase[nX >> 2] >> ((nX & 2) + nY4)) & 3) << 2)];
 
@@ -1089,8 +1089,8 @@ void __not_in_flash_func(InfoNES_DrawLine)()
     // Holizontal Mirror
     nNameTable ^= NAME_TABLE_H_MASK;
 
-    pbyNameTable = PPUBANK[nNameTable] + nY * 32;
-    pAttrBase = PPUBANK[nNameTable] + 0x3c0 + (nY / 4) * 8;
+    pbyNameTable = PPUBANK[nNameTable] + (nY << 5);
+    pAttrBase = PPUBANK[nNameTable] + 0x3c0 + ((nY / 4) << 3);
 
     /*-------------------------------------------------------------------*/
     /*  Rendering of the right table                                     */

@@ -387,7 +387,7 @@ const sVmode* Video(u8 dev, u8 res)
 	Cfg.video = v; // video timings
 	Cfg.width = w; // screen width
 	Cfg.height = h; // screen height
-	Cfg.dbly =   h <= v->vmax/2; // double scanlines ( true || )
+	Cfg.dbly = h <= v->vmax/2; // double scanlines ( true || )
 	VgaCfg(&Cfg, &Vmode); // calculate videomode setup
 
 	// initialize system clock

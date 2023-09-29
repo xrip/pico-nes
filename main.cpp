@@ -1,5 +1,6 @@
 #include <cstdio>
 #include "pico/stdlib.h"
+#include "pico/runtime.h"
 #include "hardware/pio.h"
 #include "hardware/i2c.h"
 #include "hardware/vreg.h"
@@ -35,7 +36,7 @@
 
 #endif
 
-
+#pragma GCC optimize("Ofast")
 static const sVmode *vmode = nullptr;
 struct semaphore vga_start_semaphore;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH];
@@ -519,9 +520,9 @@ void __time_critical_func(render_loop)() {
 
     sem_acquire_blocking(&vga_start_semaphore);
     VgaInit(vmode, 640, 480);
-
+    uint32_t y;
     while (linebuf = get_vga_line()) {
-        uint32_t y = linebuf->row;
+        y = linebuf->row;
 
         switch (resolution) {
             case RESOLUTION_TEXTMODE:
@@ -542,7 +543,7 @@ void __time_critical_func(render_loop)() {
                 break;
             case RESOLUTION_NATIVE:
                 for (int x = 0; x < NES_DISP_WIDTH * 2; x += 2)
-                    (uint16_t &) linebuf->line[64 + x] = X2(SCREEN[y / 2][x / 2]);
+                    (uint16_t &) linebuf->line[64 + x] = X2(SCREEN[y][x >> 1]);
         }
     }
 }
@@ -552,58 +553,47 @@ void __time_critical_func(render_loop)() {
  * Load a .gb rom file in flash from the SD card
  */
 void load_cart_rom_file(char *filename) {
-    UINT br = 0;
-    uint8_t buffer[FLASH_SECTOR_SIZE];
-    bool mismatch = false;
-
-    FRESULT fr = f_mount(&fs, "", 1);
-    if (FR_OK != fr) {
-        printf("E f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
-        return;
-    }
+    extern unsigned char VRAM[];
     FIL fil;
+    FRESULT fr;
+
+    size_t bufsize = sizeof(SCREEN);
+    BYTE *buffer = (BYTE *) SCREEN;
+    auto ofs = FLASH_TARGET_OFFSET;
+    printf("Writing %s rom to flash %x\r\n", filename, ofs);
     fr = f_open(&fil, filename, FA_READ);
+
+    UINT bytesRead;
     if (fr == FR_OK) {
-        multicore_lockout_start_blocking();
-        uint32_t ints = save_and_disable_interrupts();
-        uint32_t flash_target_offset = FLASH_TARGET_OFFSET;
         for (;;) {
-            f_read(&fil, buffer, sizeof buffer, &br);
-            if (br == 0)
-                break; /* end of file */
-
-            printf("I Erasing target region...\n");
-            flash_range_erase(flash_target_offset, FLASH_SECTOR_SIZE);
-            printf("I Programming target region...\n");
-            flash_range_program(flash_target_offset, buffer, FLASH_SECTOR_SIZE);
-            /* Read back target region and check programming */
-            printf("I Done. Reading back target region...\n");
-            for (uint32_t i = 0; i < FLASH_SECTOR_SIZE; i++) {
-                if (rom[flash_target_offset + i] != buffer[i]) {
-                    mismatch = true;
+            fr = f_read(&fil, buffer, bufsize, &bytesRead);
+            if (fr == FR_OK) {
+                if (bytesRead == 0) {
+                    break;
                 }
+
+                printf("Flashing %d bytes to flash address %x\r\n", bytesRead, ofs);
+
+                printf("Erasing...");
+                // Disable interupts, erase, flash and enable interrupts
+                uint32_t ints = save_and_disable_interrupts();
+                multicore_lockout_start_blocking();
+
+                flash_range_erase(ofs, bufsize);
+                printf("  -> Flashing...\r\n");
+                flash_range_program(ofs, buffer, bufsize);
+                multicore_lockout_end_blocking();
+                restore_interrupts(ints);
+                ofs += bufsize;
+            } else {
+                printf("Error reading rom: %d\n", fr);
+                break;
             }
-
-            /* Next sector */
-            flash_target_offset += FLASH_SECTOR_SIZE;
         }
-        restore_interrupts(ints);
-        multicore_lockout_end_blocking();
-        if (mismatch) {
-            printf("I Programming successful!\n");
-        } else {
-            printf("E Programming failed!\n");
-        }
-    } else {
-        printf("E f_open(%s) error: %s (%d)\n", filename, FRESULT_str(fr), fr);
-    }
 
-    fr = f_close(&fil);
-    if (fr != FR_OK) {
-        printf("E f_close error: %s (%d)\n", FRESULT_str(fr), fr);
-    }
 
-    printf("I load_cart_rom_file(%s) COMPLETE (%u bytes)\n", filename, br);
+        f_close(&fil);
+    }
 }
 
 /**
@@ -615,7 +605,7 @@ uint16_t rom_file_selector_display_page(char filename[28][256], uint16_t num_pag
     memset(&colors, 0x00, sizeof(colors));
     char footer[80];
     sprintf(footer, "=================== PAGE #%i -> NEXT PAGE / <- PREV. PAGE ====================", num_page);
-    draw_text(footer, 0, 29, 3, 11);
+    draw_text(footer, 0, 14, 3, 11);
 
     DIR dj;
     FILINFO fno;
@@ -638,7 +628,7 @@ uint16_t rom_file_selector_display_page(char filename[28][256], uint16_t num_pag
 
     /* skip the first N pages */
     if (num_page > 0) {
-        while (num_file < num_page * 28 && fr == FR_OK && fno.fname[0]) {
+        while (num_file < num_page * 14 && fr == FR_OK && fno.fname[0]) {
             num_file++;
             fr = f_findnext(&dj, &fno);
         }
@@ -646,7 +636,7 @@ uint16_t rom_file_selector_display_page(char filename[28][256], uint16_t num_pag
 
     /* store the filenames of this page */
     num_file = 0;
-    while (num_file < 28 && fr == FR_OK && fno.fname[0]) {
+    while (num_file < 14 && fr == FR_OK && fno.fname[0]) {
         strcpy(filename[num_file], fno.fname);
         num_file++;
         fr = f_findnext(&dj, &fno);
@@ -692,7 +682,7 @@ void rom_file_selector() {
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-        if (gamepad_bits.start||gamepad_bits_joy1.start) {
+        if (gamepad_bits.start||gamepad_bits_joy1.start||gamepad_bits_joy1.a||gamepad_bits_joy1.b) {
             /* copy the rom from the SD card to flash and start the game */
             char pathname[255];
             sprintf(pathname, "NES\\%s", filenames[selected]);
@@ -751,7 +741,7 @@ bool loadAndReset() {
     rom_file_selector();
     memset(&textmode, 0x00, sizeof(textmode));
     memset(&colors, 0x00, sizeof(colors));
-    sleep_ms(50);
+    memset(SCREEN, 0x0, sizeof(SCREEN));
     resolution = RESOLUTION_NATIVE;
 
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
@@ -775,14 +765,14 @@ int InfoNES_Menu() {
 
 int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);
-    set_sys_clock_khz(282000, true);
+    set_sys_clock_khz(288000, true);
 
     stdio_init_all();
 
     printf("Start program\n");
 
     sleep_ms(50);
-    vmode = Video(DEV_VGA, RES_VGA);
+    vmode = Video(DEV_VGA, RES_HVGA);
     sleep_ms(50);
 
 #if USE_PS2_KBD
@@ -802,13 +792,9 @@ int main() {
     // When system is rebooted after flashing SRAM, load the saved state and volume from flash and proceed.
     loadState();
 
-    // Проверка, если мы сами себя ребутнули
-    // watchdog_caused_reboot()
-
-    //resolution = RESOLUTION_TEXTMODE;
-
     while (true) {
         //printf("Starting '%s'.\n", romSelector_.GetCurrentGameName());
         InfoNES_Main();
+        tight_loop_contents();
     }
 }
