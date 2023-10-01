@@ -56,7 +56,8 @@ bool saveSettingsAndReboot = false;
 #define VOLUMEINDICATORSTRING "VOL"
 
 #define FLASH_TARGET_OFFSET (1024 * 1024)
-const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET);
+const char *rom_filename = (const char*) (XIP_BASE + FLASH_TARGET_OFFSET);
+const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET)+4096;
 //static constexpr uintptr_t rom = 0x10110000;         // Location of .nes rom or tar archive with .nes roms
 static constexpr uintptr_t NES_BATTERY_SAVE_ADDR = 0x100D0000; // 256K
 
@@ -553,7 +554,11 @@ void __time_critical_func(render_loop)() {
  * Load a .gb rom file in flash from the SD card
  */
 void load_cart_rom_file(char *filename) {
-    extern unsigned char VRAM[];
+    if (strcmp(rom_filename, filename) == 0) {
+        printf("Launching last rom");
+        return;
+    }
+
     FIL fil;
     FRESULT fr;
 
@@ -565,6 +570,15 @@ void load_cart_rom_file(char *filename) {
 
     UINT bytesRead;
     if (fr == FR_OK) {
+        uint32_t ints = save_and_disable_interrupts();
+        multicore_lockout_start_blocking();
+
+        // TODO: Save it after success loading to prevent corruptions
+        printf("Flashing %d bytes to flash address %x\r\n", 256, ofs);
+        flash_range_erase(ofs, 4096);
+        flash_range_program(ofs, reinterpret_cast<const uint8_t *>(filename), 256);
+
+        ofs += 4096;
         for (;;) {
             fr = f_read(&fil, buffer, bufsize, &bytesRead);
             if (fr == FR_OK) {
@@ -576,14 +590,10 @@ void load_cart_rom_file(char *filename) {
 
                 printf("Erasing...");
                 // Disable interupts, erase, flash and enable interrupts
-                uint32_t ints = save_and_disable_interrupts();
-                multicore_lockout_start_blocking();
-
                 flash_range_erase(ofs, bufsize);
                 printf("  -> Flashing...\r\n");
                 flash_range_program(ofs, buffer, bufsize);
-                multicore_lockout_end_blocking();
-                restore_interrupts(ints);
+
                 ofs += bufsize;
             } else {
                 printf("Error reading rom: %d\n", fr);
@@ -593,8 +603,11 @@ void load_cart_rom_file(char *filename) {
 
 
         f_close(&fil);
+        restore_interrupts(ints);
+        multicore_lockout_end_blocking();
     }
 }
+
 
 /**
  * Function used by the rom file selector to display one page of .gb rom files
