@@ -427,7 +427,7 @@ i2s_config_t i2s_config;
 void InfoNES_SoundInit() {
     i2s_config = i2s_get_default_config();
     i2s_config.sample_freq = 44100;
-    i2s_config.dma_trans_count = i2s_config.sample_freq / 60;
+    i2s_config.dma_trans_count = i2s_config.sample_freq / 50;
     i2s_volume(&i2s_config, 0);
     i2s_init(&i2s_config);
 }
@@ -485,8 +485,8 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
     }
 
 }
-
-
+int start_time;
+int frames;
 int InfoNES_LoadFrame() {
 #if USE_PS2_KBD
     ps2kbd.tick();
@@ -494,6 +494,29 @@ int InfoNES_LoadFrame() {
 
 #if USE_NESPAD
     nespad_tick();
+#endif
+    frames++;
+#if SHOW_FPS
+    if (frames == 60) {
+        uint64_t end_time;
+        uint32_t diff;
+        uint8_t fps;
+        end_time = time_us_64();
+        diff = end_time - start_time;
+        fps = ((uint64_t) frames * 1000 * 1000) / diff;
+        char fps_text[3];
+        sprintf(fps_text, "%i", fps);
+        draw_text(fps_text, 77, 0, 0xFF, 0x00);
+
+/*            printf("Frames: %u\r\n"
+                   "Time: %lu us\r\n"
+                   "FPS: %lu\r\n",
+                   frames, diff, fps);
+                   */
+        stdio_flush();
+        frames = 0;
+        start_time = time_us_64();
+    }
 #endif
     return 0;
 }
@@ -545,6 +568,24 @@ void __time_critical_func(render_loop)() {
             case RESOLUTION_NATIVE:
                 for (int x = 0; x < NES_DISP_WIDTH * 2; x += 2)
                     (uint16_t &) linebuf->line[64 + x] = X2(SCREEN[y][x >> 1]);
+#if SHOW_FPS
+                // SHOW FPS
+                if (y < 16) {
+                    for (uint8_t x = 77; x < 80; x++) {
+                        uint8_t glyph_row = VGA_ROM_F16[(textmode[y / 16][x] * 16) + y % 16];
+                        uint8_t color = colors[y / 16][x];
+
+                        for (uint8_t bit = 0; bit < 8; bit++) {
+                            if (CHECK_BIT(glyph_row, bit)) {
+                                // FOREGROUND
+                                linebuf->line[8 * x + bit] = (color >> 4) & 0xF;
+                            } else {
+                                linebuf->line[8 * x + bit] = 0;
+                            }
+                        }
+                    }
+                }
+#endif
         }
     }
 }
@@ -807,6 +848,8 @@ int main() {
 
     // When system is rebooted after flashing SRAM, load the saved state and volume from flash and proceed.
     loadState();
+    uint_fast32_t frames = 0;
+    uint64_t start_time = time_us_64();
 
     while (true) {
         //printf("Starting '%s'.\n", romSelector_.GetCurrentGameName());
