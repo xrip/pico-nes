@@ -35,7 +35,8 @@
 #include "nespad.h"
 
 #endif
-
+#define SHOW_FPS 1
+#define FRAME_LIMIT 1
 #pragma GCC optimize("Ofast")
 static const sVmode *vmode = nullptr;
 struct semaphore vga_start_semaphore;
@@ -147,7 +148,7 @@ VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
 VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
 };
 
-struct joypad_bits_t {
+struct input_bits_t {
     bool a: true;
     bool b: true;
     bool select: true;
@@ -157,23 +158,22 @@ struct joypad_bits_t {
     bool up: true;
     bool down: true;
 };
-static joypad_bits_t gamepad_bits = { false, false, false, false, false, false, false, false };
-static joypad_bits_t gamepad_bits_joy1 = { false, false, false, false, false, false, false, false };
-static joypad_bits_t gamepad_bits_joy2 = { false, false, false, false, false, false, false, false };
+static input_bits_t keyboard_bits = { false, false, false, false, false, false, false, false };
+static input_bits_t gamepad_bits = { false, false, false, false, false, false, false, false };
 
 #if USE_NESPAD
 
 void nespad_tick() {
     nespad_read();
 
-    gamepad_bits_joy1.a = (nespad_state & 0x01) != 0;
-    gamepad_bits_joy1.b = (nespad_state & 0x02) != 0;
-    gamepad_bits_joy1.select = (nespad_state & 0x04) != 0;
-    gamepad_bits_joy1.start = (nespad_state & 0x08) != 0;
-    gamepad_bits_joy1.up = (nespad_state & 0x10) != 0;
-    gamepad_bits_joy1.down = (nespad_state & 0x20) != 0;
-    gamepad_bits_joy1.left = (nespad_state & 0x40) != 0;
-    gamepad_bits_joy1.right = (nespad_state & 0x80) != 0;
+    gamepad_bits.a = (nespad_state & DPAD_A) != 0;
+    gamepad_bits.b = (nespad_state & DPAD_B) != 0;
+    gamepad_bits.select = (nespad_state & DPAD_SELECT) != 0;
+    gamepad_bits.start = (nespad_state & DPAD_START) != 0;
+    gamepad_bits.up = (nespad_state & DPAD_UP) != 0;
+    gamepad_bits.down = (nespad_state & DPAD_DOWN) != 0;
+    gamepad_bits.left = (nespad_state & DPAD_LEFT) != 0;
+    gamepad_bits.right = (nespad_state & DPAD_RIGHT) != 0;
 }
 
 #endif
@@ -196,14 +196,14 @@ void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report
         printf("%2.2X", i);
     printf("\r\n");
      */
-    gamepad_bits.start = isInReport(report, 0x28);
-    gamepad_bits.select = isInReport(report, 0x2A);
-    gamepad_bits.a = isInReport(report, 0x1D);
-    gamepad_bits.b = isInReport(report, 0x1B);
-    gamepad_bits.up = isInReport(report, 0x52);
-    gamepad_bits.down = isInReport(report, 0x51);
-    gamepad_bits.left = isInReport(report, 0x50);
-    gamepad_bits.right = isInReport(report, 0x4F);
+    keyboard_bits.start = isInReport(report, HID_KEY_ENTER);
+    keyboard_bits.select = isInReport(report, HID_KEY_BACKSPACE);
+    keyboard_bits.a = isInReport(report, HID_KEY_Z);
+    keyboard_bits.b = isInReport(report, HID_KEY_X);
+    keyboard_bits.up = isInReport(report, HID_KEY_ARROW_UP);
+    keyboard_bits.down = isInReport(report, HID_KEY_ARROW_DOWN);
+    keyboard_bits.left = isInReport(report, HID_KEY_ARROW_LEFT);
+    keyboard_bits.right = isInReport(report, HID_KEY_ARROW_RIGHT);
     //-------------------------------------------------------------------------
 }
 
@@ -340,14 +340,14 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
     static constexpr int A = 1 << 0;
     static constexpr int B = 1 << 1;
 
-    int gamepad_state = ((gamepad_bits.left||gamepad_bits_joy1.left) ? LEFT : 0) |
-                        ((gamepad_bits.right||gamepad_bits_joy1.right) ? RIGHT : 0) |
-                        ((gamepad_bits.up||gamepad_bits_joy1.up) ? UP : 0) |
-                        ((gamepad_bits.down||gamepad_bits_joy1.down) ? DOWN : 0) |
-                        ((gamepad_bits.start||gamepad_bits_joy1.start) ? START : 0) |
-                        ((gamepad_bits.select||gamepad_bits_joy1.select) ? SELECT : 0) |
-                        ((gamepad_bits.a||gamepad_bits_joy1.a) ? A : 0) |
-                        ((gamepad_bits.b||gamepad_bits_joy1.b) ? B : 0) |
+    int gamepad_state = ((keyboard_bits.left || gamepad_bits.left) ? LEFT : 0) |
+                        ((keyboard_bits.right || gamepad_bits.right) ? RIGHT : 0) |
+                        ((keyboard_bits.up || gamepad_bits.up) ? UP : 0) |
+                        ((keyboard_bits.down || gamepad_bits.down) ? DOWN : 0) |
+                        ((keyboard_bits.start || gamepad_bits.start) ? START : 0) |
+                        ((keyboard_bits.select || gamepad_bits.select) ? SELECT : 0) |
+                        ((keyboard_bits.a || gamepad_bits.a) ? A : 0) |
+                        ((keyboard_bits.b || gamepad_bits.b) ? B : 0) |
                         0;
 
 
@@ -486,8 +486,11 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
 
 }
 int start_time;
-int frames;
+int frames, frame_cnt;
+int frame_timer_start;
 int InfoNES_LoadFrame() {
+
+
 #if USE_PS2_KBD
     ps2kbd.tick();
 #endif
@@ -496,7 +499,17 @@ int InfoNES_LoadFrame() {
     nespad_tick();
 #endif
     frames++;
+#if FRAME_LIMIT
+#define FRAME_AVG 5
+    frame_cnt++;
+    if (frame_cnt == FRAME_AVG) {
+        while (time_us_64() - frame_timer_start < 20000 * FRAME_AVG);  // 50 Hz
+        frame_timer_start = time_us_64();
+        frame_cnt = 0;
+    }
+#endif
 #if SHOW_FPS
+
     if (frames == 60) {
         uint64_t end_time;
         uint32_t diff;
@@ -591,140 +604,139 @@ void __time_critical_func(render_loop)() {
 }
 
 
-/**
- * Load a .gb rom file in flash from the SD card
- */
-void load_cart_rom_file(char *filename) {
-    if (strcmp(rom_filename, filename) == 0) {
+void fileselector_load(char *pathname) {
+    if (strcmp(rom_filename, pathname) == 0) {
         printf("Launching last rom");
         return;
     }
 
-    FIL fil;
-    FRESULT fr;
-
+    FIL file;
     size_t bufsize = sizeof(SCREEN);
     BYTE *buffer = (BYTE *) SCREEN;
-    auto ofs = FLASH_TARGET_OFFSET;
-    printf("Writing %s rom to flash %x\r\n", filename, ofs);
-    fr = f_open(&fil, filename, FA_READ);
-
+    auto offset = FLASH_TARGET_OFFSET;
     UINT bytesRead;
-    if (fr == FR_OK) {
-        uint32_t ints = save_and_disable_interrupts();
+
+    printf("Writing %s rom to flash %x\r\n", pathname, offset);
+    FRESULT result = f_open(&file, pathname, FA_READ);
+
+
+    if (result == FR_OK) {
+        uint32_t interrupts = save_and_disable_interrupts();
         multicore_lockout_start_blocking();
 
         // TODO: Save it after success loading to prevent corruptions
-        printf("Flashing %d bytes to flash address %x\r\n", 256, ofs);
-        flash_range_erase(ofs, 4096);
-        flash_range_program(ofs, reinterpret_cast<const uint8_t *>(filename), 256);
+        printf("Flashing %d bytes to flash address %x\r\n", 256, offset);
+        flash_range_erase(offset, 4096);
+        flash_range_program(offset, reinterpret_cast<const uint8_t *>(pathname), 256);
 
-        ofs += 4096;
+        offset += 4096;
         for (;;) {
-            fr = f_read(&fil, buffer, bufsize, &bytesRead);
-            if (fr == FR_OK) {
+            gpio_put(PICO_DEFAULT_LED_PIN, true);
+            result = f_read(&file, buffer, bufsize, &bytesRead);
+            if (result == FR_OK) {
                 if (bytesRead == 0) {
                     break;
                 }
 
-                printf("Flashing %d bytes to flash address %x\r\n", bytesRead, ofs);
+                printf("Flashing %d bytes to flash address %x\r\n", bytesRead, offset);
 
                 printf("Erasing...");
                 // Disable interupts, erase, flash and enable interrupts
-                flash_range_erase(ofs, bufsize);
+                gpio_put(PICO_DEFAULT_LED_PIN, false);
+                flash_range_erase(offset, bufsize);
                 printf("  -> Flashing...\r\n");
-                flash_range_program(ofs, buffer, bufsize);
+                flash_range_program(offset, buffer, bufsize);
 
-                ofs += bufsize;
+                offset += bufsize;
             } else {
-                printf("Error reading rom: %d\n", fr);
+                printf("Error reading rom: %d\n", result);
                 break;
             }
         }
 
-
-        f_close(&fil);
-        restore_interrupts(ints);
+        f_close(&file);
+        restore_interrupts(interrupts);
         multicore_lockout_end_blocking();
     }
 }
 
-
-/**
- * Function used by the rom file selector to display one page of .gb rom files
- */
-uint16_t rom_file_selector_display_page(char filename[28][256], uint16_t num_page) {
-    // Dirty screen cleanup
+uint16_t fileselector_display_page(char filenames[28][256], uint16_t page_number) {
     memset(&textmode, 0x00, sizeof(textmode));
     memset(&colors, 0x00, sizeof(colors));
     char footer[80];
-    sprintf(footer, "=================== PAGE #%i -> NEXT PAGE / <- PREV. PAGE ====================", num_page);
+    sprintf(footer, "=================== PAGE #%i -> NEXT PAGE / <- PREV. PAGE ====================", page_number);
     draw_text(footer, 0, 14, 3, 11);
 
-    DIR dj;
-    FILINFO fno;
-    FRESULT fr;
-
-    fr = f_mount(&fs, "", 1);
-    if (FR_OK != fr) {
-        printf("E f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
+    DIR directory;
+    FILINFO file;
+    FRESULT result = f_mount(&fs, "", 1);
+    if (FR_OK != result) {
+        printf("E f_mount error: %s (%d)\n", FRESULT_str(result), result);
         return 0;
     }
 
     /* clear the filenames array */
     for (uint8_t ifile = 0; ifile < 28; ifile++) {
-        strcpy(filename[ifile], "");
+        strcpy(filenames[ifile], "");
     }
 
-    /* search *.gb files */
-    uint16_t num_file = 0;
-    fr = f_findfirst(&dj, &fno, "NES\\", "*.nes");
+    uint16_t total_files = 0;
+    result = f_findfirst(&directory, &file, "NES\\", "*.nes");
 
     /* skip the first N pages */
-    if (num_page > 0) {
-        while (num_file < num_page * 14 && fr == FR_OK && fno.fname[0]) {
-            num_file++;
-            fr = f_findnext(&dj, &fno);
+    if (page_number > 0) {
+        while (total_files < page_number * 14 && result == FR_OK && file.fname[0]) {
+            total_files++;
+            result = f_findnext(&directory, &file);
         }
     }
 
     /* store the filenames of this page */
-    num_file = 0;
-    while (num_file < 14 && fr == FR_OK && fno.fname[0]) {
-        strcpy(filename[num_file], fno.fname);
-        num_file++;
-        fr = f_findnext(&dj, &fno);
+    total_files = 0;
+    while (total_files < 14 && result == FR_OK && file.fname[0]) {
+        strcpy(filenames[total_files], file.fname);
+        total_files++;
+        result = f_findnext(&directory, &file);
     }
-    f_closedir(&dj);
+    f_closedir(&directory);
 
-    /* display *.gb rom files on screen */
-    // mk_ili9225_fill(0x0000);
-    for (uint8_t ifile = 0; ifile < num_file; ifile++) {
-        draw_text(filename[ifile], 0, ifile, 0xFF, 0x00);
+    for (uint8_t ifile = 0; ifile < total_files; ifile++) {
+        char pathname[255];
+        uint8_t color =  0x0d;
+        sprintf(pathname, "NES\\%s", filenames[ifile]);
+
+        if (strcmp(pathname, rom_filename) != 0) {
+            color = 0xFF;
+        }
+        draw_text(filenames[ifile], 0, ifile, color, 0x00);
     }
-    return num_file;
+    return total_files;
 }
 
-/**
- * The ROM selector displays pages of up to 22 rom files
- * allowing the user to select which rom file to start
- * Copy your *.gb rom files to the root directory of the SD card
- */
-void rom_file_selector() {
-    uint16_t num_page = 0;
+void fileselector() {
+    uint16_t page_number = 0;
     char filenames[30][256];
 
     printf("Selecting ROM\r\n");
 
     /* display the first page with up to 22 rom files */
-    uint16_t numfiles = rom_file_selector_display_page(filenames, num_page);
+    uint16_t total_files = fileselector_display_page(filenames, page_number);
 
     /* select the first rom */
-    uint8_t selected = 0;
-    draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
+    uint8_t current_file = 0;
+
+    uint8_t color = 0xFF;
+    draw_text(filenames[current_file], 0, current_file, color, 0xF8);
 
     while (true) {
+        char pathname[255];
+        sprintf(pathname, "NES\\%s", filenames[current_file]);
 
+        if (strcmp(pathname, rom_filename) != 0) {
+            color = 0xFF;
+        } else {
+            color = 0x0d;
+        }
 #if USE_PS2_KBD
         ps2kbd.tick();
 #endif
@@ -739,54 +751,52 @@ void rom_file_selector() {
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-        if (gamepad_bits.start||gamepad_bits_joy1.start||gamepad_bits_joy1.a||gamepad_bits_joy1.b) {
+        if (keyboard_bits.start || gamepad_bits.start || gamepad_bits.a || gamepad_bits.b) {
             /* copy the rom from the SD card to flash and start the game */
-            char pathname[255];
-            sprintf(pathname, "NES\\%s", filenames[selected]);
-            load_cart_rom_file(pathname);
+            fileselector_load(pathname);
             break;
         }
-        if (gamepad_bits.down||gamepad_bits_joy1.down) {
+        if (keyboard_bits.down || gamepad_bits.down) {
             /* select the next rom */
-            draw_text(filenames[selected], 0, selected, 0xFF, 0x00);
-            selected++;
-            if (selected >= numfiles)
-                selected = 0;
-            draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
+            draw_text(filenames[current_file], 0, current_file, color, 0x00);
+            current_file++;
+            if (current_file >= total_files)
+                current_file = 0;
+            draw_text(filenames[current_file], 0, current_file, color, 0xF8);
             sleep_ms(150);
         }
-        if (gamepad_bits.up||gamepad_bits_joy1.up) {
+        if (keyboard_bits.up || gamepad_bits.up) {
             /* select the previous rom */
-            draw_text(filenames[selected], 0, selected, 0xFF, 0x00);
-            if (selected == 0) {
-                selected = numfiles - 1;
+            draw_text(filenames[current_file], 0, current_file, color, 0x00);
+            if (current_file == 0) {
+                current_file = total_files - 1;
             } else {
-                selected--;
+                current_file--;
             }
-            draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
+            draw_text(filenames[current_file], 0, current_file, color, 0xF8);
             sleep_ms(150);
         }
-        if (gamepad_bits.right||gamepad_bits_joy1.right) {
+        if (keyboard_bits.right || gamepad_bits.right) {
             /* select the next page */
-            num_page++;
-            numfiles = rom_file_selector_display_page(filenames, num_page);
-            if (numfiles == 0) {
+            page_number++;
+            total_files = fileselector_display_page(filenames, page_number);
+            if (total_files == 0) {
                 /* no files in this page, go to the previous page */
-                num_page--;
-                numfiles = rom_file_selector_display_page(filenames, num_page);
+                page_number--;
+                total_files = fileselector_display_page(filenames, page_number);
             }
             /* select the first file */
-            selected = 0;
-            draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
+            current_file = 0;
+            draw_text(filenames[current_file], 0, current_file, color, 0xF8);
             sleep_ms(150);
         }
-        if ((gamepad_bits.left||gamepad_bits_joy1.left) && num_page > 0) {
+        if ((keyboard_bits.left || gamepad_bits.left) && page_number > 0) {
             /* select the previous page */
-            num_page--;
-            numfiles = rom_file_selector_display_page(filenames, num_page);
+            page_number--;
+            total_files = fileselector_display_page(filenames, page_number);
             /* select the first file */
-            selected = 0;
-            draw_text(filenames[selected], 0, selected, 0xFF, 0xF8);
+            current_file = 0;
+            draw_text(filenames[current_file], 0, current_file, color, 0xF8);
             sleep_ms(150);
         }
         tight_loop_contents();
@@ -795,7 +805,7 @@ void rom_file_selector() {
 
 
 bool loadAndReset() {
-    rom_file_selector();
+    fileselector();
     memset(&textmode, 0x00, sizeof(textmode));
     memset(&colors, 0x00, sizeof(colors));
     memset(SCREEN, 0x0, sizeof(SCREEN));
@@ -824,7 +834,12 @@ int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);
     set_sys_clock_khz(288000, true);
 
+#if !NDEBUG
     stdio_init_all();
+#endif
+
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 
     printf("Start program\n");
 
@@ -848,12 +863,9 @@ int main() {
 
     // When system is rebooted after flashing SRAM, load the saved state and volume from flash and proceed.
     loadState();
-    uint_fast32_t frames = 0;
-    uint64_t start_time = time_us_64();
 
     while (true) {
         //printf("Starting '%s'.\n", romSelector_.GetCurrentGameName());
         InfoNES_Main();
-        tight_loop_contents();
     }
 }
