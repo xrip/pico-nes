@@ -1,3 +1,7 @@
+# v1.0.0
+
+Stable 60 fps with fps limit
+
 # v0.2.2
 
 Double keypress in menu fix
