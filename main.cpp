@@ -36,7 +36,7 @@
 
 #endif
 #define SHOW_FPS 1
-#define FRAME_LIMIT 1
+#define FRAME_LIMIT 0
 #pragma GCC optimize("Ofast")
 static const sVmode *vmode = nullptr;
 struct semaphore vga_start_semaphore;

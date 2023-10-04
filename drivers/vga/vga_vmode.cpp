@@ -207,14 +207,14 @@ bool FindSysClock(u32 reqkhz, u32* outkhz, u32* outvco, u16* outfbdiv, u8* outpd
 // initialize default VGA configuration
 void VgaCfgDef(sVgaCfg* cfg)
 {
-	cfg->width = 640;		// width in pixels
-	cfg->height = 480;		// height in lines
-	cfg->wfull = 0;			// width of full screen, corresponding to 'hfull' time (0=use 'width' parameter)
-	cfg->video = &VideoVGA;		// used video timings
-	cfg->freq = 180000;       // required minimal system frequency in kHz (real frequency can be higher)
-	cfg->fmax = 240000;		// maximal system frequency in kHz (limit resolution if needed)
-	cfg->dbly = False;		// double in Y direction
-	cfg->lockfreq = False;		// lock required frequency, do not change it
+    cfg->width = 640;		// width in pixels
+    cfg->height = 480;		// height in lines
+    cfg->wfull = 0;			// width of full screen, corresponding to 'hfull' time (0=use 'width' parameter)
+    cfg->video = &VideoVGA;		// used video timings
+    cfg->freq = 288000;       // required minimal system frequency in kHz (real frequency can be higher)
+    cfg->fmax = 288000;		// maximal system frequency in kHz (limit resolution if needed)
+    cfg->dbly = False;		// double in Y direction
+    cfg->lockfreq = True;		// lock required frequency, do not change it
 }
 
 
