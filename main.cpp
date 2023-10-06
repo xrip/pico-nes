@@ -611,7 +611,7 @@ void fileselector_load(char *pathname) {
     }
 
     FIL file;
-    size_t bufsize = sizeof(SCREEN);
+    size_t bufsize = sizeof(SCREEN)&0xfffff000;
     BYTE *buffer = (BYTE *) SCREEN;
     auto offset = FLASH_TARGET_OFFSET;
     UINT bytesRead;
