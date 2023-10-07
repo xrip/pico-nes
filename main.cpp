@@ -35,14 +35,15 @@
 #include "nespad.h"
 
 #endif
-#define SHOW_FPS 1
-#define FRAME_LIMIT 0
+
 #pragma GCC optimize("Ofast")
 static const sVmode *vmode = nullptr;
 struct semaphore vga_start_semaphore;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH];
 char textmode[30][80];
 uint8_t colors[30][80];
+
+bool show_fps = false;
 
 typedef enum {
     RESOLUTION_NATIVE,
@@ -485,54 +486,7 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
     }
 
 }
-int start_time;
-int frames, frame_cnt;
-int frame_timer_start;
-int InfoNES_LoadFrame() {
 
-
-#if USE_PS2_KBD
-    ps2kbd.tick();
-#endif
-
-#if USE_NESPAD
-    nespad_tick();
-#endif
-    frames++;
-#if FRAME_LIMIT
-#define FRAME_AVG 5
-    frame_cnt++;
-    if (frame_cnt == FRAME_AVG) {
-        while (time_us_64() - frame_timer_start < 20000 * FRAME_AVG);  // 50 Hz
-        frame_timer_start = time_us_64();
-        frame_cnt = 0;
-    }
-#endif
-#if SHOW_FPS
-
-    if (frames == 60) {
-        uint64_t end_time;
-        uint32_t diff;
-        uint8_t fps;
-        end_time = time_us_64();
-        diff = end_time - start_time;
-        fps = ((uint64_t) frames * 1000 * 1000) / diff;
-        char fps_text[3];
-        sprintf(fps_text, "%i", fps);
-        draw_text(fps_text, 77, 0, 0xFF, 0x00);
-
-/*            printf("Frames: %u\r\n"
-                   "Time: %lu us\r\n"
-                   "FPS: %lu\r\n",
-                   frames, diff, fps);
-                   */
-        stdio_flush();
-        frames = 0;
-        start_time = time_us_64();
-    }
-#endif
-    return 0;
-}
 
 WORD lb[256];
 
@@ -581,24 +535,21 @@ void __time_critical_func(render_loop)() {
             case RESOLUTION_NATIVE:
                 for (int x = 0; x < NES_DISP_WIDTH * 2; x += 2)
                     (uint16_t &) linebuf->line[64 + x] = X2(SCREEN[y][x >> 1]);
-#if SHOW_FPS
                 // SHOW FPS
-                if (y < 16) {
+                if (show_fps && y < 16) {
                     for (uint8_t x = 77; x < 80; x++) {
                         uint8_t glyph_row = VGA_ROM_F16[(textmode[y / 16][x] * 16) + y % 16];
-                        uint8_t color = colors[y / 16][x];
 
                         for (uint8_t bit = 0; bit < 8; bit++) {
                             if (CHECK_BIT(glyph_row, bit)) {
                                 // FOREGROUND
-                                linebuf->line[8 * x + bit] = (color >> 4) & 0xF;
+                                linebuf->line[8 * x + bit] = 11;
                             } else {
                                 linebuf->line[8 * x + bit] = 0;
                             }
                         }
                     }
                 }
-#endif
         }
     }
 }
@@ -751,6 +702,11 @@ void fileselector() {
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+        if (keyboard_bits.select || gamepad_bits.select) {
+            gpio_put(PICO_DEFAULT_LED_PIN, true);
+            break;
+        }
+
         if (keyboard_bits.start || gamepad_bits.start || gamepad_bits.a || gamepad_bits.b) {
             /* copy the rom from the SD card to flash and start the game */
             fileselector_load(pathname);
@@ -830,8 +786,135 @@ int InfoNES_Menu() {
     return loadAndReset() ? 0 : -1;
 }
 
+#define MENU_ITEMS_NUMBER 3
+#if MENU_ITEMS_NUMBER > 15
+error("Too much menu items!")
+#endif
+const char menu_items[MENU_ITEMS_NUMBER][80] = {
+        { "Show FPS %i  " },
+        { "Reset to ROM select" },
+        { "Return to game" },
+};
+
+
+
+void *menu_values[MENU_ITEMS_NUMBER] = {
+        &show_fps,
+        nullptr,
+        nullptr,
+};
+
+void menu() {
+    bool exit = false;
+    resolution_t old_resolution = resolution;
+    memset(&textmode, 0x00, sizeof(textmode));
+    memset(&colors, 0x00, sizeof(colors));
+    resolution = RESOLUTION_TEXTMODE;
+
+    int current_item = 0;
+    char item[80];
+
+    while (!exit) {
+        nespad_read();
+        sleep_ms(25);
+        nespad_read();
+
+        if ((nespad_state & DPAD_DOWN) != 0) {
+            if (current_item < MENU_ITEMS_NUMBER - 1) {
+                current_item++;
+            } else {
+                current_item = 0;
+            }
+        }
+
+        if ((nespad_state & DPAD_UP) != 0) {
+            if (current_item > 0) {
+                current_item--;
+            } else {
+                current_item = MENU_ITEMS_NUMBER - 1;
+            }
+        }
+
+        if ((nespad_state & DPAD_LEFT) != 0 || (nespad_state & DPAD_RIGHT) != 0) {
+            switch (current_item) {
+                case 0:  // show fps
+                    show_fps = !show_fps;
+                    break;
+            }
+        }
+
+        if ((nespad_state & DPAD_START) != 0 || (nespad_state & DPAD_A) != 0 || (nespad_state & DPAD_B) != 0) {
+            switch (current_item) {
+                case MENU_ITEMS_NUMBER - 2:
+                    watchdog_enable(100, true);
+                    while (true);
+                    break;
+                case MENU_ITEMS_NUMBER - 1:
+                    exit = true;
+                    break;
+            }
+        }
+
+        for (int i = 0; i < MENU_ITEMS_NUMBER; i++) {
+            // TODO: textmode maxy from define
+            uint8_t y = i + ((15 - MENU_ITEMS_NUMBER) >> 1);
+            uint8_t x = 30;
+            uint8_t color = 0xFF;
+            uint8_t bg_color = 0x00;
+            if (current_item == i) {
+                color = 0x01;
+                bg_color = 0xFF;
+            }
+            if (strstr(menu_items[i], "%s") != nullptr) {
+                sprintf(item, menu_items[i], menu_values[i]);
+            } else {
+                sprintf(item, menu_items[i], *(uint8_t *) menu_values[i]);
+            }
+            draw_text(item, x, y, color, bg_color);
+        }
+
+        sleep_ms(100);
+    }
+
+    resolution = old_resolution;
+}
+
+int start_time;
+int frames, frame_cnt;
+int frame_timer_start;
+int InfoNES_LoadFrame() {
+#if USE_PS2_KBD
+    ps2kbd.tick();
+#endif
+
+#if USE_NESPAD
+    nespad_tick();
+#endif
+    if ((keyboard_bits.start || gamepad_bits.start) && (keyboard_bits.select || gamepad_bits.select)) {
+        menu();
+    }
+
+    frames++;
+
+    if (frames == 60) {
+        uint64_t end_time;
+        uint32_t diff;
+        uint8_t fps;
+        end_time = time_us_64();
+        diff = end_time - start_time;
+        fps = ((uint64_t) frames * 1000 * 1000) / diff;
+        char fps_text[3];
+        sprintf(fps_text, "%i ", fps);
+        draw_text(fps_text, 77, 0, 0xFF, 0x00);
+        frames = 0;
+        start_time = time_us_64();
+    }
+    return 0;
+}
+
 int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);
+    sleep_ms(33);
     set_sys_clock_khz(288000, true);
 
 #if !NDEBUG
@@ -840,6 +923,14 @@ int main() {
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+
+
+    for (int i = 0; i < 6; i++) {
+        sleep_ms(33);
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
+        sleep_ms(33);
+        gpio_put(PICO_DEFAULT_LED_PIN, false);
+    }
 
     printf("Start program\n");
 
@@ -861,11 +952,6 @@ int main() {
     multicore_launch_core1(render_loop);
     sem_release(&vga_start_semaphore);
 
-    // When system is rebooted after flashing SRAM, load the saved state and volume from flash and proceed.
     loadState();
-
-    while (true) {
-        //printf("Starting '%s'.\n", romSelector_.GetCurrentGameName());
-        InfoNES_Main();
-    }
+    InfoNES_Main();
 }
