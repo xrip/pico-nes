@@ -1,3 +1,7 @@
+# v1.0.1
+
+Ingame menu on START+SELECT
+
 # v1.0.0
 
 Stable 60 fps with fps limit
