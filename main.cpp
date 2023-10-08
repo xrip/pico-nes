@@ -815,11 +815,12 @@ void menu() {
     char item[80];
 
     while (!exit) {
+        ps2kbd.tick();
         nespad_read();
         sleep_ms(25);
         nespad_read();
 
-        if ((nespad_state & DPAD_DOWN) != 0) {
+        if ((nespad_state & DPAD_DOWN || keyboard_bits.down) != 0) {
             if (current_item < MENU_ITEMS_NUMBER - 1) {
                 current_item++;
             } else {
@@ -827,7 +828,7 @@ void menu() {
             }
         }
 
-        if ((nespad_state & DPAD_UP) != 0) {
+        if ((nespad_state & DPAD_UP || keyboard_bits.up) != 0) {
             if (current_item > 0) {
                 current_item--;
             } else {
@@ -835,7 +836,10 @@ void menu() {
             }
         }
 
-        if ((nespad_state & DPAD_LEFT) != 0 || (nespad_state & DPAD_RIGHT) != 0) {
+        if (
+                ((nespad_state & DPAD_LEFT) != 0 || (nespad_state & DPAD_RIGHT) != 0) ||
+                (keyboard_bits.left || keyboard_bits.right)
+                ) {
             switch (current_item) {
                 case 0:  // show fps
                     show_fps = !show_fps;
@@ -843,7 +847,10 @@ void menu() {
             }
         }
 
-        if ((nespad_state & DPAD_START) != 0 || (nespad_state & DPAD_A) != 0 || (nespad_state & DPAD_B) != 0) {
+        if (
+                ((nespad_state & DPAD_START) != 0 || (nespad_state & DPAD_A) != 0 || (nespad_state & DPAD_B) != 0) ||
+                        (keyboard_bits.b || keyboard_bits.a || keyboard_bits.start)
+                ) {
             switch (current_item) {
                 case MENU_ITEMS_NUMBER - 2:
                     watchdog_enable(100, true);
