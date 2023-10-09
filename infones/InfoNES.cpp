@@ -1655,3 +1655,269 @@ void __not_in_flash_func(InfoNES_SetupChr)()
   ChrBufUpdate = 0;
 #endif
 }
+
+#include "InfoNES.h"
+#include "InfoNES_Mapper.h"
+#include "InfoNES_pAPU.h"
+extern BYTE SP; extern BYTE F; extern BYTE A; extern BYTE X; extern BYTE Y;
+
+extern BYTE IRQ_Wiring;
+extern BYTE NMI_Wiring;
+extern WORD g_wPassedClocks;
+extern BYTE g_byTestTable[ 256 ];
+
+extern struct value_table_tag g_ASLTable[ 256 ];
+extern struct value_table_tag g_LSRTable[ 256 ];
+extern struct value_table_tag g_ROLTable[ 2 ][ 256 ];
+extern struct value_table_tag g_RORTable[ 2 ][ 256 ];
+
+extern DWORD Map1_bank1;
+extern DWORD Map1_bank2;
+extern DWORD Map1_bank3;
+extern DWORD Map1_bank4;
+extern BYTE  Map1_Regs[ 4 ];
+extern DWORD Map1_Cnt;
+extern BYTE  Map1_Latch;
+extern WORD  Map1_Last_Write_Addr;
+extern DWORD Map1_HI1;
+extern DWORD Map1_HI2;
+
+extern DWORD Map1_256K_base;
+extern DWORD Map1_swap;
+
+extern BYTE  Map4_Regs[ 8 ];
+extern DWORD Map4_Rom_Bank;
+extern DWORD Map4_Prg0, Map4_Prg1;
+extern DWORD Map4_Chr01, Map4_Chr23;
+extern DWORD Map4_Chr4, Map4_Chr5, Map4_Chr6, Map4_Chr7;
+
+extern BYTE Map4_IRQ_Enable;
+extern BYTE Map4_IRQ_Cnt;
+extern BYTE Map4_IRQ_Latch;
+extern BYTE Map4_IRQ_Request;
+extern BYTE Map4_IRQ_Present;
+extern BYTE Map4_IRQ_Present_Vbl;
+#include "ff.h"
+static FATFS fs;
+
+void save(const char * rom_filename)
+{
+    char pathname[255];
+    sprintf(pathname, "%s.save", rom_filename);
+    FRESULT fr = f_mount(&fs, "", 1);
+    FIL fd;
+    fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
+    UINT bw;
+
+    f_write(&fd, &PC, 2, &bw);
+    f_write(&fd, &SP, 1, &bw);
+    f_write(&fd, &F, 1, &bw);
+    f_write(&fd, &A, 1, &bw);
+    f_write(&fd, &X, 1, &bw);
+    f_write(&fd, &Y, 1, &bw);
+    f_write(&fd, RAM, RAM_SIZE, &bw);
+    f_write(&fd, SRAM, SRAM_SIZE, &bw);
+    f_write(&fd, PPURAM, PPURAM_SIZE, &bw);
+    f_write(&fd, SPRRAM, SPRRAM_SIZE, &bw);
+    f_write(&fd, *PPUBANK, 16 * sizeof(*PPUBANK), &bw);
+    f_write(&fd, ChrBuf, 256 * 2 * 8 * 8 , &bw);
+    f_write(&fd, &ROMBANK0, 4, &bw);
+    f_write(&fd, &ROMBANK1, 4, &bw);
+    f_write(&fd, &ROMBANK2, 4, &bw);
+    f_write(&fd, &ROMBANK3, 4, &bw);
+    f_write(&fd, &IRQ_Wiring, 1, &bw);
+    f_write(&fd, &NMI_Wiring, 1, &bw);
+    f_write(&fd, &g_wPassedClocks, 2, &bw);
+    f_write(&fd, g_byTestTable, 256, &bw);
+    f_write(&fd, g_ASLTable, 256 * 2, &bw);
+    f_write(&fd, g_LSRTable, 256 * 2, &bw);
+    f_write(&fd, g_ROLTable, 256 * 2 * 2, &bw);
+    f_write(&fd, g_RORTable, 256 * 2 * 2, &bw);
+
+    f_write(&fd, &PPU_R1, 1, &bw);
+    f_write(&fd, &PPU_R2, 1, &bw);
+    f_write(&fd, &PPU_R3, 1, &bw);
+    f_write(&fd, &PPU_R7, 1, &bw);
+
+    f_write(&fd, &PPU_Addr, 2, &bw);
+    f_write(&fd, &PPU_Temp, 2, &bw);
+    f_write(&fd, &PPU_Increment, 2, &bw);
+
+    f_write(&fd, PalTable, 32 * 2, &bw);
+
+
+    f_write(&fd, &PPU_Scr_H_Byte, 1, &bw);
+    f_write(&fd, &PPU_Scr_H_Bit, 1, &bw);
+
+    f_write(&fd, PPU_ScanTable, 263, &bw);
+    f_write(&fd, &PPU_NameTableBank, 1, &bw);
+    f_write(&fd, &PPU_Latch_Flag, 1, &bw);
+
+    f_write(&fd, &IRQ_State, 1, &bw);
+    f_write(&fd, &IRQ_Wiring, 1, &bw);
+    f_write(&fd, &NMI_State, 1, &bw);
+    f_write(&fd, &NMI_Wiring, 1, &bw);
+
+    f_write(&fd, APU_Reg, 0x18, &bw);
+    f_write(&fd, &ChrBufUpdate, 1, &bw);
+
+    f_write(&fd, &PPU_UpDown_Clip, 1, &bw);
+    f_write(&fd, &FrameIRQ_Enable, 1, &bw);
+    f_write(&fd, &FrameStep, 2, &bw);
+
+    f_write(&fd, &byVramWriteEnable, 1, &bw);
+    f_write(&fd, &SpriteJustHit, 4, &bw);
+
+    f_write(&fd, &FrameCnt, 2, &bw);
+
+    if(MapperNo == 1)
+    {
+        f_write(&fd, &Map1_bank1, 4, &bw);
+        f_write(&fd, &Map1_bank2, 4, &bw);
+        f_write(&fd, &Map1_bank3, 4, &bw);
+        f_write(&fd, &Map1_bank4, 4, &bw);
+        f_write(&fd, Map1_Regs, 4, &bw);
+
+        f_write(&fd, &Map1_Cnt, 4, &bw);
+        f_write(&fd, &Map1_Latch, 1, &bw);
+        f_write(&fd, &Map1_Last_Write_Addr, 2, &bw);
+        f_write(&fd, &Map1_HI1, 4, &bw);
+        f_write(&fd, &Map1_HI2, 4, &bw);
+        f_write(&fd, &Map1_256K_base, 4, &bw);
+        f_write(&fd, &Map1_swap, 4, &bw);
+    }
+    if(MapperNo == 4)
+    {
+        f_write(&fd, Map4_Regs, 8, &bw);
+        f_write(&fd, &Map4_Rom_Bank, 4, &bw);
+        f_write(&fd, &Map4_Prg0, 4, &bw);
+        f_write(&fd, &Map4_Prg1, 4, &bw);
+        f_write(&fd, &Map4_Chr01, 4, &bw);
+        f_write(&fd, &Map4_Chr23, 4, &bw);
+        f_write(&fd, &Map4_Chr4, 4, &bw);
+        f_write(&fd, &Map4_Chr5, 4, &bw);
+        f_write(&fd, &Map4_Chr6, 4, &bw);
+        f_write(&fd, &Map4_Chr7, 4, &bw);
+
+        f_write(&fd, &Map4_IRQ_Enable, 1, &bw);
+        f_write(&fd, &Map4_IRQ_Cnt, 1, &bw);
+        f_write(&fd, &Map4_IRQ_Latch, 1, &bw);
+        f_write(&fd, &Map4_IRQ_Request, 1, &bw);
+        f_write(&fd, &Map4_IRQ_Present, 1, &bw);
+        f_write(&fd, &Map4_IRQ_Present_Vbl, 1, &bw);
+    }
+
+    f_close(&fd);
+
+    return;
+}
+
+void load(const char * rom_filename)
+{
+    char pathname[255];
+    sprintf(pathname, "%s.save", rom_filename);
+    FRESULT fr = f_mount(&fs, "", 1);
+    FIL fd;
+    fr = f_open(&fd, pathname, FA_READ);
+    UINT br;
+
+    f_read(&fd, &PC, 2, &br);
+    f_read(&fd, &SP, 1, &br);
+    f_read(&fd, &F, 1, &br);
+    f_read(&fd, &A, 1, &br);
+    f_read(&fd, &X, 1, &br);
+    f_read(&fd, &Y, 1, &br);
+    f_read(&fd, RAM, RAM_SIZE, &br);
+    f_read(&fd, SRAM, SRAM_SIZE, &br);
+    f_read(&fd, PPURAM, PPURAM_SIZE, &br);
+    f_read(&fd, SPRRAM, SPRRAM_SIZE, &br);
+    f_read(&fd, *PPUBANK, 16 * sizeof(*PPUBANK), &br);
+    f_read(&fd, ChrBuf, 256 * 2 * 8 * 8 , &br);
+    f_read(&fd, &ROMBANK0, 4, &br);
+    f_read(&fd, &ROMBANK1, 4, &br);
+    f_read(&fd, &ROMBANK2, 4, &br);
+    f_read(&fd, &ROMBANK3, 4, &br);
+    f_read(&fd, &IRQ_Wiring, 1, &br);
+    f_read(&fd, &NMI_Wiring, 1, &br);
+    f_read(&fd, &g_wPassedClocks, 2, &br);
+    f_read(&fd, g_byTestTable, 256, &br);
+    f_read(&fd, g_ASLTable, 256 * 2, &br);
+    f_read(&fd, g_LSRTable, 256 * 2, &br);
+    f_read(&fd, g_ROLTable, 256 * 2 * 2, &br);
+    f_read(&fd, g_RORTable, 256 * 2 * 2, &br);
+
+    f_read(&fd, &PPU_R1, 1, &br);
+    f_read(&fd, &PPU_R2, 1, &br);
+    f_read(&fd, &PPU_R3, 1, &br);
+    f_read(&fd, &PPU_R7, 1, &br);
+
+    f_read(&fd, &PPU_Addr, 2, &br);
+    f_read(&fd, &PPU_Temp, 2, &br);
+    f_read(&fd, &PPU_Increment, 2, &br);
+
+    f_read(&fd, PalTable, 32 * 2, &br);
+
+    f_read(&fd, &PPU_Scr_H_Byte, 1, &br);
+    f_read(&fd, &PPU_Scr_H_Bit, 1, &br);
+
+    f_read(&fd, PPU_ScanTable, 263, &br);
+    f_read(&fd, &PPU_NameTableBank, 1, &br);
+    f_read(&fd, &PPU_Latch_Flag, 1, &br);
+
+    f_read(&fd, &IRQ_State, 1, &br);
+    f_read(&fd, &IRQ_Wiring, 1, &br);
+    f_read(&fd, &NMI_State, 1, &br);
+    f_read(&fd, &NMI_Wiring, 1, &br);
+
+    f_read(&fd, APU_Reg, 0x18, &br);
+    f_read(&fd, &ChrBufUpdate, 1, &br);
+
+    f_read(&fd, &PPU_UpDown_Clip, 1, &br);
+    f_read(&fd, &FrameIRQ_Enable, 1, &br);
+    f_read(&fd, &FrameStep, 2, &br);
+
+    f_read(&fd, &byVramWriteEnable, 1, &br);
+    f_read(&fd, &SpriteJustHit, 4, &br);
+
+    f_read(&fd, &FrameCnt, 2, &br);
+
+
+    if(MapperNo == 1)
+    {
+        f_read(&fd, &Map1_bank1, 4, &br);
+        f_read(&fd, &Map1_bank2, 4, &br);
+        f_read(&fd, &Map1_bank3, 4, &br);
+        f_read(&fd, &Map1_bank4, 4, &br);
+        f_read(&fd, Map1_Regs, 4, &br);
+
+        f_read(&fd, &Map1_Cnt, 4, &br);
+        f_read(&fd, &Map1_Latch, 1, &br);
+        f_read(&fd, &Map1_Last_Write_Addr, 2, &br);
+        f_read(&fd, &Map1_HI1, 4, &br);
+        f_read(&fd, &Map1_HI2, 4, &br);
+        f_read(&fd, &Map1_256K_base, 4, &br);
+        f_read(&fd, &Map1_swap, 4, &br);
+    }
+
+    if(MapperNo == 4)
+    {
+        f_read(&fd, Map4_Regs, 8, &br);
+        f_read(&fd, &Map4_Rom_Bank, 4, &br);
+        f_read(&fd, &Map4_Prg0, 4, &br);
+        f_read(&fd, &Map4_Prg1, 4, &br);
+        f_read(&fd, &Map4_Chr01, 4, &br);
+        f_read(&fd, &Map4_Chr23, 4, &br);
+        f_read(&fd, &Map4_Chr4, 4, &br);
+        f_read(&fd, &Map4_Chr5, 4, &br);
+        f_read(&fd, &Map4_Chr6, 4, &br);
+        f_read(&fd, &Map4_Chr7, 4, &br);
+
+        f_read(&fd, &Map4_IRQ_Enable, 1, &br);
+        f_read(&fd, &Map4_IRQ_Cnt, 1, &br);
+        f_read(&fd, &Map4_IRQ_Latch, 1, &br);
+        f_read(&fd, &Map4_IRQ_Request, 1, &br);
+        f_read(&fd, &Map4_IRQ_Present, 1, &br);
+        f_read(&fd, &Map4_IRQ_Present_Vbl, 1, &br);
+    }
+    f_close(&fd);
+}

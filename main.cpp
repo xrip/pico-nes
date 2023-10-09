@@ -868,6 +868,9 @@ enum menu_type_e {
     INT,
     TEXT,
     ARRAY,
+
+    SAVE,
+    LOAD,
     RESET,
     RETURN,
 };
@@ -880,14 +883,17 @@ typedef struct __attribute__((__packed__)) {
     char value_list[5][10];
 } MenuItem;
 
-#define MENU_ITEMS_NUMBER 6
+#define MENU_ITEMS_NUMBER 9
 #if MENU_ITEMS_NUMBER > (TEXTMODE_ROWS / 2)
-error("Too much menu items!")
+#error("Too much menu items!")
 #endif
 const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "Player 1: %s",        ARRAY, &player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
         { "Player 2: %s",        ARRAY, &player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
         { "Show FPS: %s",        ARRAY, &show_fps,       1, { "NO ",       "YES" }},
+        { "" },
+        { "Save state", SAVE },
+        { "Load state", LOAD },
         { "" },
         { "Reset to ROM select", RESET },
         { "Return to game",      RETURN }
@@ -924,7 +930,6 @@ void menu() {
         }
 
         for (int i = 0; i < MENU_ITEMS_NUMBER; i++) {
-            // TODO: textmode maxy from define
             uint8_t y = i + (((TEXTMODE_ROWS >> 1) - MENU_ITEMS_NUMBER) >> 1);
             uint8_t x = 30;
             uint8_t color = 0xFF;
@@ -950,6 +955,18 @@ void menu() {
                             if ((nespad_state & DPAD_LEFT || keyboard_bits.left) && *value > 0) {
                                 (*value)--;
                             }
+                        }
+                        break;
+                    case SAVE:
+                        if (nespad_state & DPAD_START || keyboard_bits.start) {
+                            save(rom_filename);
+                            exit = true;
+                        }
+                        break;
+                    case LOAD:
+                        if (nespad_state & DPAD_START || keyboard_bits.start) {
+                            load(rom_filename);
+                            exit = true;
                         }
                         break;
                     case RETURN:
