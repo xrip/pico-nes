@@ -1,3 +1,7 @@
+# v1.2.0
+
+Added ability to save and load gamestate. One per rom.
+
 # v1.1.0
 
 Two players support, player1/2 input selectable from ingame menu
