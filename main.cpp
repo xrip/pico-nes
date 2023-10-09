@@ -35,13 +35,16 @@
 #include "nespad.h"
 
 #endif
+#include "pico/binary_info.h"
 
 #pragma GCC optimize("Ofast")
 static const sVmode *vmode = nullptr;
 struct semaphore vga_start_semaphore;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH];
-char textmode[30][80];
-uint8_t colors[30][80];
+#define TEXTMODE_ROWS 30
+#define TEXTMODE_COLS 80
+char textmode[TEXTMODE_ROWS][TEXTMODE_COLS];
+uint8_t colors[TEXTMODE_ROWS][TEXTMODE_COLS];
 
 bool show_fps = false;
 
@@ -58,8 +61,8 @@ bool saveSettingsAndReboot = false;
 #define VOLUMEINDICATORSTRING "VOL"
 
 #define FLASH_TARGET_OFFSET (1024 * 1024)
-const char *rom_filename = (const char*) (XIP_BASE + FLASH_TARGET_OFFSET);
-const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET)+4096;
+const char *rom_filename = (const char *) (XIP_BASE + FLASH_TARGET_OFFSET);
+const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET) + 4096;
 //static constexpr uintptr_t rom = 0x10110000;         // Location of .nes rom or tar archive with .nes roms
 static constexpr uintptr_t NES_BATTERY_SAVE_ADDR = 0x100D0000; // 256K
 
@@ -191,7 +194,8 @@ static bool isInReport(hid_keyboard_report_t const *report, const unsigned char 
     return false;
 }
 
-void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report, hid_keyboard_report_t const *prev_report) {
+void
+__not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report, hid_keyboard_report_t const *prev_report) {
     /* printf("HID key report modifiers %2.2X report ", report->modifier);
     for (unsigned char i: report->keycode)
         printf("%2.2X", i);
@@ -425,6 +429,7 @@ void InfoNES_ReleaseRom() {
 }
 
 i2s_config_t i2s_config;
+
 void InfoNES_SoundInit() {
     i2s_config = i2s_get_default_config();
     i2s_config.sample_freq = 44100;
@@ -448,18 +453,16 @@ return 735;
 }
 
 #define buffermax 1280
+
 void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, const BYTE *wave3, const BYTE *wave4,
                          const BYTE *wave5) {
-    static int16_t samples_out[2][buffermax*2];
-    static int i_active_buf=0;
-    static int inx=0;
+    static int16_t samples_out[2][buffermax * 2];
+    static int i_active_buf = 0;
+    static int inx = 0;
 
 
-
-
-    for (int i = 0; i < samples; i++)
-    {
-        int r,l;
+    for (int i = 0; i < samples; i++) {
+        int r, l;
 
         //mono
 //            l=(((unsigned char)wave1[i] + (unsigned char)wave2[i] + (unsigned char)wave3[i] + (unsigned char)wave4[i] + (unsigned char)wave5[i])-640)<<5;
@@ -474,13 +477,12 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
         l = w1 * 6 + w2 * 3 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
         r = w1 * 3 + w2 * 6 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
 
-        samples_out[i_active_buf][inx*2]=l*2;
-        samples_out[i_active_buf][inx*2+1]=r*2;
-        if(inx++>=i2s_config.dma_trans_count)
-        {
-            inx=0;
+        samples_out[i_active_buf][inx * 2] = l * 2;
+        samples_out[i_active_buf][inx * 2 + 1] = r * 2;
+        if (inx++ >= i2s_config.dma_trans_count) {
+            inx = 0;
             i2s_dma_write(&i2s_config, reinterpret_cast<const int16_t *>(samples_out[i_active_buf]));
-            i_active_buf^=1;
+            i_active_buf ^= 1;
 
         }
     }
@@ -491,13 +493,22 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
 WORD lb[256];
 
 
-void __not_in_flash_func(InfoNES_PreDrawLine)(int line){
-InfoNES_SetLineBuffer(lb, NES_DISP_WIDTH);
+void __not_in_flash_func(InfoNES_PreDrawLine)
+(
+int line
+){
+InfoNES_SetLineBuffer(lb,
+NES_DISP_WIDTH);
 }
 
 #define X2(a) (a | (a << 8))
-void __not_in_flash_func(InfoNES_PostDrawLine)(int line){
-for(int x = 0;x< NES_DISP_WIDTH; x++) SCREEN[line][x] = lb[x];
+void __not_in_flash_func(InfoNES_PostDrawLine)
+(
+int line
+){
+for(
+int x = 0;
+x< NES_DISP_WIDTH; x++) SCREEN[line][x] = lb[x];
 }
 
 
@@ -562,7 +573,7 @@ void fileselector_load(char *pathname) {
     }
 
     FIL file;
-    size_t bufsize = sizeof(SCREEN)&0xfffff000;
+    size_t bufsize = sizeof(SCREEN) & 0xfffff000;
     BYTE *buffer = (BYTE *) SCREEN;
     auto offset = FLASH_TARGET_OFFSET;
     UINT bytesRead;
@@ -653,7 +664,7 @@ uint16_t fileselector_display_page(char filenames[28][256], uint16_t page_number
 
     for (uint8_t ifile = 0; ifile < total_files; ifile++) {
         char pathname[255];
-        uint8_t color =  0x0d;
+        uint8_t color = 0x0d;
         sprintf(pathname, "NES\\%s", filenames[ifile]);
 
         if (strcmp(pathname, rom_filename) != 0) {
@@ -786,22 +797,32 @@ int InfoNES_Menu() {
     return loadAndReset() ? 0 : -1;
 }
 
-#define MENU_ITEMS_NUMBER 3
-#if MENU_ITEMS_NUMBER > 15
+#define MENU_ITEMS_NUMBER 4
+#if MENU_ITEMS_NUMBER > TEXTMODE_ROWS
 error("Too much menu items!")
 #endif
-const char menu_items[MENU_ITEMS_NUMBER][80] = {
-        { "Show FPS %i  " },
-        { "Reset to ROM select" },
-        { "Return to game" },
+enum menu_type_e {
+    NONE,
+    INT,
+    TEXT,
+    ARRAY,
+    RESET,
+    RETURN,
 };
 
+typedef struct __attribute__((__packed__)) {
+    const char *text;
+    menu_type_e type;
+    const void *value;
+    uint8_t max_value;
+    char value_list[5][10];
+} MenuItem;
 
-
-void *menu_values[MENU_ITEMS_NUMBER] = {
-        &show_fps,
-        nullptr,
-        nullptr,
+const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
+        { "Show FPS: %s  ",      ARRAY, &show_fps, 1, { "NO ", "YES" }},
+        { "" },
+        { "Reset to ROM select", RESET },
+        { "Return to game",      RETURN }
 };
 
 void menu() {
@@ -811,8 +832,10 @@ void menu() {
     memset(&colors, 0x00, sizeof(colors));
     resolution = RESOLUTION_TEXTMODE;
 
+    char footer[80];
+    sprintf(footer, ":: %s %s build %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__, __TIME__);
+    draw_text(footer, (TEXTMODE_COLS - strlen(footer)) >> 1 , 0, 11, 1);
     int current_item = 0;
-    char item[80];
 
     while (!exit) {
         ps2kbd.tick();
@@ -821,50 +844,20 @@ void menu() {
         nespad_read();
 
         if ((nespad_state & DPAD_DOWN || keyboard_bits.down) != 0) {
-            if (current_item < MENU_ITEMS_NUMBER - 1) {
+            current_item = (current_item + 1) % MENU_ITEMS_NUMBER;
+            if (menu_items[current_item].type == NONE)
                 current_item++;
-            } else {
-                current_item = 0;
-            }
         }
 
         if ((nespad_state & DPAD_UP || keyboard_bits.up) != 0) {
-            if (current_item > 0) {
+            current_item = (current_item -1 + MENU_ITEMS_NUMBER) % MENU_ITEMS_NUMBER;
+            if (menu_items[current_item].type == NONE)
                 current_item--;
-            } else {
-                current_item = MENU_ITEMS_NUMBER - 1;
-            }
-        }
-
-        if (
-                ((nespad_state & DPAD_LEFT) != 0 || (nespad_state & DPAD_RIGHT) != 0) ||
-                (keyboard_bits.left || keyboard_bits.right)
-                ) {
-            switch (current_item) {
-                case 0:  // show fps
-                    show_fps = !show_fps;
-                    break;
-            }
-        }
-
-        if (
-                ((nespad_state & DPAD_START) != 0 || (nespad_state & DPAD_A) != 0 || (nespad_state & DPAD_B) != 0) ||
-                        (keyboard_bits.b || keyboard_bits.a || keyboard_bits.start)
-                ) {
-            switch (current_item) {
-                case MENU_ITEMS_NUMBER - 2:
-                    watchdog_enable(100, true);
-                    while (true);
-                    break;
-                case MENU_ITEMS_NUMBER - 1:
-                    exit = true;
-                    break;
-            }
         }
 
         for (int i = 0; i < MENU_ITEMS_NUMBER; i++) {
             // TODO: textmode maxy from define
-            uint8_t y = i + ((15 - MENU_ITEMS_NUMBER) >> 1);
+            uint8_t y = i + (((TEXTMODE_ROWS >> 1) - MENU_ITEMS_NUMBER) >> 1);
             uint8_t x = 30;
             uint8_t color = 0xFF;
             uint8_t bg_color = 0x00;
@@ -872,12 +865,52 @@ void menu() {
                 color = 0x01;
                 bg_color = 0xFF;
             }
-            if (strstr(menu_items[i], "%s") != nullptr) {
-                sprintf(item, menu_items[i], menu_values[i]);
-            } else {
-                sprintf(item, menu_items[i], *(uint8_t *) menu_values[i]);
+
+            const MenuItem *item = &menu_items[i];
+
+            if (i == current_item) {
+                switch (item->type) {
+                    case INT:
+                    case ARRAY:
+                        if (item->max_value != 0) {
+                            auto *value = (uint8_t *) item->value;
+
+                            if ((nespad_state & DPAD_RIGHT) && *value < item->max_value) {
+                                (*value)++;
+                            }
+
+                            if ((nespad_state & DPAD_LEFT) && *value > 0) {
+                                (*value)--;
+                            }
+                        }
+                        break;
+                    case RETURN:
+                        if (nespad_state & DPAD_START)
+                            exit = true;
+                        break;
+                    case RESET:
+                        if (nespad_state & DPAD_START)
+                            watchdog_enable(100, true);
+                }
+
             }
-            draw_text(item, x, y, color, bg_color);
+            static char result[80];
+
+            switch (item->type) {
+                case INT:
+                    sprintf(result, item->text, *(uint8_t *) item->value);
+                    break;
+                case ARRAY:
+                    sprintf(result, item->text, item->value_list[*(uint8_t *) item->value]);
+                    break;
+                case TEXT:
+                    sprintf(result, item->text, item->value);
+                    break;
+                default:
+                    sprintf(result, "%s", item->text);
+            }
+
+            draw_text(result, x, y, color, bg_color);
         }
 
         sleep_ms(100);
@@ -889,6 +922,7 @@ void menu() {
 int start_time;
 int frames, frame_cnt;
 int frame_timer_start;
+
 int InfoNES_LoadFrame() {
 #if USE_PS2_KBD
     ps2kbd.tick();
