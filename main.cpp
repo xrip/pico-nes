@@ -35,6 +35,7 @@
 #include "nespad.h"
 
 #endif
+
 #include "pico/binary_info.h"
 
 #pragma GCC optimize("Ofast")
@@ -55,8 +56,11 @@ typedef enum {
 resolution_t resolution = RESOLUTION_TEXTMODE;
 
 static FATFS fs;
+uint8_t player_1_input = 1;
+uint8_t player_2_input = 0;
 
 bool saveSettingsAndReboot = false;
+
 #define STATUSINDICATORSTRING "STA"
 #define VOLUMEINDICATORSTRING "VOL"
 
@@ -163,21 +167,31 @@ struct input_bits_t {
     bool down: true;
 };
 static input_bits_t keyboard_bits = { false, false, false, false, false, false, false, false };
-static input_bits_t gamepad_bits = { false, false, false, false, false, false, false, false };
+static input_bits_t gamepad1_bits = { false, false, false, false, false, false, false, false };
+static input_bits_t gamepad2_bits = { false, false, false, false, false, false, false, false };
 
 #if USE_NESPAD
 
 void nespad_tick() {
     nespad_read();
 
-    gamepad_bits.a = (nespad_state & DPAD_A) != 0;
-    gamepad_bits.b = (nespad_state & DPAD_B) != 0;
-    gamepad_bits.select = (nespad_state & DPAD_SELECT) != 0;
-    gamepad_bits.start = (nespad_state & DPAD_START) != 0;
-    gamepad_bits.up = (nespad_state & DPAD_UP) != 0;
-    gamepad_bits.down = (nespad_state & DPAD_DOWN) != 0;
-    gamepad_bits.left = (nespad_state & DPAD_LEFT) != 0;
-    gamepad_bits.right = (nespad_state & DPAD_RIGHT) != 0;
+    gamepad1_bits.a = (nespad_state & DPAD_A) != 0;
+    gamepad1_bits.b = (nespad_state & DPAD_B) != 0;
+    gamepad1_bits.select = (nespad_state & DPAD_SELECT) != 0;
+    gamepad1_bits.start = (nespad_state & DPAD_START) != 0;
+    gamepad1_bits.up = (nespad_state & DPAD_UP) != 0;
+    gamepad1_bits.down = (nespad_state & DPAD_DOWN) != 0;
+    gamepad1_bits.left = (nespad_state & DPAD_LEFT) != 0;
+    gamepad1_bits.right = (nespad_state & DPAD_RIGHT) != 0;
+
+    gamepad2_bits.a = (nespad_state2 & DPAD_A) != 0;
+    gamepad2_bits.b = (nespad_state2 & DPAD_B) != 0;
+    gamepad2_bits.select = (nespad_state2 & DPAD_SELECT) != 0;
+    gamepad2_bits.start = (nespad_state2 & DPAD_START) != 0;
+    gamepad2_bits.up = (nespad_state2 & DPAD_UP) != 0;
+    gamepad2_bits.down = (nespad_state2 & DPAD_DOWN) != 0;
+    gamepad2_bits.left = (nespad_state2 & DPAD_LEFT) != 0;
+    gamepad2_bits.right = (nespad_state2 & DPAD_RIGHT) != 0;
 }
 
 #endif
@@ -333,7 +347,9 @@ void loadState() {
 }
 
 static int rapidFireMask = 0;
+static int rapidFireMask2 = 0;
 static int rapidFireCounter = 0;
+static int rapidFireCounter2 = 0;
 
 void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
     static constexpr int LEFT = 1 << 6;
@@ -345,14 +361,41 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
     static constexpr int A = 1 << 0;
     static constexpr int B = 1 << 1;
 
-    int gamepad_state = ((keyboard_bits.left || gamepad_bits.left) ? LEFT : 0) |
-                        ((keyboard_bits.right || gamepad_bits.right) ? RIGHT : 0) |
-                        ((keyboard_bits.up || gamepad_bits.up) ? UP : 0) |
-                        ((keyboard_bits.down || gamepad_bits.down) ? DOWN : 0) |
-                        ((keyboard_bits.start || gamepad_bits.start) ? START : 0) |
-                        ((keyboard_bits.select || gamepad_bits.select) ? SELECT : 0) |
-                        ((keyboard_bits.a || gamepad_bits.a) ? A : 0) |
-                        ((keyboard_bits.b || gamepad_bits.b) ? B : 0) |
+    input_bits_t player1_state = {};
+    input_bits_t player2_state = {};
+
+    switch (player_1_input) {
+        case 0:
+            player1_state = keyboard_bits;
+            break;
+        case 1:
+            player1_state = gamepad1_bits;
+            break;
+        case 2:
+            player1_state = gamepad2_bits;
+            break;
+    }
+
+    switch (player_2_input) {
+        case 0:
+            player2_state = keyboard_bits;
+            break;
+        case 1:
+            player2_state = gamepad1_bits;
+            break;
+        case 2:
+            player2_state = gamepad2_bits;
+            break;
+    }
+
+    int gamepad_state = (player1_state.left ? LEFT : 0) |
+                        (player1_state.right ? RIGHT : 0) |
+                        (player1_state.up ? UP : 0) |
+                        (player1_state.down ? DOWN : 0) |
+                        (player1_state.start ? START : 0) |
+                        (player1_state.select ? SELECT : 0) |
+                        (player1_state.a ? A : 0) |
+                        (player1_state.b ? B : 0) |
                         0;
 
 
@@ -371,7 +414,30 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
     dst = rv;
 
 
-    //prevButtons = gamepad_state;
+    gamepad_state = (player2_state.left ? LEFT : 0) |
+                        (player2_state.right ? RIGHT : 0) |
+                        (player2_state.up ? UP : 0) |
+                        (player2_state.down ? DOWN : 0) |
+                        (player2_state.start ? START : 0) |
+                        (player2_state.select ? SELECT : 0) |
+                        (player2_state.a ? A : 0) |
+                        (player2_state.b ? B : 0) |
+                        0;
+
+
+    ++rapidFireCounter2;
+
+    auto &dst2 = *pdwPad2;
+
+
+    rv = gamepad_state;
+    if (rapidFireCounter2 & 2) {
+        // 15 fire/sec
+        rv &= ~rapidFireMask2;
+    }
+
+    dst2 = rv;
+
 
     *pdwSystem = reset ? PAD_SYS_QUIT : 0;
 }
@@ -713,17 +779,17 @@ void fileselector() {
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-        if (keyboard_bits.select || gamepad_bits.select) {
+        if (keyboard_bits.select || gamepad1_bits.select) {
             gpio_put(PICO_DEFAULT_LED_PIN, true);
             break;
         }
 
-        if (keyboard_bits.start || gamepad_bits.start || gamepad_bits.a || gamepad_bits.b) {
+        if (keyboard_bits.start || gamepad1_bits.start || gamepad1_bits.a || gamepad1_bits.b) {
             /* copy the rom from the SD card to flash and start the game */
             fileselector_load(pathname);
             break;
         }
-        if (keyboard_bits.down || gamepad_bits.down) {
+        if (keyboard_bits.down || gamepad1_bits.down) {
             /* select the next rom */
             draw_text(filenames[current_file], 0, current_file, color, 0x00);
             current_file++;
@@ -732,7 +798,7 @@ void fileselector() {
             draw_text(filenames[current_file], 0, current_file, color, 0xF8);
             sleep_ms(150);
         }
-        if (keyboard_bits.up || gamepad_bits.up) {
+        if (keyboard_bits.up || gamepad1_bits.up) {
             /* select the previous rom */
             draw_text(filenames[current_file], 0, current_file, color, 0x00);
             if (current_file == 0) {
@@ -743,7 +809,7 @@ void fileselector() {
             draw_text(filenames[current_file], 0, current_file, color, 0xF8);
             sleep_ms(150);
         }
-        if (keyboard_bits.right || gamepad_bits.right) {
+        if (keyboard_bits.right || gamepad1_bits.right) {
             /* select the next page */
             page_number++;
             total_files = fileselector_display_page(filenames, page_number);
@@ -757,7 +823,7 @@ void fileselector() {
             draw_text(filenames[current_file], 0, current_file, color, 0xF8);
             sleep_ms(150);
         }
-        if ((keyboard_bits.left || gamepad_bits.left) && page_number > 0) {
+        if ((keyboard_bits.left || gamepad1_bits.left) && page_number > 0) {
             /* select the previous page */
             page_number--;
             total_files = fileselector_display_page(filenames, page_number);
@@ -797,10 +863,6 @@ int InfoNES_Menu() {
     return loadAndReset() ? 0 : -1;
 }
 
-#define MENU_ITEMS_NUMBER 4
-#if MENU_ITEMS_NUMBER > TEXTMODE_ROWS
-error("Too much menu items!")
-#endif
 enum menu_type_e {
     NONE,
     INT,
@@ -818,8 +880,14 @@ typedef struct __attribute__((__packed__)) {
     char value_list[5][10];
 } MenuItem;
 
+#define MENU_ITEMS_NUMBER 6
+#if MENU_ITEMS_NUMBER > (TEXTMODE_ROWS / 2)
+error("Too much menu items!")
+#endif
 const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
-        { "Show FPS: %s  ",      ARRAY, &show_fps, 1, { "NO ", "YES" }},
+        { "Player 1: %s",        ARRAY, &player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
+        { "Player 2: %s",        ARRAY, &player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
+        { "Show FPS: %s",        ARRAY, &show_fps,       1, { "NO ",       "YES" }},
         { "" },
         { "Reset to ROM select", RESET },
         { "Return to game",      RETURN }
@@ -834,7 +902,7 @@ void menu() {
 
     char footer[80];
     sprintf(footer, ":: %s %s build %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__, __TIME__);
-    draw_text(footer, (TEXTMODE_COLS - strlen(footer)) >> 1 , 0, 11, 1);
+    draw_text(footer, (TEXTMODE_COLS - strlen(footer)) >> 1, 0, 11, 1);
     int current_item = 0;
 
     while (!exit) {
@@ -850,7 +918,7 @@ void menu() {
         }
 
         if ((nespad_state & DPAD_UP || keyboard_bits.up) != 0) {
-            current_item = (current_item -1 + MENU_ITEMS_NUMBER) % MENU_ITEMS_NUMBER;
+            current_item = (current_item - 1 + MENU_ITEMS_NUMBER) % MENU_ITEMS_NUMBER;
             if (menu_items[current_item].type == NONE)
                 current_item--;
         }
@@ -875,21 +943,21 @@ void menu() {
                         if (item->max_value != 0) {
                             auto *value = (uint8_t *) item->value;
 
-                            if ((nespad_state & DPAD_RIGHT) && *value < item->max_value) {
+                            if ((nespad_state & DPAD_RIGHT || keyboard_bits.right) && *value < item->max_value) {
                                 (*value)++;
                             }
 
-                            if ((nespad_state & DPAD_LEFT) && *value > 0) {
+                            if ((nespad_state & DPAD_LEFT || keyboard_bits.left) && *value > 0) {
                                 (*value)--;
                             }
                         }
                         break;
                     case RETURN:
-                        if (nespad_state & DPAD_START)
+                        if (nespad_state & DPAD_START || keyboard_bits.start)
                             exit = true;
                         break;
                     case RESET:
-                        if (nespad_state & DPAD_START)
+                        if (nespad_state & DPAD_START || keyboard_bits.start)
                             watchdog_enable(100, true);
                 }
 
@@ -931,7 +999,7 @@ int InfoNES_LoadFrame() {
 #if USE_NESPAD
     nespad_tick();
 #endif
-    if ((keyboard_bits.start || gamepad_bits.start) && (keyboard_bits.select || gamepad_bits.select)) {
+    if ((keyboard_bits.start || gamepad1_bits.start) && (keyboard_bits.select || gamepad1_bits.select)) {
         menu();
     }
 

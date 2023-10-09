@@ -1,3 +1,7 @@
+# v1.1.0
+
+Two players support, player1/2 input selectable from ingame menu
+
 # v1.0.1
 
 Ingame menu on START+SELECT

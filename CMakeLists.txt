@@ -53,8 +53,8 @@ add_executable(dendy
         main.cpp
 )
 
-pico_set_program_name(${PROJECT_NAME} "NES Emulator by xrip")
-pico_set_program_version(${PROJECT_NAME} "development version")
+pico_set_program_name(dendy "NES Emulator by xrip")
+pico_set_program_version(dendy "development version")
 
 
 target_include_directories(dendy PRIVATE infones)
