@@ -1703,7 +1703,7 @@ static FATFS fs;
 void save(const char * rom_filename)
 {
     char pathname[255];
-    sprintf(pathname, "%s.save", rom_filename);
+    sprintf(pathname, "NES\\%s.save", rom_filename);
     FRESULT fr = f_mount(&fs, "", 1);
     FIL fd;
     fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
@@ -1815,7 +1815,7 @@ void save(const char * rom_filename)
 void load(const char * rom_filename)
 {
     char pathname[255];
-    sprintf(pathname, "%s.save", rom_filename);
+    sprintf(pathname, "NES\\%s.save", rom_filename);
     FRESULT fr = f_mount(&fs, "", 1);
     FIL fd;
     fr = f_open(&fd, pathname, FA_READ);
