@@ -41,7 +41,7 @@ MARK_AS_ADVANCED(
         CMAKE_SHARED_LINKER_FLAGS_RELEASENODEBUG)
 
 add_subdirectory(infones)
-add_subdirectory(drivers/vga)
+add_subdirectory(drivers/vga-nextgen)
 add_subdirectory(drivers/audio)
 add_subdirectory(drivers/ps2kbd)
 add_subdirectory(drivers/nespad)
@@ -65,7 +65,7 @@ pico_enable_stdio_usb(dendy 1)
 target_link_libraries(dendy PRIVATE
         infones
 
-        vga
+        vga-nextgen
         audio
         ps2kbd
         nespad

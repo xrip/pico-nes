@@ -19,11 +19,12 @@
 #include "InfoNES_Mapper.h"
 #include "InfoNES_pAPU.h"
 
+extern "C" {
 #include "vga.h"
+}
 #include "audio.h"
 #include "f_util.h"
 #include "ff.h"
-#include "VGA_ROM_F16.h"
 
 #if USE_PS2_KBD
 
@@ -39,7 +40,6 @@
 #include "pico/binary_info.h"
 
 #pragma GCC optimize("Ofast")
-static const sVmode *vmode = nullptr;
 struct semaphore vga_start_semaphore;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH];
 #define TEXTMODE_ROWS 30
@@ -73,87 +73,92 @@ static constexpr uintptr_t NES_BATTERY_SAVE_ADDR = 0x100D0000; // 256K
 #define X2(a) (a | (a << 8))
 #define VGA_RGB_222(r, g, b) ((r << 4) | (g << 2) | b)
 
-const BYTE __not_in_flash_func(NesPalette)
-[64] = {
-VGA_RGB_222(0x7c >> 6, 0x7c >> 6, 0x7c >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0xfc >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0xbc >> 6),
-VGA_RGB_222(0x44 >> 6, 0x28 >> 6, 0xbc >> 6),
+uint8_t pal_index =0;
+uint8_t PAL(uint8_t r,uint8_t g,uint8_t b) {
+    pal_index++;
+    setVGA_color_palette(pal_index-1, (r<<16) | (g << 8 ) | b );
+    return pal_index-1;
+}
+const BYTE __not_in_flash_func(NesPalette)[64] = {
+PAL(0x7c, 0x7c, 0x7c),
+PAL(0x00, 0x00, 0xfc),
+PAL(0x00, 0x00, 0xbc),
+PAL(0x44, 0x28, 0xbc),
 
-VGA_RGB_222(0x94 >> 6, 0x00 >> 6, 0x84 >> 6),
-VGA_RGB_222(0xa8 >> 6, 0x00 >> 6, 0x20 >> 6),
-VGA_RGB_222(0xa8 >> 6, 0x10 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x88 >> 6, 0x14 >> 6, 0x00 >> 6),
+PAL(0x94, 0x00, 0x84),
+PAL(0xa8, 0x00, 0x20),
+PAL(0xa8, 0x10, 0x00),
+PAL(0x88, 0x14, 0x00),
 
-VGA_RGB_222(0x50 >> 6, 0x30 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x78 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x68 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x58 >> 6, 0x00 >> 6),
+PAL(0x50, 0x30, 0x00),
+PAL(0x00, 0x78, 0x00),
+PAL(0x00, 0x68, 0x00),
+PAL(0x00, 0x58, 0x00),
 
-VGA_RGB_222(0x00 >> 6, 0x40 >> 6, 0x58 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
+PAL(0x00, 0x40, 0x58),
+PAL(0x00, 0x00, 0x00),
+PAL(0x00, 0x00, 0x00),
+PAL(0x00, 0x00, 0x00),
 
-VGA_RGB_222(0xbc >> 6, 0xbc >> 6, 0xbc >> 6),
-VGA_RGB_222(0x00 >> 6, 0x78 >> 6, 0xf8 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x58 >> 6, 0xf8 >> 6),
-VGA_RGB_222(0x68 >> 6, 0x44 >> 6, 0xfc >> 6),
+PAL(0xbc, 0xbc, 0xbc),
+PAL(0x00, 0x78, 0xf8),
+PAL(0x00, 0x58, 0xf8),
+PAL(0x68, 0x44, 0xfc),
 
-VGA_RGB_222(0xd8 >> 6, 0x00 >> 6, 0xcc >> 6),
-VGA_RGB_222(0xe4 >> 6, 0x00 >> 6, 0x58 >> 6),
-VGA_RGB_222(0xf8 >> 6, 0x38 >> 6, 0x00 >> 6),
-VGA_RGB_222(0xe4 >> 6, 0x5c >> 6, 0x10 >> 6),
+PAL(0xd8, 0x00, 0xcc),
+PAL(0xe4, 0x00, 0x58),
+PAL(0xf8, 0x38, 0x00),
+PAL(0xe4, 0x5c, 0x10),
 
-VGA_RGB_222(0xac >> 6, 0x7c >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0xb8 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0xa8 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0xa8 >> 6, 0x44 >> 6),
+PAL(0xac, 0x7c, 0x00),
+PAL(0x00, 0xb8, 0x00),
+PAL(0x00, 0xa8, 0x00),
+PAL(0x00, 0xa8, 0x44),
 
-VGA_RGB_222(0x00 >> 6, 0x88 >> 6, 0x88 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
+PAL(0x00, 0x88, 0x88),
+PAL(0x00, 0x00, 0x00),
+PAL(0x00, 0x00, 0x00),
+PAL(0x00, 0x00, 0x00),
 
-VGA_RGB_222(0xf8 >> 6, 0xf8 >> 6, 0xf8 >> 6),
-VGA_RGB_222(0x3c >> 6, 0xbc >> 6, 0xfc >> 6),
-VGA_RGB_222(0x68 >> 6, 0x88 >> 6, 0xfc >> 6),
-VGA_RGB_222(0x98 >> 6, 0x78 >> 6, 0xf8 >> 6),
+PAL(0xf8, 0xf8, 0xf8),
+PAL(0x3c, 0xbc, 0xfc),
+PAL(0x68, 0x88, 0xfc),
+PAL(0x98, 0x78, 0xf8),
 
-VGA_RGB_222(0xf8 >> 6, 0x78 >> 6, 0xf8 >> 6),
-VGA_RGB_222(0xf8 >> 6, 0x58 >> 6, 0x98 >> 6),
-VGA_RGB_222(0xf8 >> 6, 0x78 >> 6, 0x58 >> 6),
-VGA_RGB_222(0xfc >> 6, 0xa0 >> 6, 0x44 >> 6),
+PAL(0xf8, 0x78, 0xf8),
+PAL(0xf8, 0x58, 0x98),
+PAL(0xf8, 0x78, 0x58),
+PAL(0xfc, 0xa0, 0x44),
 
-VGA_RGB_222(0xf8 >> 6, 0xb8 >> 6, 0x00 >> 6),
-VGA_RGB_222(0xb8 >> 6, 0xf8 >> 6, 0x18 >> 6),
-VGA_RGB_222(0x58 >> 6, 0xd8 >> 6, 0x54 >> 6),
-VGA_RGB_222(0x58 >> 6, 0xf8 >> 6, 0x98 >> 6),
+PAL(0xf8, 0xb8, 0x00),
+PAL(0xb8, 0xf8, 0x18),
+PAL(0x58, 0xd8, 0x54),
+PAL(0x58, 0xf8, 0x98),
 
-VGA_RGB_222(0x00 >> 6, 0xe8 >> 6, 0xd8 >> 6),
-VGA_RGB_222(0x78 >> 6, 0x78 >> 6, 0x78 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
+PAL(0x00, 0xe8, 0xd8),
+PAL(0x78, 0x78, 0x78),
+PAL(0x00, 0x00, 0x00),
+PAL(0x00, 0x00, 0x00),
 
-VGA_RGB_222(0xfc >> 6, 0xfc >> 6, 0xfc >> 6),
-VGA_RGB_222(0xa4 >> 6, 0xe4 >> 6, 0xfc >> 6),
-VGA_RGB_222(0xb8 >> 6, 0xb8 >> 6, 0xf8 >> 6),
-VGA_RGB_222(0xd8 >> 6, 0xb8 >> 6, 0xf8 >> 6),
+PAL(0xfc, 0xfc, 0xfc),
+PAL(0xa4, 0xe4, 0xfc),
+PAL(0xb8, 0xb8, 0xf8),
+PAL(0xd8, 0xb8, 0xf8),
 
-VGA_RGB_222(0xf8 >> 6, 0xb8 >> 6, 0xf8 >> 6),
-VGA_RGB_222(0xf8 >> 6, 0xa4 >> 6, 0xc0 >> 6),
-VGA_RGB_222(0xf0 >> 6, 0xd0 >> 6, 0xb0 >> 6),
-VGA_RGB_222(0xfc >> 6, 0xe0 >> 6, 0xa8 >> 6),
+PAL(0xf8, 0xb8, 0xf8),
+PAL(0xf8, 0xa4, 0xc0),
+PAL(0xf0, 0xd0, 0xb0),
+PAL(0xfc, 0xe0, 0xa8),
 
-VGA_RGB_222(0xf8 >> 6, 0xd8 >> 6, 0x78 >> 6),
-VGA_RGB_222(0xd8 >> 6, 0xf8 >> 6, 0x78 >> 6),
-VGA_RGB_222(0xb8 >> 6, 0xf8 >> 6, 0xb8 >> 6),
-VGA_RGB_222(0xb8 >> 6, 0xf8 >> 6, 0xd8 >> 6),
+PAL(0xf8, 0xd8, 0x78),
+PAL(0xd8, 0xf8, 0x78),
+PAL(0xb8, 0xf8, 0xb8),
+PAL(0xb8, 0xf8, 0xd8),
 
-VGA_RGB_222(0x00 >> 6, 0xfc >> 6, 0xfc >> 6),
-VGA_RGB_222(0xf8 >> 6, 0xd8 >> 6, 0xf8 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
-VGA_RGB_222(0x00 >> 6, 0x00 >> 6, 0x00 >> 6),
+PAL(0x00, 0xfc, 0xfc),
+PAL(0xf8, 0xd8, 0xf8),
+PAL(0x00, 0x00, 0x00),
+PAL(0x00, 0x00, 0x00),
 };
 
 struct input_bits_t {
@@ -246,13 +251,13 @@ inline bool checkNESMagic(const uint8_t *data) {
     }
     return ok;
 }
-
+/*
 void draw_text(char *text, uint8_t x, uint8_t y, uint8_t color, uint8_t bgcolor) {
     uint8_t len = strlen(text);
     len = len < 80 ? len : 80;
     memcpy(&textmode[y][x], text, len);
     memset(&colors[y][x], (color << 4) | (bgcolor & 0xF), len);
-}
+}*/
 
 uint32_t getCurrentNVRAMAddr() {
     int slot = 0;
@@ -583,52 +588,21 @@ x< NES_DISP_WIDTH; x++) SCREEN[line][x] = lb[x];
 /* Renderer loop on Pico's second core */
 void __time_critical_func(render_loop)() {
     multicore_lockout_victim_init();
-    VgaLineBuf *linebuf;
     printf("Video on Core#%i running...\n", get_core_num());
 
+    initVGA();
+    auto * buffer = reinterpret_cast<uint8_t *>(&SCREEN);
+    setVGAbuf(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
+    setVGA_text_buf(buffer, &buffer[80*30]);
+    setVGA_bg_color(0);
+    //setVGAmode(VGA640x480div2);
+
+    setVGA_color_flash_mode(true, true);
+/*    for (auto i = 0; i < sizeof NesPalette; i++) {
+        setVGA_color_palette(i, NesPalette[i]);
+        NesPalette[i] = i;
+    }*/
     sem_acquire_blocking(&vga_start_semaphore);
-    VgaInit(vmode, 640, 480);
-    uint32_t y;
-    while (linebuf = get_vga_line()) {
-        y = linebuf->row;
-
-        switch (resolution) {
-            case RESOLUTION_TEXTMODE:
-                for (uint8_t x = 0; x < 80; x++) {
-                    uint8_t glyph_row = VGA_ROM_F16[(textmode[y / 16][x] * 16) + y % 16];
-                    uint8_t color = colors[y / 16][x];
-
-                    for (uint8_t bit = 0; bit < 8; bit++) {
-                        if (CHECK_BIT(glyph_row, bit)) {
-                            // FOREGROUND
-                            linebuf->line[8 * x + bit] = (color >> 4) & 0xF;
-                        } else {
-                            // BACKGROUND
-                            linebuf->line[8 * x + bit] = color & 0xF;
-                        }
-                    }
-                }
-                break;
-            case RESOLUTION_NATIVE:
-                for (int x = 0; x < NES_DISP_WIDTH * 2; x += 2)
-                    (uint16_t &) linebuf->line[64 + x] = X2(SCREEN[y][x >> 1]);
-                // SHOW FPS
-                if (show_fps && y < 16) {
-                    for (uint8_t x = 77; x < 80; x++) {
-                        uint8_t glyph_row = VGA_ROM_F16[(textmode[y / 16][x] * 16) + y % 16];
-
-                        for (uint8_t bit = 0; bit < 8; bit++) {
-                            if (CHECK_BIT(glyph_row, bit)) {
-                                // FOREGROUND
-                                linebuf->line[8 * x + bit] = 11;
-                            } else {
-                                linebuf->line[8 * x + bit] = 0;
-                            }
-                        }
-                    }
-                }
-        }
-    }
 }
 
 
@@ -689,8 +663,7 @@ void fileselector_load(char *pathname) {
 }
 
 uint16_t fileselector_display_page(char filenames[28][256], uint16_t page_number) {
-    memset(&textmode, 0x00, sizeof(textmode));
-    memset(&colors, 0x00, sizeof(colors));
+    clrScr(0);
     char footer[80];
     sprintf(footer, "=================== PAGE #%i -> NEXT PAGE / <- PREV. PAGE ====================", page_number);
     draw_text(footer, 0, 14, 3, 11);
@@ -838,11 +811,10 @@ void fileselector() {
 
 
 bool loadAndReset() {
+    setVGAmode(VGA640x480_text_80_30);
     fileselector();
-    memset(&textmode, 0x00, sizeof(textmode));
-    memset(&colors, 0x00, sizeof(colors));
     memset(SCREEN, 0x0, sizeof(SCREEN));
-    resolution = RESOLUTION_NATIVE;
+    setVGAmode(VGA640x480div2);
 
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
         printf("NES file parse error.\n");
@@ -901,10 +873,8 @@ const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
 
 void menu() {
     bool exit = false;
-    resolution_t old_resolution = resolution;
-    memset(&textmode, 0x00, sizeof(textmode));
-    memset(&colors, 0x00, sizeof(colors));
-    resolution = RESOLUTION_TEXTMODE;
+    clrScr(0);
+    setVGAmode(VGA640x480_text_80_30);
 
     char footer[80];
     sprintf(footer, ":: %s %s build %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__, __TIME__);
@@ -1001,7 +971,8 @@ void menu() {
         sleep_ms(100);
     }
 
-    resolution = old_resolution;
+    memset(SCREEN, 0, sizeof SCREEN);
+    setVGAmode(VGA640x480div2);
 }
 
 int start_time;
@@ -1059,10 +1030,6 @@ int main() {
     }
 
     printf("Start program\n");
-
-    sleep_ms(50);
-    vmode = Video(DEV_VGA, RES_HVGA);
-    sleep_ms(50);
 
 #if USE_PS2_KBD
     printf("PS2 KBD ");
