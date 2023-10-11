@@ -72,7 +72,7 @@ static constexpr uintptr_t NES_BATTERY_SAVE_ADDR = 0x100D0000; // 256K
 
 #define X2(a) (a | (a << 8))
 #define VGA_RGB_222(r, g, b) ((r << 4) | (g << 2) | b)
-uint8_t palette_mode = 1;
+uint8_t palette_mode = 0;
 bool flash_line = true;
 bool flash_frame = true;
 uint8_t pal_index =0;
@@ -590,7 +590,7 @@ x< NES_DISP_WIDTH; x++) SCREEN[line][x] = lb[x];
 
 /* Renderer loop on Pico's second core */
 void __time_critical_func(render_loop)() {
-    multicore_lockout_victim_init();
+    //multicore_lockout_victim_init();
     printf("Video on Core#%i running...\n", get_core_num());
 
     initVGA();
@@ -628,7 +628,7 @@ void fileselector_load(char *pathname) {
 
     if (result == FR_OK) {
         uint32_t interrupts = save_and_disable_interrupts();
-        multicore_lockout_start_blocking();
+        //multicore_lockout_start_blocking();
 
         // TODO: Save it after success loading to prevent corruptions
         printf("Flashing %d bytes to flash address %x\r\n", 256, offset);
@@ -662,15 +662,15 @@ void fileselector_load(char *pathname) {
 
         f_close(&file);
         restore_interrupts(interrupts);
-        multicore_lockout_end_blocking();
+        //multicore_lockout_end_blocking();
     }
 }
 
-uint16_t fileselector_display_page(char filenames[28][256], uint16_t page_number) {
+uint16_t fileselector_display_page(char filenames[60][256], uint16_t page_number) {
     clrScr(0);
     char footer[80];
     sprintf(footer, "=================== PAGE #%i -> NEXT PAGE / <- PREV. PAGE ====================", page_number);
-    draw_text(footer, 0, 14, 3, 11);
+    draw_text(footer, 0, 29, 1, 11);
 
     DIR directory;
     FILINFO file;
@@ -682,7 +682,7 @@ uint16_t fileselector_display_page(char filenames[28][256], uint16_t page_number
 
     /* clear the filenames array */
     for (uint8_t ifile = 0; ifile < 28; ifile++) {
-        strcpy(filenames[ifile], "");
+        memset(&filenames[ifile][0], 0, 256);
     }
 
     uint16_t total_files = 0;
@@ -690,7 +690,7 @@ uint16_t fileselector_display_page(char filenames[28][256], uint16_t page_number
 
     /* skip the first N pages */
     if (page_number > 0) {
-        while (total_files < page_number * 14 && result == FR_OK && file.fname[0]) {
+        while (total_files < page_number * 28 && result == FR_OK && file.fname[0]) {
             total_files++;
             result = f_findnext(&directory, &file);
         }
@@ -698,7 +698,7 @@ uint16_t fileselector_display_page(char filenames[28][256], uint16_t page_number
 
     /* store the filenames of this page */
     total_files = 0;
-    while (total_files < 14 && result == FR_OK && file.fname[0]) {
+    while (total_files < 28 && result == FR_OK && file.fname[0]) {
         strcpy(filenames[total_files], file.fname);
         total_files++;
         result = f_findnext(&directory, &file);
@@ -711,7 +711,7 @@ uint16_t fileselector_display_page(char filenames[28][256], uint16_t page_number
         sprintf(pathname, "NES\\%s", filenames[ifile]);
 
         if (strcmp(pathname, rom_filename) != 0) {
-            color = 0xFF;
+            color = 0x0F;
         }
         draw_text(filenames[ifile], 0, ifile, color, 0x00);
     }
@@ -720,7 +720,7 @@ uint16_t fileselector_display_page(char filenames[28][256], uint16_t page_number
 
 void fileselector() {
     uint16_t page_number = 0;
-    char filenames[30][256];
+    char filenames[60][256];
 
     printf("Selecting ROM\r\n");
 
@@ -730,17 +730,17 @@ void fileselector() {
     /* select the first rom */
     uint8_t current_file = 0;
 
-    uint8_t color = 0xFF;
-    draw_text(filenames[current_file], 0, current_file, color, 0xF8);
+    uint8_t color = 0x0F;
+    draw_text(filenames[current_file], 0, current_file, color, 0x05);
 
     while (true) {
         char pathname[255];
         sprintf(pathname, "NES\\%s", filenames[current_file]);
 
         if (strcmp(pathname, rom_filename) != 0) {
-            color = 0xFF;
+            color = 0x0F;
         } else {
-            color = 0x0d;
+            color = 0x03;
         }
 #if USE_PS2_KBD
         ps2kbd.tick();
@@ -772,7 +772,7 @@ void fileselector() {
             current_file++;
             if (current_file >= total_files)
                 current_file = 0;
-            draw_text(filenames[current_file], 0, current_file, color, 0xF8);
+            draw_text(filenames[current_file], 0, current_file, color, 0x05);
             sleep_ms(150);
         }
         if (keyboard_bits.up || gamepad1_bits.up) {
@@ -783,7 +783,7 @@ void fileselector() {
             } else {
                 current_file--;
             }
-            draw_text(filenames[current_file], 0, current_file, color, 0xF8);
+            draw_text(filenames[current_file], 0, current_file, color, 0x05);
             sleep_ms(150);
         }
         if (keyboard_bits.right || gamepad1_bits.right) {
@@ -797,7 +797,7 @@ void fileselector() {
             }
             /* select the first file */
             current_file = 0;
-            draw_text(filenames[current_file], 0, current_file, color, 0xF8);
+            draw_text(filenames[current_file], 0, current_file, color, 0x05);
             sleep_ms(150);
         }
         if ((keyboard_bits.left || gamepad1_bits.left) && page_number > 0) {
@@ -806,7 +806,7 @@ void fileselector() {
             total_files = fileselector_display_page(filenames, page_number);
             /* select the first file */
             current_file = 0;
-            draw_text(filenames[current_file], 0, current_file, color, 0xF8);
+            draw_text(filenames[current_file], 0, current_file, color, 0x05);
             sleep_ms(150);
         }
         tight_loop_contents();
