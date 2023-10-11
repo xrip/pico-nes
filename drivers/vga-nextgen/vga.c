@@ -566,23 +566,27 @@ void setVGA_bg_color( uint32_t color888)
     bg_color[1]=(((((c_lo<<8)|c_hi)&0x3f3f)|palette16_mask)<<16)|((((c_lo<<8)|c_hi)&0x3f3f)|palette16_mask);
     
 };
+
 void setVGA_color_palette(uint8_t i_color, uint32_t color888)
 {
-    uint8_t conv0[]={0b00,0b00,0b01,0b10,0b10,0b10,0b11,0b11};
-    uint8_t conv1[]={0b00,0b01,0b01,0b01,0b10,0b11,0b11,0b11};
-    
-    uint8_t b=((color888&0xff)/42);
+    uint8_t r=(((color888>>16)&0xff));
+    uint8_t g=(((color888>>8)&0xff));
+    uint8_t b=((color888&0xff));
 
-    uint8_t r=(((color888>>16)&0xff)/42);
-    uint8_t g=(((color888>>8)&0xff)/42);
+    uint8_t conv0[]={0b00,0b01,0b10,0b11};
+//    uint8_t conv0[]={0b00,0b00,0b01,0b10,0b10,0b10,0b11,0b11};
+    uint8_t conv1[]={0b00,0b00,0b01,0b10,0b10,0b10,0b11,0b11};
+    //uint8_t conv1[]={0b00,0b01,0b01,0b01,0b10,0b11,0b11,0b11};
+
 
     uint8_t c_hi=(conv0[r]<<4)|(conv0[g]<<2)|conv0[b];
-    uint8_t c_lo=(conv1[r]<<4)|(conv1[g]<<2)|conv1[b];
-    
+    uint8_t c_lo=(conv0[r]<<4)|(conv0[g]<<2)|conv0[b];
+//    uint8_t c_lo=(conv1[r]<<4)|(conv1[g]<<2)|conv1[b];
+
     palette[0][i_color]=(((c_hi<<8)|c_lo)&0x3f3f)|palette16_mask;
     palette[1][i_color]=(((c_lo<<8)|c_hi)&0x3f3f)|palette16_mask;
-
 };
+
 void initVGA()
 {
      //инициализация палитры по умолчанию
