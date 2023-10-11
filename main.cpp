@@ -32,7 +32,6 @@ extern "C" {
 #include "nespad.h"
 
 #endif
-#include "fnt8x16.h"
 
 #pragma GCC optimize("Ofast")
 
@@ -559,7 +558,7 @@ uint16_t fileselector_display_page(char filenames[60][256], uint16_t page_number
     char footer[80];
     const int files_in_page = 29;
     sprintf(footer, "=================== PAGE #%i -> NEXT PAGE / <- PREV. PAGE ====================", page_number);
-    draw_text(footer, 0, files_in_page, 3, 11);
+    draw_text(footer, 0, files_in_page, 1, 11);
 
     DIR directory;
     FILINFO file;
@@ -602,7 +601,7 @@ uint16_t fileselector_display_page(char filenames[60][256], uint16_t page_number
         if (strcmp(pathname, rom_filename) != 0) {
             color = 0x0F;
         }
-        draw_text(filenames[ifile], 0, ifile, color, 0x00);
+        draw_text(filenames[ifile], 0, ifile, color, 0);
     }
     return total_files;
 }
@@ -620,7 +619,7 @@ void fileselector() {
     uint8_t current_file = 0;
 
     uint8_t color = 0x0b;
-    draw_text(filenames[current_file], 0, current_file, color, 0x1);
+    draw_text(filenames[current_file], 0, current_file, color, 1);
 
     while (true) {
         char pathname[255];
@@ -686,7 +685,7 @@ void fileselector() {
             }
             /* select the first file */
             current_file = 0;
-            draw_text(filenames[current_file], 0, current_file, color, 0);
+            draw_text(filenames[current_file], 0, current_file, color, 1);
             sleep_ms(150);
         }
         if ((keyboard_bits.left || gamepad1_bits.left) && page_number > 0) {
@@ -695,7 +694,7 @@ void fileselector() {
             total_files = fileselector_display_page(filenames, page_number);
             /* select the first file */
             current_file = 0;
-            draw_text(filenames[current_file], 0, current_file, color, 0);
+            draw_text(filenames[current_file], 0, current_file, color, 1);
             sleep_ms(150);
         }
         tight_loop_contents();

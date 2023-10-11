@@ -7,7 +7,6 @@
 
 
 enum VGA_mode_t{VGA640x480div2,VGA640x480div3,VGA640x480_text_80_30};
-extern uint8_t palette_mode;
 
 #define PIO_VGA (pio0)
 #define beginVGA_PIN (6)

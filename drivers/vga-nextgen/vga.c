@@ -63,8 +63,6 @@ static bool is_flash_frame=false;
 
 //буфер 1к графической палитры
 static uint16_t palette[2][256];
-static uint16_t palette222[2][256];
-
 
 static uint32_t  bg_color[2];
 static uint16_t palette16_mask=0;
