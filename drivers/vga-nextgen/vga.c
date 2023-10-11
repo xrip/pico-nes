@@ -84,7 +84,6 @@ static uint16_t* txt_palette_fast=NULL;
 
 
 enum VGA_mode_t mode_VGA;
-extern uint8_t palette_mode;
 
 void __not_in_flash_func(dma_handler_VGA)() {
 
@@ -271,7 +270,7 @@ void __not_in_flash_func(dma_handler_VGA)() {
 
     int p_i=((line&is_flash_line)+(frame_i&is_flash_frame))&1;
 
-    uint16_t* pal= (palette_mode == 0) ? palette[p_i] : palette222[p_i];
+    uint16_t* pal= palette[p_i];
     
     
 
@@ -411,13 +410,8 @@ void setVGAmode(enum VGA_mode_t modeVGA)
     bg_color[1]=(bg_color[1]&0x3f3f3f3f)|palette16_mask|(palette16_mask<<16);
     for(int i=0;i<256;i++)
     {
-        if (palette_mode == 0) {
             palette[0][i] = (palette[0][i] & 0x3f3f) | palette16_mask;
             palette[1][i] = (palette[1][i] & 0x3f3f) | palette16_mask;
-        } else {
-            palette222[0][i] = (palette222[0][i] & 0x3f3f) | palette16_mask;
-            palette222[1][i] = (palette222[1][i] & 0x3f3f) | palette16_mask;
-        }
     }
   
     
@@ -590,26 +584,6 @@ void setVGA_color_palette(uint8_t i_color, uint32_t color888)
     palette[0][i_color]=(((c_hi<<8)|c_lo)&0x3f3f)|palette16_mask;
     palette[1][i_color]=(((c_lo<<8)|c_hi)&0x3f3f)|palette16_mask;
 
-};
-
-void setVGA_color_palette_222(uint8_t i_color, uint32_t color888)
-{
-    uint8_t r=(((color888>>16)&0xff));
-    uint8_t g=(((color888>>8)&0xff));
-    uint8_t b=((color888&0xff));
-
-    uint8_t conv0[]={0b00,0b01,0b10,0b11};
-//    uint8_t conv0[]={0b00,0b00,0b01,0b10,0b10,0b10,0b11,0b11};
-    uint8_t conv1[]={0b00,0b00,0b01,0b10,0b10,0b10,0b11,0b11};
-    //uint8_t conv1[]={0b00,0b01,0b01,0b01,0b10,0b11,0b11,0b11};
-
-
-    uint8_t c_hi=(conv0[r]<<4)|(conv0[g]<<2)|conv0[b];
-    uint8_t c_lo=(conv0[r]<<4)|(conv0[g]<<2)|conv0[b];
-//    uint8_t c_lo=(conv1[r]<<4)|(conv1[g]<<2)|conv1[b];
-
-    palette222[0][i_color]=(((c_hi<<8)|c_lo)&0x3f3f)|palette16_mask;
-    palette222[1][i_color]=(((c_lo<<8)|c_hi)&0x3f3f)|palette16_mask;
 };
 
 void initVGA()
