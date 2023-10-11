@@ -1,23 +1,19 @@
 #include <cstdio>
+#include <cstring>
+#include <cstdarg>
+
+#include "pico/multicore.h"
 #include "pico/stdlib.h"
-#include "pico/runtime.h"
 #include "hardware/pio.h"
 #include "hardware/i2c.h"
 #include "hardware/vreg.h"
 #include "hardware/watchdog.h"
 #include <hardware/sync.h>
-#include <hardware/pwm.h>
-#include <pico/multicore.h>
 #include <hardware/flash.h>
-#include <cstring>
-#include <cstdarg>
-
-#include "pico/multicore.h"
 
 #include <InfoNES.h>
 #include <InfoNES_System.h>
 #include "InfoNES_Mapper.h"
-#include "InfoNES_pAPU.h"
 
 extern "C" {
 #include "vga.h"
@@ -36,53 +32,42 @@ extern "C" {
 #include "nespad.h"
 
 #endif
-
-#include "pico/binary_info.h"
+#include "fnt8x16.h"
 
 #pragma GCC optimize("Ofast")
-struct semaphore vga_start_semaphore;
-uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH];
-#define TEXTMODE_ROWS 30
-#define TEXTMODE_COLS 80
-char textmode[TEXTMODE_ROWS][TEXTMODE_COLS];
-uint8_t colors[TEXTMODE_ROWS][TEXTMODE_COLS];
-
-bool show_fps = false;
-
-typedef enum {
-    RESOLUTION_NATIVE,
-    RESOLUTION_TEXTMODE,
-} resolution_t;
-resolution_t resolution = RESOLUTION_TEXTMODE;
-
-static FATFS fs;
-uint8_t player_1_input = 1;
-uint8_t player_2_input = 0;
-
-bool saveSettingsAndReboot = false;
-
-#define STATUSINDICATORSTRING "STA"
-#define VOLUMEINDICATORSTRING "VOL"
 
 #define FLASH_TARGET_OFFSET (1024 * 1024)
 const char *rom_filename = (const char *) (XIP_BASE + FLASH_TARGET_OFFSET);
 const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET) + 4096;
-//static constexpr uintptr_t rom = 0x10110000;         // Location of .nes rom or tar archive with .nes roms
-static constexpr uintptr_t NES_BATTERY_SAVE_ADDR = 0x100D0000; // 256K
 
-#define X2(a) (a | (a << 8))
-#define VGA_RGB_222(r, g, b) ((r << 4) | (g << 2) | b)
-uint8_t palette_mode = 0;
+struct semaphore vga_start_semaphore;
+uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH];
+uint16_t linebuffer[256];
+
+// SETTINGS
+bool show_fps = false;
 bool flash_line = true;
 bool flash_frame = true;
-uint8_t pal_index =0;
+uint8_t snd_vol = 8;
+uint8_t player_1_input = 1;
+uint8_t player_2_input = 0;
+
+static FATFS fs;
+
+i2s_config_t i2s_config;
+
+int start_time;
+int frames;
+
 uint8_t PALETTE(uint8_t r, uint8_t g, uint8_t b) {
+    static uint8_t pal_index = 0;
     pal_index++;
-    setVGA_color_palette(pal_index-1, (r<<16) | (g << 8 ) | b );
-    setVGA_color_palette_222(pal_index - 1, ((r >> 6) << 16) | ((g >> 6) << 8) | (b >> 6));
-    return pal_index-1;
+    setVGA_color_palette(pal_index - 1, (r << 16) | (g << 8) | b);
+    return (pal_index - 1);
 }
-const BYTE __not_in_flash_func(NesPalette)[64] = {
+
+const BYTE __not_in_flash_func(NesPalette)
+[64] = {
 PALETTE(0x7c, 0x7c, 0x7c),
 PALETTE(0x00, 0x00, 0xfc),
 PALETTE(0x00, 0x00, 0xbc),
@@ -174,9 +159,9 @@ struct input_bits_t {
     bool up: true;
     bool down: true;
 };
-static input_bits_t keyboard_bits = { false, false, false, false, false, false, false, false };
-static input_bits_t gamepad1_bits = { false, false, false, false, false, false, false, false };
-static input_bits_t gamepad2_bits = { false, false, false, false, false, false, false, false };
+static input_bits_t keyboard_bits = {false, false, false, false, false, false, false, false};
+static input_bits_t gamepad1_bits = {false, false, false, false, false, false, false, false};
+static input_bits_t gamepad2_bits = {false, false, false, false, false, false, false, false};
 
 #if USE_NESPAD
 
@@ -254,105 +239,6 @@ inline bool checkNESMagic(const uint8_t *data) {
     }
     return ok;
 }
-/*
-void draw_text(char *text, uint8_t x, uint8_t y, uint8_t color, uint8_t bgcolor) {
-    uint8_t len = strlen(text);
-    len = len < 80 ? len : 80;
-    memcpy(&textmode[y][x], text, len);
-    memset(&colors[y][x], (color << 4) | (bgcolor & 0xF), len);
-}*/
-
-uint32_t getCurrentNVRAMAddr() {
-    int slot = 0;
-
-    printf("SRAM slot %d\n", slot);
-    // Save Games are stored towards address stored roms.
-    // calculate address of save game slot
-    // slot 0 is reserved. (Some state variables are stored at this location)
-    uint32_t saveLocation = NES_BATTERY_SAVE_ADDR + SRAM_SIZE * (slot + 1);
-    if (saveLocation >= FLASH_TARGET_OFFSET) {
-        printf("No more save slots available, (Requested slot = %d)", slot);
-        return {};
-    }
-    return saveLocation;
-}
-
-// Positions in SRAM for storing state variables
-#define STATUSINDICATORPOS 0
-#define GAMEINDEXPOS 3
-#define ADVANCEPOS 4
-#define VOLUMEINDICATORPOS 5
-
-// Save NES Battery RAM (about 58 Games exist with save battery)
-// Problem: First call to saveNVRAM  after power up is ok
-// Second call  causes a crash in flash_range_erase()
-// Because of this we reserve one flash block for saving state of current played game, selected action and sound settings.
-// Then the RP2040 will always be rebooted
-// After reboot, the state will be restored.
-void saveNVRAM(uint8_t statevar, char advance) {
-    static_assert((SRAM_SIZE & (FLASH_SECTOR_SIZE - 1)) == 0);
-    printf("save SRAM and/or settings\n");
-    if (!SRAMwritten && !saveSettingsAndReboot) {
-        printf("  SRAM not updated and no audio settings changed.\n");
-        return;
-    }
-
-    // Disable core 1 to prevent RP2040 from crashing while writing to flash.
-    printf("  resetting Core 1\n");
-    multicore_reset_core1();
-    uint32_t ints = save_and_disable_interrupts();
-
-    uint32_t addr = getCurrentNVRAMAddr();
-    uint32_t ofs = addr - XIP_BASE;
-    if (addr) {
-        printf("  write SRAM to flash %x --> %lx\n", addr, ofs);
-        flash_range_erase(ofs, SRAM_SIZE);
-        flash_range_program(ofs, SRAM, SRAM_SIZE);
-    }
-    // Save state variables
-    // - Current game index
-    // - Advance (+ Next, - Previous, B Build-in game, R  Reset)
-    // - Speaker mode
-    // - Volume
-    printf("  write state variables and sound settings to flash\n");
-
-    SRAM[STATUSINDICATORPOS] = STATUSINDICATORSTRING[0];
-    SRAM[STATUSINDICATORPOS + 1] = STATUSINDICATORSTRING[1];
-    SRAM[STATUSINDICATORPOS + 2] = STATUSINDICATORSTRING[2];
-    SRAM[GAMEINDEXPOS] = statevar;
-    SRAM[ADVANCEPOS] = advance;
-    SRAM[VOLUMEINDICATORPOS] = VOLUMEINDICATORSTRING[0];
-    SRAM[VOLUMEINDICATORPOS + 1] = VOLUMEINDICATORSTRING[1];
-    SRAM[VOLUMEINDICATORPOS + 2] = VOLUMEINDICATORSTRING[2];
-
-    // first block of flash is reserved for storing state variables
-    uint32_t state = NES_BATTERY_SAVE_ADDR - XIP_BASE;
-    flash_range_erase(state, SRAM_SIZE);
-    flash_range_program(state, SRAM, SRAM_SIZE);
-
-    printf("  done\n");
-    printf("  Rebooting...\n");
-    restore_interrupts(ints);
-    // Reboot after SRAM is flashed
-    watchdog_enable(100, 1);
-    while (1);
-
-    SRAMwritten = false;
-    // reboot
-}
-
-bool loadNVRAM() {
-    if (auto addr = getCurrentNVRAMAddr()) {
-        printf("load SRAM %x\n", addr);
-        memcpy(SRAM, reinterpret_cast<void *>(addr), SRAM_SIZE);
-    }
-    SRAMwritten = false;
-    return true;
-}
-
-void loadState() {
-    memcpy(SRAM, reinterpret_cast<void *>(NES_BATTERY_SAVE_ADDR), SRAM_SIZE);
-}
 
 static int rapidFireMask = 0;
 static int rapidFireMask2 = 0;
@@ -423,14 +309,14 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
 
 
     gamepad_state = (player2_state.left ? LEFT : 0) |
-                        (player2_state.right ? RIGHT : 0) |
-                        (player2_state.up ? UP : 0) |
-                        (player2_state.down ? DOWN : 0) |
-                        (player2_state.start ? START : 0) |
-                        (player2_state.select ? SELECT : 0) |
-                        (player2_state.a ? A : 0) |
-                        (player2_state.b ? B : 0) |
-                        0;
+                    (player2_state.right ? RIGHT : 0) |
+                    (player2_state.up ? UP : 0) |
+                    (player2_state.down ? DOWN : 0) |
+                    (player2_state.start ? START : 0) |
+                    (player2_state.select ? SELECT : 0) |
+                    (player2_state.a ? A : 0) |
+                    (player2_state.b ? B : 0) |
+                    0;
 
 
     ++rapidFireCounter2;
@@ -502,7 +388,6 @@ void InfoNES_ReleaseRom() {
     VROM = nullptr;
 }
 
-i2s_config_t i2s_config;
 
 void InfoNES_SoundInit() {
     i2s_config = i2s_get_default_config();
@@ -534,6 +419,11 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
     static int i_active_buf = 0;
     static int inx = 0;
 
+    static int max = 0;
+    static int min = 30000;
+    static uint32_t ii = 0;
+
+    if (((ii++) & 0xff) == 0) printf("max=%d  min=%d\n", max, min);
 
     for (int i = 0; i < samples; i++) {
         int r, l;
@@ -551,8 +441,16 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
         l = w1 * 6 + w2 * 3 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
         r = w1 * 3 + w2 * 6 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
 
-        samples_out[i_active_buf][inx * 2] = l * 2;
-        samples_out[i_active_buf][inx * 2 + 1] = r * 2;
+
+        max = MAX(l, max);
+        min = MIN(l, min);
+//
+        l -= 4000;
+        r -= 4000;
+
+
+        samples_out[i_active_buf][inx * 2] = l * snd_vol;
+        samples_out[i_active_buf][inx * 2 + 1] = r * snd_vol;
         if (inx++ >= i2s_config.dma_trans_count) {
             inx = 0;
             i2s_dma_write(&i2s_config, reinterpret_cast<const int16_t *>(samples_out[i_active_buf]));
@@ -564,14 +462,11 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
 }
 
 
-WORD lb[256];
-
-
 void __not_in_flash_func(InfoNES_PreDrawLine)
 (
 int line
 ){
-InfoNES_SetLineBuffer(lb,
+InfoNES_SetLineBuffer(linebuffer,
 NES_DISP_WIDTH);
 }
 
@@ -582,30 +477,25 @@ int line
 ){
 for(
 int x = 0;
-x< NES_DISP_WIDTH; x++) SCREEN[line][x] = lb[x];
+x< NES_DISP_WIDTH; x++) SCREEN[line][x] = linebuffer[x];
 }
 
 
 #define CHECK_BIT(var, pos) (((var)>>(pos)) & 1)
 
-/* Renderer loop on Pico's second core */
-void __time_critical_func(render_loop)() {
-    //multicore_lockout_victim_init();
-    printf("Video on Core#%i running...\n", get_core_num());
 
+/* Renderer loop on Pico's second core */
+void __time_critical_func(render_core)() {
     initVGA();
-    auto * buffer = reinterpret_cast<uint8_t *>(&SCREEN);
+    auto *buffer = reinterpret_cast<uint8_t *>(&SCREEN[0][0]);
     setVGAbuf(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
-    setVGA_text_buf(buffer, &buffer[80*30]);
+    uint8_t *text_buf = buffer + 1000;
+    setVGA_text_buf(text_buf, &text_buf[80 * 30]);
     setVGA_bg_color(0);
     setVGAbuf_pos(32, 0);
-    //setVGAmode(VGA640x480div2);
 
     setVGA_color_flash_mode(flash_line, flash_frame);
-/*    for (auto i = 0; i < sizeof NesPalette; i++) {
-        setVGA_color_palette(i, NesPalette[i]);
-        NesPalette[i] = i;
-    }*/
+
     sem_acquire_blocking(&vga_start_semaphore);
 }
 
@@ -628,7 +518,6 @@ void fileselector_load(char *pathname) {
 
     if (result == FR_OK) {
         uint32_t interrupts = save_and_disable_interrupts();
-        //multicore_lockout_start_blocking();
 
         // TODO: Save it after success loading to prevent corruptions
         printf("Flashing %d bytes to flash address %x\r\n", 256, offset);
@@ -662,15 +551,15 @@ void fileselector_load(char *pathname) {
 
         f_close(&file);
         restore_interrupts(interrupts);
-        //multicore_lockout_end_blocking();
     }
 }
 
 uint16_t fileselector_display_page(char filenames[60][256], uint16_t page_number) {
     clrScr(0);
     char footer[80];
+    const int files_in_page = 29;
     sprintf(footer, "=================== PAGE #%i -> NEXT PAGE / <- PREV. PAGE ====================", page_number);
-    draw_text(footer, 0, 29, 1, 11);
+    draw_text(footer, 0, files_in_page, 3, 11);
 
     DIR directory;
     FILINFO file;
@@ -690,7 +579,7 @@ uint16_t fileselector_display_page(char filenames[60][256], uint16_t page_number
 
     /* skip the first N pages */
     if (page_number > 0) {
-        while (total_files < page_number * 28 && result == FR_OK && file.fname[0]) {
+        while (total_files < page_number * files_in_page && result == FR_OK && file.fname[0]) {
             total_files++;
             result = f_findnext(&directory, &file);
         }
@@ -698,7 +587,7 @@ uint16_t fileselector_display_page(char filenames[60][256], uint16_t page_number
 
     /* store the filenames of this page */
     total_files = 0;
-    while (total_files < 28 && result == FR_OK && file.fname[0]) {
+    while (total_files < files_in_page && result == FR_OK && file.fname[0]) {
         strcpy(filenames[total_files], file.fname);
         total_files++;
         result = f_findnext(&directory, &file);
@@ -707,7 +596,7 @@ uint16_t fileselector_display_page(char filenames[60][256], uint16_t page_number
 
     for (uint8_t ifile = 0; ifile < total_files; ifile++) {
         char pathname[255];
-        uint8_t color = 0x0d;
+        uint8_t color = 0x0b;
         sprintf(pathname, "NES\\%s", filenames[ifile]);
 
         if (strcmp(pathname, rom_filename) != 0) {
@@ -730,17 +619,17 @@ void fileselector() {
     /* select the first rom */
     uint8_t current_file = 0;
 
-    uint8_t color = 0x0F;
-    draw_text(filenames[current_file], 0, current_file, color, 0x05);
+    uint8_t color = 0x0b;
+    draw_text(filenames[current_file], 0, current_file, color, 0x1);
 
     while (true) {
         char pathname[255];
         sprintf(pathname, "NES\\%s", filenames[current_file]);
 
         if (strcmp(pathname, rom_filename) != 0) {
-            color = 0x0F;
+            color = 0x0f;
         } else {
-            color = 0x03;
+            color = 0x0b;
         }
 #if USE_PS2_KBD
         ps2kbd.tick();
@@ -768,11 +657,11 @@ void fileselector() {
         }
         if (keyboard_bits.down || gamepad1_bits.down) {
             /* select the next rom */
-            draw_text(filenames[current_file], 0, current_file, color, 0x00);
+            draw_text(filenames[current_file], 0, current_file, color, 0x0);
             current_file++;
             if (current_file >= total_files)
                 current_file = 0;
-            draw_text(filenames[current_file], 0, current_file, color, 0x05);
+            draw_text(filenames[current_file], 0, current_file, color, 0x1);
             sleep_ms(150);
         }
         if (keyboard_bits.up || gamepad1_bits.up) {
@@ -783,7 +672,7 @@ void fileselector() {
             } else {
                 current_file--;
             }
-            draw_text(filenames[current_file], 0, current_file, color, 0x05);
+            draw_text(filenames[current_file], 0, current_file, color, 0x1);
             sleep_ms(150);
         }
         if (keyboard_bits.right || gamepad1_bits.right) {
@@ -797,7 +686,7 @@ void fileselector() {
             }
             /* select the first file */
             current_file = 0;
-            draw_text(filenames[current_file], 0, current_file, color, 0x05);
+            draw_text(filenames[current_file], 0, current_file, color, 0);
             sleep_ms(150);
         }
         if ((keyboard_bits.left || gamepad1_bits.left) && page_number > 0) {
@@ -806,7 +695,7 @@ void fileselector() {
             total_files = fileselector_display_page(filenames, page_number);
             /* select the first file */
             current_file = 0;
-            draw_text(filenames[current_file], 0, current_file, color, 0x05);
+            draw_text(filenames[current_file], 0, current_file, color, 0);
             sleep_ms(150);
         }
         tight_loop_contents();
@@ -814,30 +703,21 @@ void fileselector() {
 }
 
 
-bool loadAndReset() {
+int InfoNES_Menu() {
     setVGAmode(VGA640x480_text_80_30);
     fileselector();
-
+    memset(SCREEN, 63, sizeof(SCREEN));
     setVGAmode(VGA640x480div2);
-    memset(SCREEN, 0x0, sizeof(SCREEN));
 
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
         printf("NES file parse error.\n");
         return false;
     }
-
-    loadNVRAM();
-
     if (InfoNES_Reset() < 0) {
         printf("NES reset error.\n");
         return false;
     }
-
-    return true;
-}
-
-int InfoNES_Menu() {
-    return loadAndReset() ? 0 : -1;
+    return 0;
 }
 
 enum menu_type_e {
@@ -860,25 +740,21 @@ typedef struct __attribute__((__packed__)) {
     char value_list[5][10];
 } MenuItem;
 
-#define MENU_ITEMS_NUMBER 12
-#if MENU_ITEMS_NUMBER > (TEXTMODE_ROWS / 2)
-#error("Too much menu items!")
-#endif
+#define MENU_ITEMS_NUMBER 13
 const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
-        { "Player 1: %s",        ARRAY, &player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
-        { "Player 2: %s",        ARRAY, &player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
-        { "Show FPS: %s",        ARRAY, &show_fps,       1, { "NO ",       "YES" }},
-
-        { "Flash line: %s",        ARRAY, &flash_line,       1, { "NO ",       "YES" }},
-        { "Flash frame: %s",        ARRAY, &flash_frame,       1, { "NO ",       "YES" }},
-        { "Palette 222: %s",        ARRAY, &palette_mode,       1, { "NO ",       "YES" }},
-
-        { "" },
-        { "Save state", SAVE },
-        { "Load state", LOAD },
-        { "" },
-        { "Reset to ROM select", RESET },
-        { "Return to game",      RETURN }
+        {"Player 1: %s",        ARRAY, &player_1_input, 2, {"Keyboard ", "Gamepad 1", "Gamepad 2"}},
+        {"Player 2: %s",        ARRAY, &player_2_input, 2, {"Keyboard ", "Gamepad 1", "Gamepad 2"}},
+        {""},
+        {"Volume: %d",          INT,   &snd_vol,        8},
+        {""},
+        {"Flash line: %s",      ARRAY, &flash_line,     1, {"NO ",       "YES"}},
+        {"Flash frame: %s",     ARRAY, &flash_frame,    1, {"NO ",       "YES"}},
+        {""},
+        {"Save state",          SAVE},
+        {"Load state",          LOAD},
+        {""},
+        {"Reset to ROM select", RESET},
+        {"Return to game",      RETURN}
 };
 
 void menu() {
@@ -888,7 +764,7 @@ void menu() {
 
     char footer[80];
     sprintf(footer, ":: %s %s build %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__, __TIME__);
-    draw_text(footer, (TEXTMODE_COLS - strlen(footer)) >> 1, 0, 11, 1);
+    draw_text(footer, (sizeof(footer) - strlen(footer)) >> 1, 0, 11, 1);
     int current_item = 0;
 
     while (!exit) {
@@ -910,7 +786,7 @@ void menu() {
         }
 
         for (int i = 0; i < MENU_ITEMS_NUMBER; i++) {
-            uint8_t y = i + (((TEXTMODE_ROWS >> 1) - MENU_ITEMS_NUMBER) >> 1);
+            uint8_t y = i + ((30 - MENU_ITEMS_NUMBER) >> 1);
             uint8_t x = 30;
             uint8_t color = 0xFF;
             uint8_t bg_color = 0x00;
@@ -981,14 +857,11 @@ void menu() {
         sleep_ms(100);
     }
 
-    memset(SCREEN, 0, sizeof SCREEN);
+    memset(SCREEN, 63, sizeof SCREEN);
     setVGA_color_flash_mode(flash_line, flash_frame);
+
     setVGAmode(VGA640x480div2);
 }
-
-int start_time;
-int frames, frame_cnt;
-int frame_timer_start;
 
 int InfoNES_LoadFrame() {
 #if USE_PS2_KBD
@@ -1051,11 +924,9 @@ int main() {
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
 #endif
 
-    // util::dumpMemory((void *)NES_FILE_ADDR, 1024);
     sem_init(&vga_start_semaphore, 0, 1);
-    multicore_launch_core1(render_loop);
+    multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
 
-    loadState();
     InfoNES_Main();
 }
