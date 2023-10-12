@@ -42,6 +42,7 @@ const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET) + 4096;
 struct semaphore vga_start_semaphore;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH];
 uint16_t linebuffer[256];
+extern uint8_t fnt8x16[];
 
 // SETTINGS
 bool show_fps = false;
@@ -55,6 +56,7 @@ static FATFS fs;
 
 i2s_config_t i2s_config;
 
+char fps_text[3] = {"0"};
 int start_time;
 int frames;
 
@@ -469,6 +471,17 @@ InfoNES_SetLineBuffer(linebuffer,
 NES_DISP_WIDTH);
 }
 
+void __inline draw_fps(const char fps[3],uint8_t y, uint8_t color) {
+        for (uint8_t x = 0; x < 3; x++) {
+            uint8_t glyph_col = fnt8x16[(fps[x] << 4) + y];
+
+            for (uint8_t bit = 0; bit < 8; bit++)
+                if ((glyph_col >> bit) & 1)
+                    SCREEN[y][(NES_DISP_WIDTH - 8*2)+8 * x + bit] = color;
+        }
+}
+
+
 #define X2(a) (a | (a << 8))
 void __not_in_flash_func(InfoNES_PostDrawLine)
 (
@@ -477,6 +490,8 @@ int line
 for(
 int x = 0;
 x< NES_DISP_WIDTH; x++) SCREEN[line][x] = linebuffer[x];
+if (show_fps && line < 16)
+draw_fps(fps_text, line, 255);
 }
 
 
@@ -862,11 +877,11 @@ void menu() {
     setVGAmode(VGA640x480div2);
 }
 
+
 int InfoNES_LoadFrame() {
 #if USE_PS2_KBD
     ps2kbd.tick();
 #endif
-
 #if USE_NESPAD
     nespad_tick();
 #endif
@@ -875,17 +890,16 @@ int InfoNES_LoadFrame() {
     }
 
     frames++;
-
-    if (frames == 60) {
+    if (show_fps && frames >= 60) {
         uint64_t end_time;
         uint32_t diff;
         uint8_t fps;
         end_time = time_us_64();
         diff = end_time - start_time;
         fps = ((uint64_t) frames * 1000 * 1000) / diff;
-        char fps_text[3];
-        sprintf(fps_text, "%i ", fps);
-        draw_text(fps_text, 77, 0, 0xFF, 0x00);
+
+        sprintf(fps_text, "%i", fps);
+        //draw_text(fps_text, 77, 0, 0xFF, 0x00);
         frames = 0;
         start_time = time_us_64();
     }

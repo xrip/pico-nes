@@ -42,8 +42,12 @@
 #include "K6502.h"
 #include <assert.h>
 #include <pico.h>
+#include <pico/runtime.h>
 #include <tuple>
 #include <cstdio>
+#include <cctype>
+#include <cstdlib>
+#include <cstring>
 
 constexpr uint16_t makeTag(int r, int g, int b)
 {
@@ -1699,11 +1703,27 @@ extern BYTE Map4_IRQ_Present;
 extern BYTE Map4_IRQ_Present_Vbl;
 #include "ff.h"
 static FATFS fs;
+char* replaceSpecialCharacters(const char* str) {
+    int length = strlen(str);
+    char* newStr = static_cast<char *>(malloc(length + 1)); // Add space for the null terminator
+    int i;
 
+    for (i = 0; i < length; i++) {
+        if (isalpha(str[i]) || isdigit(str[i])) {
+            newStr[i] = str[i];
+        } else {
+            newStr[i] = '_';
+        }
+    }
+
+    newStr[length] = '\0'; // Add null terminator
+
+    return newStr;
+}
 void save(const char * rom_filename)
 {
     char pathname[255];
-    sprintf(pathname, "NES\\%s.save", rom_filename);
+    sprintf(pathname, "NES\\%s.save", replaceSpecialCharacters(rom_filename));
     FRESULT fr = f_mount(&fs, "", 1);
     FIL fd;
     fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
@@ -1815,7 +1835,7 @@ void save(const char * rom_filename)
 void load(const char * rom_filename)
 {
     char pathname[255];
-    sprintf(pathname, "NES\\%s.save", rom_filename);
+    sprintf(pathname, "NES\\%s.save", replaceSpecialCharacters(rom_filename));
     FRESULT fr = f_mount(&fs, "", 1);
     FIL fd;
     fr = f_open(&fd, pathname, FA_READ);
