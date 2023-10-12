@@ -1,3 +1,7 @@
+# v1.3.2
+
+ingame change palettte rgb222 <> rgb333
+
 # v1.3.0
 
 New videodriver added. Now you can select some video options in menu. 
