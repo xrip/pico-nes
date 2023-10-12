@@ -1,3 +1,8 @@
+# v1.3.0
+
+New videodriver added. Now you can select some video options in menu. 
+Thanks to @AlexEkb4ever
+
 # v1.2.0
 
 Added ability to save and load gamestate. One per rom.
