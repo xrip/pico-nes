@@ -78,18 +78,12 @@ jobs:
                  cmake -DCMAKE_BUILD_TYPE=MinSizeRel .. && \
                  make
 
-          - name: Show release info using picotool
-            run: |
-                 export PICO_SDK_PATH=$HOME/pico-sdk && \
-                 $HOME/picotool/build/picotool info bin/${{ env.APP_NAME }}.uf2 && \
-                 echo "-----------------------------" 
-
           - name: Create release
             uses: softprops/action-gh-release@v1
             if: startsWith(github.ref, 'refs/tags/')
             with:
                 files: |
-                       bin/${{ env.APP_NAME }}.uf2
+                       bin/MinSizeRel/${{ env.APP_NAME }}.uf2
 
                 body_path: CHANGELOG.md
           
