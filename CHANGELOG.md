@@ -1,3 +1,7 @@
+# v1.4.1
+
+MMC1 fixes by @AlexEkb4ever
+
 # v1.4.0
 
 - Mos mappers enabled. 
