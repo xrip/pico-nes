@@ -150,6 +150,16 @@ void Map1_Write( WORD wAddr, BYTE byData )
   {
     Map1_Cnt = 0;
     Map1_Latch = 0x00;
+    Map1_Regs[0]|=0x0C;
+
+    /*
+    BYTE byBankNum = Map1_Regs[3];
+    Map1_bank1 = byBankNum;
+    Map1_bank2 = byBankNum+1;
+    Map1_bank3 = Map1_HI1;
+    Map1_bank4 = Map1_HI2;
+    Map1_set_ROM_banks();
+    */
     return;
   }
 
@@ -323,13 +333,7 @@ void Map1_Write( WORD wAddr, BYTE byData )
         {
           // 16K of ROM
           byBankNum <<= 1;
-          // ROBOCOP 3 fix from fceux sources:
-            Map1_Regs[0] |= 0x0c;
 
-           // from @AlexEkb4ever
-          //static uint8_t fixbit3=0x80;
-          //if (fixbit3&0x80) fixbit3=Map1_Regs[0] & 0x04;
-          //if ( (Map1_Regs[0] |fixbit3)& 0x04 )
           if ( Map1_Regs[0] & 0x04 )
           {
             // 16K of ROM at $8000
