@@ -28,6 +28,7 @@ BYTE DRAM[DRAM_SIZE];
 
 struct MapperTable_tag MapperTable[] =
     {
+        {212, Map212_Init},
         {0, Map0_Init},
         {1, Map1_Init},
         {2, Map2_Init},
@@ -183,6 +184,7 @@ struct MapperTable_tag MapperTable[] =
 //#include "mapper/InfoNES_Mapper_005.cpp"
 //#include "mapper/InfoNES_Mapper_006.cpp"
 #include "mapper/InfoNES_Mapper_007.cpp"
+#include "mapper/InfoNES_Mapper_212.cpp"
 //#include "mapper/InfoNES_Mapper_011.cpp"
 //#include "mapper/InfoNES_Mapper_019.cpp"
 //#include "mapper/InfoNES_Mapper_206.cpp"

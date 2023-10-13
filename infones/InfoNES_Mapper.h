@@ -619,4 +619,7 @@ void Map255_Write(WORD wAddr, BYTE byData);
 void Map255_Apu(WORD wAddr, BYTE byData);
 BYTE Map255_ReadApu(WORD wAddr);
 
+void Map212_Init();
+void Map212_Write(WORD wAddr, BYTE byData);
+
 #endif /* !InfoNES_MAPPER_H_INCLUDED */
