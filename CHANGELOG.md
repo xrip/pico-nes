@@ -1,3 +1,9 @@
+# v1.4.0
+
+- Mos mappers enabled. 
+- Added 212 mapper for XXX-in-1 like cartridges.
+- Default overclocking now 272Mhz - this must run on every pico.
+
 # v1.3.2
 
 ingame change palettte rgb222 <> rgb333
