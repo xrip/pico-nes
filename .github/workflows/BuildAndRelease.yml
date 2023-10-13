@@ -75,7 +75,7 @@ jobs:
             run: |
                  export PICO_SDK_PATH=$HOME/pico-sdk && \
                  mkdir build && cd build && \
-                 cmake .. && \
+                 cmake -DCMAKE_BUILD_TYPE=MinSizeRel .. && \
                  make
 
           - name: Show release info using picotool

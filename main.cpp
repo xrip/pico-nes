@@ -452,7 +452,7 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
     static int min = 30000;
     static uint32_t ii = 0;
 
-    if (((ii++) & 0xff) == 0) printf("max=%d  min=%d\n", max, min);
+    //if (((ii++) & 0xff) == 0) printf("max=%d  min=%d\n", max, min);
 
     for (int i = 0; i < samples; i++) {
         int r, l;
@@ -938,10 +938,10 @@ int InfoNES_LoadFrame() {
 int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);
     sleep_ms(33);
-    set_sys_clock_khz(288000, true);
+    set_sys_clock_khz(272000, true);
 
 #if !NDEBUG
-    stdio_init_all();
+    //stdio_init_all();
 #endif
 
     gpio_init(PICO_DEFAULT_LED_PIN);
