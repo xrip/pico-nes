@@ -835,15 +835,17 @@ void filebrowser(char *path, char *executable) {
                     memset(tmp, 0xCD, 78);
                     tmp[78] = '\0';
                     draw_text(tmp, 1, per_page + 1, 11, 1);
-                    sprintf(tmp, " Size: %iKb, File %lu of %i ", item.size / 1024, (offset + i) + 1, total_files);
+                    sprintf(tmp, " Size: %iKb, File %lu of %i ", item.size / 1024, offset + i + 1, total_files);
                     draw_text(tmp, (80 - strlen(tmp)) >> 1, per_page + 1, 14, 3);
                 }
+                auto len = strlen(item.filename);
                 color = item.is_directory ? 15 : color;
                 color = item.is_executable ? 10 : color;
+                color = strstr(rom_filename, item.filename) != nullptr ? 13 : color;
 
                 memset(tmp, ' ', 78);
                 tmp[78] = '\0';
-                auto len = strlen(item.filename);
+
                 memcpy(&tmp, item.filename, len < 78 ? len : 78);
 
                 draw_text(tmp, 1, i + 1, color, bg_color);
