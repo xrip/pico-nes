@@ -1,3 +1,8 @@
+# v1.5.0
+
+- Filebrowser now with folders
+- Emulator settings saved to sdcard
+
 # v1.4.2
 
 MMC1 fixes by @AlexEkb4ever
