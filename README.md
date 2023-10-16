@@ -1,6 +1,10 @@
 # pico-nes
 Raspberry Pi Pico NES (Nintendo Entertainment System) / Dendy Emulator for [MURMULATOR](https://github.com/AlexEkb4ever/MURMULATOR_classical_scheme) devboard 
 
+<img src="https://img001.prntscr.com/file/img001/oFZiPeAETB6Pes5C0NGyWg.png" width="400"> <img src="https://img001.prntscr.com/file/img001/6xOwQx0uQLqURuGjo4GwSg.png" width="400">
+<img src="https://img001.prntscr.com/file/img001/avmHNeQPT0mjt49Ds0imSA.png" width="400">
+
+
 Murmulator devboard have MicroSD card slot, PS/2 keyboard input and VGA output
 
 # Hardware needed
