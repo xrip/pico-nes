@@ -688,9 +688,10 @@ void filebrowser(char *path, char *executable) {
 
     if (FR_OK != result) {
         printf("f_mount error: %s (%d)\r\n", FRESULT_str(result), result);
-        draw_text("f_mount error", 0, 1, 4, 1);
+        draw_text("SD Card mount error. Halt.", 0, 1, 4, 1);
         while (1) {}
     }
+
     while (1) {
         int total_files = 0;
         memset(fileItems, 0, maxfiles * sizeof(FileItem));
@@ -712,7 +713,7 @@ void filebrowser(char *path, char *executable) {
 
         // Open the directory
         if (f_opendir(&dir, basepath) != FR_OK) {
-            draw_text("Failed to open directory\n", 0, 1, 4, 0);
+            draw_text("Failed to open directory", 0, 1, 4, 0);
             while (1) {}
         }
 
@@ -854,7 +855,6 @@ void filebrowser(char *path, char *executable) {
             sleep_ms(100);
         }
     }
-    setVGAmode(VGA640x480div2);
 }
 
 
