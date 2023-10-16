@@ -568,8 +568,6 @@ void __time_critical_func(render_core)() {
 }
 
 
-
-
 typedef struct __attribute__((__packed__)) {
     bool is_directory;
     bool is_executable;
@@ -591,9 +589,9 @@ int compareFileItems(const void *a, const void *b) {
     return strcmp(itemA->filename, itemB->filename);
 }
 
-void __inline draw_window(int x, int y, int width, int height) {
-    char textline[81];
-    textline[width] = '\0';
+void __inline draw_window(char *title, int x, int y, int width, int height) {
+    char textline[80];
+
     width--;
     height--;
     // Рисуем рамки
@@ -603,16 +601,20 @@ void __inline draw_window(int x, int y, int width, int height) {
     textline[0] = 0xC9;
     textline[width] = 0xBB;
     draw_text(textline, x, y, 11, 1);
+    draw_text(title, (80 - strlen(title)) >> 1, 0, 0, 3);
 
     textline[0] = 0xC8;
     textline[width] = 0xBC;
     draw_text(textline, x, height - y, 11, 1);
+
+
     memset(textline, ' ', width);
     textline[0] = textline[width] = 0xBA;
     for (int i = 1; i < height; i++) {
         draw_text(textline, x, i, 11, 1);
     }
 }
+
 void filebrowser_loadfile(char *pathname) {
     if (strcmp(rom_filename, pathname) == 0) {
         printf("Launching last rom");
@@ -666,6 +668,7 @@ void filebrowser_loadfile(char *pathname) {
         restore_interrupts(interrupts);
     }
 }
+
 void filebrowser(char *path, char *executable) {
     setVGAmode(VGA640x480_text_80_30);
     bool debounce = true;
@@ -691,19 +694,20 @@ void filebrowser(char *path, char *executable) {
     while (1) {
         int total_files = 0;
         memset(fileItems, 0, maxfiles * sizeof(FileItem));
-        draw_window(0, 0, 80, 29);
+
         sprintf(tmp, " SDCARD:\\%s ", basepath);
-        draw_text(tmp, (80 - strlen(tmp)) >> 1, 0, 0, 3);
+        draw_window(tmp, 0, 0, 80, 29);
+
         memset(tmp, ' ', 80);
         draw_text(tmp, 0, 29, 0, 0);
         draw_text("START", 0, 29, 7, 0);
         draw_text(" Run at cursor ", 5, 29, 0, 3);
 
-        draw_text("SELECT", 5+15+1, 29, 7, 0);
-        draw_text(" Run previous  ", 5+15+1+6, 29, 0, 3);
+        draw_text("SELECT", 5 + 15 + 1, 29, 7, 0);
+        draw_text(" Run previous  ", 5 + 15 + 1 + 6, 29, 0, 3);
 
-        draw_text("ARROWS", 5+15+1+6+15+1, 29, 7, 0);
-        draw_text(" Navigation    ", 5+15+1+6+15+1+6, 29, 0, 3);
+        draw_text("ARROWS", 5 + 15 + 1 + 6 + 15 + 1, 29, 7, 0);
+        draw_text(" Navigation    ", 5 + 15 + 1 + 6 + 15 + 1 + 6, 29, 0, 3);
 
 
         // Open the directory
@@ -741,7 +745,7 @@ void filebrowser(char *path, char *executable) {
         f_closedir(&dir);
 
         if (total_files > 500) {
-            draw_text(" files > 500!!! ", 80-17, 0, 12,3);
+            draw_text(" files > 500!!! ", 80 - 17, 0, 12, 3);
         }
 
         uint8_t color, bg_color;
@@ -814,7 +818,7 @@ void filebrowser(char *path, char *executable) {
                     break;
                 }
 
-                if(file_at_cursor.is_executable) {
+                if (file_at_cursor.is_executable) {
                     sprintf(tmp, "%s\\%s", basepath, file_at_cursor.filename);
                     return filebrowser_loadfile(tmp);
                 }
@@ -829,17 +833,18 @@ void filebrowser(char *path, char *executable) {
                     bg_color = 3;
 
                     memset(tmp, 0xCD, 78);
-                    tmp[79] = '\0';
-                    draw_text(tmp, 1, per_page+1, 11, 1);
+                    tmp[78] = '\0';
+                    draw_text(tmp, 1, per_page + 1, 11, 1);
                     sprintf(tmp, " Size: %iKb, File %lu of %i ", item.size / 1024, (offset + i) + 1, total_files);
-                    draw_text(tmp, (80 - strlen(tmp)) >> 1, per_page+1, 14, 3);
+                    draw_text(tmp, (80 - strlen(tmp)) >> 1, per_page + 1, 14, 3);
                 }
                 color = item.is_directory ? 15 : color;
                 color = item.is_executable ? 10 : color;
 
                 memset(tmp, ' ', 78);
                 tmp[78] = '\0';
-                memcpy(&tmp, item.filename, strlen(item.filename));
+                auto len = strlen(item.filename);
+                memcpy(&tmp, item.filename, len < 78 ? len : 78);
 
                 draw_text(tmp, 1, i + 1, color, bg_color);
             }
