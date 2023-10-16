@@ -346,6 +346,6 @@ void * InfoNes_GetPPURAM(size_t *size);
 
 void *InfoNes_GetSPRRAM(size_t *size);
 
-void load(const char *);
-void save(const char *);
+void load_state(const char *);
+void save_state(const char *);
 #endif /* !InfoNES_H_INCLUDED */

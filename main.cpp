@@ -46,19 +46,38 @@ uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH];
 uint16_t linebuffer[256];
 extern uint8_t fnt8x16[];
 
-
 enum PALETTES {
     RGB333,
     RBG222,
 };
-// SETTINGS
-bool show_fps = false;
-bool flash_line = true;
-bool flash_frame = true;
-PALETTES palette = RGB333;
-uint8_t snd_vol = 8;
-uint8_t player_1_input = 1;
-uint8_t player_2_input = 0;
+
+enum INPUT {
+    KEYBOARD,
+    GAMEPAD1,
+    GAMEPAD2,
+};
+
+typedef struct __attribute__((__packed__)) {
+    uint8_t version;
+    bool show_fps;
+    bool flash_line;
+    bool flash_frame;
+    PALETTES palette;
+    uint8_t snd_vol;
+    INPUT player_1_input;
+    INPUT player_2_input;
+} SETTINGS;
+
+SETTINGS settings = {
+        .show_fps = false,
+        .flash_line = true,
+        .flash_frame = true,
+        .palette = RGB333,
+        .snd_vol = 8,
+        .player_1_input = GAMEPAD1,
+        .player_2_input = KEYBOARD,
+};
+
 
 static FATFS fs;
 
@@ -311,7 +330,7 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
     input_bits_t player1_state = {};
     input_bits_t player2_state = {};
 
-    switch (player_1_input) {
+    switch (settings.player_1_input) {
         case 0:
             player1_state = keyboard_bits;
             break;
@@ -323,7 +342,7 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
             break;
     }
 
-    switch (player_2_input) {
+    switch (settings.player_2_input) {
         case 0:
             player2_state = keyboard_bits;
             break;
@@ -502,8 +521,8 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
         r -= 4000;
 
 
-        samples_out[i_active_buf][inx * 2] = l * snd_vol;
-        samples_out[i_active_buf][inx * 2 + 1] = r * snd_vol;
+        samples_out[i_active_buf][inx * 2] = l * settings.snd_vol;
+        samples_out[i_active_buf][inx * 2 + 1] = r * settings.snd_vol;
         if (inx++ >= i2s_config.dma_trans_count) {
             inx = 0;
             i2s_dma_write(&i2s_config, reinterpret_cast<const int16_t *>(samples_out[i_active_buf]));
@@ -543,7 +562,7 @@ for(
 int x = 0;
 x< NES_DISP_WIDTH; x++) SCREEN[line][x] = linebuffer[x];
 if (
-show_fps &&line<
+settings.show_fps &&line<
 16)
 draw_fps(fps_text, line,
 255);
@@ -562,8 +581,8 @@ void __time_critical_func(render_core)() {
     setVGA_text_buf(text_buf, &text_buf[80 * 30]);
     setVGA_bg_color(0);
     setVGAbuf_pos(32, 0);
-    updatePalette(palette);
-    setVGA_color_flash_mode(flash_line, flash_frame);
+    updatePalette(settings.palette);
+    setVGA_color_flash_mode(settings.flash_line, settings.flash_frame);
 
     sem_acquire_blocking(&vga_start_semaphore);
 }
@@ -876,6 +895,34 @@ int InfoNES_Menu() {
     return 0;
 }
 
+
+void load_config() {
+    char pathname[255];
+    sprintf(pathname, "%s\\emulator.cfg", HOME_DIR);
+    FRESULT fr = f_mount(&fs, "", 1);
+    FIL fd;
+    fr = f_open(&fd, pathname, FA_READ);
+    if (fr != FR_OK) {
+        return;
+    }
+    UINT br;
+
+    f_read(&fd, &settings, sizeof(settings), &br);
+    f_close(&fd);
+}
+
+void save_config() {
+    char pathname[255];
+    sprintf(pathname, "%s\\emulator.cfg", HOME_DIR);
+    FRESULT fr = f_mount(&fs, "", 1);
+    FIL fd;
+    fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
+    UINT bw;
+
+    f_write(&fd, &settings, sizeof(settings), &bw);
+    f_close(&fd);
+}
+
 enum menu_type_e {
     NONE,
     INT,
@@ -898,14 +945,14 @@ typedef struct __attribute__((__packed__)) {
 
 #define MENU_ITEMS_NUMBER 14
 const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
-        { "Player 1: %s",        ARRAY, &player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
-        { "Player 2: %s",        ARRAY, &player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
+        { "Player 1: %s",        ARRAY, &settings.player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
+        { "Player 2: %s",        ARRAY, &settings.player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
         { "" },
-        { "Volume: %d",          INT,   &snd_vol,        8 },
+        { "Volume: %d",          INT,   &settings.snd_vol,        8 },
         { "" },
-        { "Flash line: %s",      ARRAY, &flash_line,     1, { "NO ",       "YES" }},
-        { "Flash frame: %s",     ARRAY, &flash_frame,    1, { "NO ",       "YES" }},
-        { "Palette: %s",         ARRAY, &palette,        1, { "RGB333",    "RGB222" }},
+        { "Flash line: %s",      ARRAY, &settings.flash_line,     1, { "NO ",       "YES" }},
+        { "Flash frame: %s",     ARRAY, &settings.flash_frame,    1, { "NO ",       "YES" }},
+        { "Palette: %s",         ARRAY, &settings.palette,        1, { "RGB333",    "RGB222" }},
         { "" },
         { "Save state",          SAVE },
         { "Load state",          LOAD },
@@ -972,13 +1019,13 @@ void menu() {
                         break;
                     case SAVE:
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
-                            save(rom_filename);
+                            save_state(rom_filename);
                             exit = true;
                         }
                         break;
                     case LOAD:
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
-                            load(rom_filename);
+                            load_state(rom_filename);
                             exit = true;
                         }
                         break;
@@ -1015,9 +1062,10 @@ void menu() {
     }
 
     memset(SCREEN, 63, sizeof SCREEN);
-    setVGA_color_flash_mode(flash_line, flash_frame);
-    updatePalette(palette);
+    setVGA_color_flash_mode(settings.flash_line, settings.flash_frame);
+    updatePalette(settings.palette);
     setVGAmode(VGA640x480div2);
+    save_config();
 }
 
 
@@ -1033,7 +1081,7 @@ int InfoNES_LoadFrame() {
     }
 
     frames++;
-    if (show_fps && frames >= 60) {
+    if (settings.show_fps && frames >= 60) {
         uint64_t end_time;
         uint32_t diff;
         uint8_t fps;
@@ -1083,6 +1131,8 @@ int main() {
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
+    load_config();
     sleep_ms(50);
+
     InfoNES_Main();
 }

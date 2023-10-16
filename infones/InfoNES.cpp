@@ -1720,7 +1720,7 @@ char* replaceSpecialCharacters(const char* str) {
 
     return newStr;
 }
-void save(const char * rom_filename)
+void save_state(const char * rom_filename)
 {
     char pathname[255];
     sprintf(pathname, "NES\\%s.save", replaceSpecialCharacters(rom_filename));
@@ -1832,7 +1832,7 @@ void save(const char * rom_filename)
     return;
 }
 
-void load(const char * rom_filename)
+void load_state(const char * rom_filename)
 {
     char pathname[255];
     sprintf(pathname, "NES\\%s.save", replaceSpecialCharacters(rom_filename));
