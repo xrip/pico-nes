@@ -66,9 +66,11 @@ typedef struct __attribute__((__packed__)) {
     uint8_t snd_vol;
     INPUT player_1_input;
     INPUT player_2_input;
+    uint8_t nes_palette;
 } SETTINGS;
 
 SETTINGS settings = {
+        .version = 1,
         .show_fps = false,
         .flash_line = true,
         .flash_frame = true,
@@ -76,6 +78,7 @@ SETTINGS settings = {
         .snd_vol = 8,
         .player_1_input = GAMEPAD1,
         .player_2_input = KEYBOARD,
+        .nes_palette = 0,
 };
 
 
@@ -96,7 +99,7 @@ const BYTE NesPalette[64] = {
 };
 
 const int __not_in_flash_func(NesPalette888)
-[64] = {
+[] = {
                 /**/
                 RGB888(0x7c, 0x7c, 0x7c),
                 RGB888(0x00, 0x00, 0xfc),
@@ -179,7 +182,7 @@ const int __not_in_flash_func(NesPalette888)
                 RGB888(0x00, 0x00, 0x00),
                 /**/
                 /* Matthew Conte's Palette */
-                /*
+                /**/
                         0x808080, 0x0000bb, 0x3700bf, 0x8400a6,
                         0xbb006a, 0xb7001e, 0xb30000, 0x912600,
                         0x7b2b00, 0x003e00, 0x00480d, 0x003c22,
@@ -199,15 +202,15 @@ const int __not_in_flash_func(NesPalette888)
                         0xffbfea, 0xffbfcc, 0xffc4b7, 0xffccae,
                         0xffd9a2, 0xcce199, 0xaeeeb7, 0xaaf7ee,
                         0xb3eeff, 0xdddddd, 0x111111, 0x111111,
-                        */
+                        /**/
         };
 
 void updatePalette(PALETTES palette) {
     for (int i = 0; i < 64; i++) {
         if (palette == RGB333) {
-            setVGA_color_palette(i, NesPalette888[i]);
+            setVGA_color_palette(i, NesPalette888[i+(64*settings.nes_palette)]);
         } else {
-            uint32_t c = NesPalette888[i];
+            uint32_t c = NesPalette888[i+(64*settings.nes_palette)];
             uint8_t r = (c >> (16 + 6)) & 0x3;
             uint8_t g = (c >> (8 + 6)) & 0x3;
             uint8_t b = (c >> (0 + 6)) & 0x3;
@@ -579,7 +582,7 @@ void __time_critical_func(render_core)() {
     setVGAbuf(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
     uint8_t *text_buf = buffer + 1000;
     setVGA_text_buf(text_buf, &text_buf[80 * 30]);
-    setVGA_bg_color(0);
+    setVGA_bg_color(63);
     setVGAbuf_pos(32, 0);
     updatePalette(settings.palette);
     setVGA_color_flash_mode(settings.flash_line, settings.flash_frame);
@@ -943,7 +946,7 @@ typedef struct __attribute__((__packed__)) {
     char value_list[5][10];
 } MenuItem;
 
-#define MENU_ITEMS_NUMBER 14
+#define MENU_ITEMS_NUMBER 15
 const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "Player 1: %s",        ARRAY, &settings.player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
         { "Player 2: %s",        ARRAY, &settings.player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
@@ -952,7 +955,8 @@ const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "" },
         { "Flash line: %s",      ARRAY, &settings.flash_line,     1, { "NO ",       "YES" }},
         { "Flash frame: %s",     ARRAY, &settings.flash_frame,    1, { "NO ",       "YES" }},
-        { "Palette: %s",         ARRAY, &settings.palette,        1, { "RGB333",    "RGB222" }},
+        { "VGA Mode: %s",         ARRAY, &settings.palette,        1, { "RGB333",    "RGB222" }},
+        { "NES Palette: %s",         ARRAY, &settings.nes_palette,        1, { "default ",    "palette1" }},
         { "" },
         { "Save state",          SAVE },
         { "Load state",          LOAD },
