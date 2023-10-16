@@ -36,6 +36,7 @@ extern "C" {
 
 #pragma GCC optimize("Ofast")
 
+#define HOME_DIR "\\NES"
 #define FLASH_TARGET_OFFSET (1024 * 1024)
 const char *rom_filename = (const char *) (XIP_BASE + FLASH_TARGET_OFFSET);
 const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET) + 4096;
@@ -860,7 +861,7 @@ void filebrowser(char *path, char *executable) {
 
 int InfoNES_Menu() {
     setVGAmode(VGA640x480_text_80_30);
-    filebrowser("\\NES", "nes");
+    filebrowser(HOME_DIR, "nes");
     memset(SCREEN, 63, sizeof(SCREEN));
     setVGAmode(VGA640x480div2);
 
