@@ -183,34 +183,34 @@ const int __not_in_flash_func(NesPalette888)
                 /**/
                 /* Matthew Conte's Palette */
                 /**/
-                        0x808080, 0x0000bb, 0x3700bf, 0x8400a6,
-                        0xbb006a, 0xb7001e, 0xb30000, 0x912600,
-                        0x7b2b00, 0x003e00, 0x00480d, 0x003c22,
-                        0x002f66, 0x000000, 0x050505, 0x050505,
+                0x808080, 0x0000bb, 0x3700bf, 0x8400a6,
+                0xbb006a, 0xb7001e, 0xb30000, 0x912600,
+                0x7b2b00, 0x003e00, 0x00480d, 0x003c22,
+                0x002f66, 0x000000, 0x050505, 0x050505,
 
-                        0xc8c8c8, 0x0059ff, 0x443cff, 0xb733cc,
-                        0xff33aa, 0xff375e, 0xff371a, 0xd54b00,
-                        0xc46200, 0x3c7b00, 0x1e8415, 0x009566,
-                        0x0084c4, 0x111111, 0x090909, 0x090909,
+                0xc8c8c8, 0x0059ff, 0x443cff, 0xb733cc,
+                0xff33aa, 0xff375e, 0xff371a, 0xd54b00,
+                0xc46200, 0x3c7b00, 0x1e8415, 0x009566,
+                0x0084c4, 0x111111, 0x090909, 0x090909,
 
-                        0xffffff, 0x0095ff, 0x6f84ff, 0xd56fff,
-                        0xff77cc, 0xff6f99, 0xff7b59, 0xff915f,
-                        0xffa233, 0xa6bf00, 0x51d96a, 0x4dd5ae,
-                        0x00d9ff, 0x666666, 0x0d0d0d, 0x0d0d0d,
+                0xffffff, 0x0095ff, 0x6f84ff, 0xd56fff,
+                0xff77cc, 0xff6f99, 0xff7b59, 0xff915f,
+                0xffa233, 0xa6bf00, 0x51d96a, 0x4dd5ae,
+                0x00d9ff, 0x666666, 0x0d0d0d, 0x0d0d0d,
 
-                        0xffffff, 0x84bfff, 0xbbbbff, 0xd0bbff,
-                        0xffbfea, 0xffbfcc, 0xffc4b7, 0xffccae,
-                        0xffd9a2, 0xcce199, 0xaeeeb7, 0xaaf7ee,
-                        0xb3eeff, 0xdddddd, 0x111111, 0x111111,
-                        /**/
+                0xffffff, 0x84bfff, 0xbbbbff, 0xd0bbff,
+                0xffbfea, 0xffbfcc, 0xffc4b7, 0xffccae,
+                0xffd9a2, 0xcce199, 0xaeeeb7, 0xaaf7ee,
+                0xb3eeff, 0xdddddd, 0x111111, 0x111111,
+                /**/
         };
 
 void updatePalette(PALETTES palette) {
     for (int i = 0; i < 64; i++) {
         if (palette == RGB333) {
-            setVGA_color_palette(i, NesPalette888[i+(64*settings.nes_palette)]);
+            setVGA_color_palette(i, NesPalette888[i + (64 * settings.nes_palette)]);
         } else {
-            uint32_t c = NesPalette888[i+(64*settings.nes_palette)];
+            uint32_t c = NesPalette888[i + (64 * settings.nes_palette)];
             uint8_t r = (c >> (16 + 6)) & 0x3;
             uint8_t g = (c >> (8 + 6)) & 0x3;
             uint8_t b = (c >> (0 + 6)) & 0x3;
@@ -565,7 +565,8 @@ for(
 int x = 0;
 x< NES_DISP_WIDTH; x++) SCREEN[line][x] = linebuffer[x];
 if (
-settings.show_fps &&line<
+settings.
+show_fps &&line<
 16)
 draw_fps(fps_text, line,
 255);
@@ -883,18 +884,17 @@ void filebrowser(char *path, char *executable) {
 
 int InfoNES_Menu() {
     setVGAmode(VGA640x480_text_80_30);
-    filebrowser(HOME_DIR, "nes");
-    memset(SCREEN, 63, sizeof(SCREEN));
-    setVGAmode(VGA640x480div2);
-
+    filebrowser(HOME_DIR, (char*)"nes");
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
-        printf("NES file parse error.\n");
-        return false;
+        draw_text((char*)"NES file parse error.", 1, 1, 4, 0);
+        return 1;
     }
     if (InfoNES_Reset() < 0) {
-        printf("NES reset error.\n");
-        return false;
+        draw_text((char*)"NES reset error.", 1, 1, 4, 0);
+        return 1;
     }
+    memset(SCREEN, 63, sizeof(SCREEN));
+    setVGAmode(VGA640x480div2);
     return 0;
 }
 
@@ -955,8 +955,8 @@ const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "" },
         { "Flash line: %s",      ARRAY, &settings.flash_line,     1, { "NO ",       "YES" }},
         { "Flash frame: %s",     ARRAY, &settings.flash_frame,    1, { "NO ",       "YES" }},
-        { "VGA Mode: %s",         ARRAY, &settings.palette,        1, { "RGB333",    "RGB222" }},
-        { "NES Palette: %s",         ARRAY, &settings.nes_palette,        1, { "default ",    "palette1" }},
+        { "VGA Mode: %s",        ARRAY, &settings.palette,        1, { "RGB333",    "RGB222" }},
+        { "NES Palette: %s",     ARRAY, &settings.nes_palette,    1, { "default ",  "palette1" }},
         { "" },
         { "Save state",          SAVE },
         { "Load state",          LOAD },
