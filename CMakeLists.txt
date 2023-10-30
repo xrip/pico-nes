@@ -52,6 +52,9 @@ add_subdirectory(drivers/sdcard)
 add_executable(dendy
         main.cpp
 )
+pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
+target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
+pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
 
 pico_set_program_name(dendy "NES Emulator by xrip")
 pico_set_program_version(dendy "development version")
@@ -116,6 +119,4 @@ target_compile_definitions(dendy PRIVATE
         FF_USE_FIND
 )
 pico_add_extra_outputs(dendy)
-
-
 

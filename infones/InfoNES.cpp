@@ -602,7 +602,7 @@ void InfoNES_Mirroring(int nType)
 /*              InfoNES_Main() : The main loop of InfoNES            */
 /*                                                                   */
 /*===================================================================*/
-void InfoNES_Main()
+void InfoNES_Main(bool skip_fb)
 {
   /*
    *  The main loop of InfoNES
@@ -618,9 +618,8 @@ void InfoNES_Main()
   /*-------------------------------------------------------------------*/
   /*  To the menu screen                                               */
   /*-------------------------------------------------------------------*/
-  if (InfoNES_Menu() == 0)
+  if ((skip_fb || InfoNES_Menu() == 0) && InfoNES_Video() == 0)
   {
-    
     /*-------------------------------------------------------------------*/
     /*  Start a NES emulation                                            */
     /*-------------------------------------------------------------------*/
@@ -806,7 +805,9 @@ int __not_in_flash_func(InfoNES_HSync)()
     if (FrameCnt == 0)
     {
       // Transfer the contents of work frame on the screen
-      InfoNES_LoadFrame();
+      if (InfoNES_LoadFrame() == -1) {
+        return -1;
+      }
 
 #if 0
         // Switching of the double buffer
@@ -1723,7 +1724,7 @@ char* replaceSpecialCharacters(const char* str) {
 void save_state(const char * rom_filename)
 {
     char pathname[255];
-    sprintf(pathname, "NES\\%s.save", replaceSpecialCharacters(rom_filename));
+    sprintf(pathname, "%s.save", replaceSpecialCharacters(rom_filename));
     FRESULT fr = f_mount(&fs, "", 1);
     FIL fd;
     fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);

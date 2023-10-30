@@ -15,7 +15,7 @@ void setVGAbuf(uint8_t* buf, uint16_t w,uint16_t h);
 
 void setVGA_text_buf(uint8_t* buf_text, uint8_t* buf_text_color);
 
-
+void logMsg(char * msg);
 
 void setVGAbuf_pos(int x,int y);
 void setVGAmode(enum VGA_mode_t mode_VGA);

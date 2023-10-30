@@ -512,13 +512,22 @@ void setVGA_text_buf(uint8_t* buf_text, uint8_t* buf_text_color)
     text_buf=buf_text;
     text_buf_color=buf_text_color;
 };
-
+static int y = 0;
 void clrScr(uint8_t color)
 {
     memset(text_buf,0, text_buf_height*text_buf_width);
     memset(text_buf_color, (color<<4), text_buf_height*text_buf_width);
-
+    y = 0;
 };
+void logMsg(char * msg) {
+    if (y >= text_buf_height) {
+        y = 0;
+        clrScr(1);
+    }
+    draw_text(msg, 0, y++, 4, 0);
+    sleep_ms(200);
+}
+
 void draw_text(char *string, int x, int y, uint8_t color, uint8_t bgcolor) 
 {
     if ((y<0)|(y>=text_buf_height)) return; 
@@ -544,44 +553,32 @@ void draw_text(char *string, int x, int y, uint8_t color, uint8_t bgcolor)
             *t_buf_c++=(bgcolor << 4) | (color & 0xF);
 
         }
-
-   
 };
-
 
 void setVGA_bg_color( uint32_t color888)
 {
     uint8_t conv0[]={0b00,0b00,0b01,0b10,0b10,0b10,0b11,0b11};
     uint8_t conv1[]={0b00,0b01,0b01,0b01,0b10,0b11,0b11,0b11};
-    
     uint8_t b=((color888&0xff)/42);
-
     uint8_t r=(((color888>>16)&0xff)/42);
     uint8_t g=(((color888>>8)&0xff)/42);
-
     uint8_t c_hi=(conv0[r]<<4)|(conv0[g]<<2)|conv0[b];
     uint8_t c_lo=(conv1[r]<<4)|(conv1[g]<<2)|conv1[b];
     bg_color[0]=(((((c_hi<<8)|c_lo)&0x3f3f)|palette16_mask)<<16)|((((c_hi<<8)|c_lo)&0x3f3f)|palette16_mask);
     bg_color[1]=(((((c_lo<<8)|c_hi)&0x3f3f)|palette16_mask)<<16)|((((c_lo<<8)|c_hi)&0x3f3f)|palette16_mask);
-    
 };
 
 void setVGA_color_palette(uint8_t i_color, uint32_t color888)
 {
     uint8_t conv0[]={0b00,0b00,0b01,0b10,0b10,0b10,0b11,0b11};
     uint8_t conv1[]={0b00,0b01,0b01,0b01,0b10,0b11,0b11,0b11};
-
     uint8_t b=((color888&0xff)/42);
-
     uint8_t r=(((color888>>16)&0xff)/42);
     uint8_t g=(((color888>>8)&0xff)/42);
-
     uint8_t c_hi=(conv0[r]<<4)|(conv0[g]<<2)|conv0[b];
     uint8_t c_lo=(conv1[r]<<4)|(conv1[g]<<2)|conv1[b];
-
     palette[0][i_color]=(((c_hi<<8)|c_lo)&0x3f3f)|palette16_mask;
     palette[1][i_color]=(((c_lo<<8)|c_hi)&0x3f3f)|palette16_mask;
-
 };
 
 void initVGA()
@@ -607,106 +604,68 @@ void initVGA()
     }
 #endif
     //текстовая палитра
-     for(int i=0;i<16;i++)
+    for(int i=0;i<16;i++)
     {
         uint8_t b=(i&1)?((i>>3)?3:2):0;
         uint8_t r=(i&4)?((i>>3)?3:2):0;
         uint8_t g=(i&2)?((i>>3)?3:2):0;
-
         uint8_t c= (r<<4)|(g<<2)|b;
-
         txt_palette[i]=(c&0x3f)|0xc0;
     }
-
-
-
     //инициализация PIO
     //загрузка программы в один из PIO
     uint offset = pio_add_program(PIO_VGA, &pio_program_VGA);
     _SM_VGA = pio_claim_unused_sm(PIO_VGA, true);
     uint sm=_SM_VGA;
-
-    for(int i=0;i<8;i++){gpio_init(beginVGA_PIN+i);
-    gpio_set_dir(beginVGA_PIN+i,GPIO_OUT);pio_gpio_init(PIO_VGA, beginVGA_PIN+i);};//резервируем под выход PIO
-  
-    //pio_sm_config c = pio_vga_program_get_default_config(offset); 
-   
+    for(int i=0;i<8;i++) {
+        gpio_init(beginVGA_PIN+i);
+        gpio_set_dir(beginVGA_PIN+i,GPIO_OUT);pio_gpio_init(PIO_VGA, beginVGA_PIN+i);
+    };//резервируем под выход PIO
     pio_sm_set_consecutive_pindirs(PIO_VGA, sm, beginVGA_PIN, 8, true);//конфигурация пинов на выход
-
     pio_sm_config c = pio_get_default_sm_config();
     sm_config_set_wrap(&c, offset + 0, offset + (pio_program_VGA.length-1));
-
-
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);//увеличение буфера TX за счёт RX до 8-ми 
     sm_config_set_out_shift(&c, true, true, 32);
     sm_config_set_out_pins(&c, beginVGA_PIN, 8);
     pio_sm_init(PIO_VGA, sm, offset, &c);
-    
-    
-
     pio_sm_set_enabled(PIO_VGA, sm, true);
-
-
-   
     //инициализация DMA
-
-    
     dma_chan_ctrl = dma_claim_unused_channel(true);
     dma_chan = dma_claim_unused_channel(true);
     //основной ДМА канал для данных
     dma_channel_config c0 = dma_channel_get_default_config(dma_chan);
     channel_config_set_transfer_data_size(&c0, DMA_SIZE_32);
-
     channel_config_set_read_increment(&c0, true);
     channel_config_set_write_increment(&c0, false);
-
     uint dreq=DREQ_PIO1_TX0+sm;
     if (PIO_VGA==pio0) dreq=DREQ_PIO0_TX0+sm;
-
     channel_config_set_dreq(&c0, dreq);
     channel_config_set_chain_to(&c0, dma_chan_ctrl);                        // chain to other channel
-   
     dma_channel_configure(
-        dma_chan,
-        &c0,
-        &PIO_VGA->txf[sm], // Write address 
-        lines_pattern[0],             // read address 
-        600/4, //
-        false             // Don't start yet
+            dma_chan,
+            &c0,
+            &PIO_VGA->txf[sm], // Write address 
+            lines_pattern[0],             // read address 
+            600/4, //
+            false             // Don't start yet
     );
     //канал DMA для контроля основного канала
     dma_channel_config c1 = dma_channel_get_default_config(dma_chan_ctrl);
     channel_config_set_transfer_data_size(&c1, DMA_SIZE_32);
-    
     channel_config_set_read_increment(&c1, false);
     channel_config_set_write_increment(&c1, false);
     channel_config_set_chain_to(&c1, dma_chan);                         // chain to other channel
-    //channel_config_set_dreq(&c1, DREQ_PIO0_TX0);
-
-
-
     dma_channel_configure(
-        dma_chan_ctrl,
-        &c1,
-        &dma_hw->ch[dma_chan].read_addr, // Write address 
-        &lines_pattern[0],             // read address
-        1, // 
-        false             // Don't start yet
+            dma_chan_ctrl,
+            &c1,
+            &dma_hw->ch[dma_chan].read_addr, // Write address 
+            &lines_pattern[0],             // read address
+            1, // 
+            false             // Don't start yet
     );
-    //dma_channel_set_read_addr(dma_chan, &DMA_BUF_ADDR[0], false);
-
-    
-  
- 
     setVGAmode(VGA640x480div2);    
-   
-
     irq_set_exclusive_handler(VGA_DMA_IRQ, dma_handler_VGA);
-
     dma_channel_set_irq0_enabled(dma_chan_ctrl, true);
-
     irq_set_enabled(VGA_DMA_IRQ, true);
     dma_start_channel_mask((1u << dma_chan)) ;
-    
-
 };
