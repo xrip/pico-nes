@@ -899,6 +899,7 @@ int InfoNES_Video() {
         logMsg((char*)"NES reset error.");
         return 1; 
     }
+    memset(SCREEN, 63, sizeof(SCREEN));    
     setVGAmode(VGA640x480div2);
     return 0;
 }
