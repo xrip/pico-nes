@@ -14,32 +14,32 @@ class CompositeDest {
     const char* rom; // already saved to ROM part
     size_t rOff = 0;
     char* dest; // not yet saved part (extertanl call RAM buffer)
+    size_t destLen;
     size_t dOff = 0;
-    char buff[128]; // one iteration
+    char buff[128]; // one iteration overflow
     size_t bOff = 0;
-    size_t fromPrevEnterLen = 0;
 public:
     CompositeDest(const char* rom_) { this->rom = rom_; }
-    inline void nextEnter(char* dest_) {
+    inline void nextEnter(char* dest_, size_t destLen_) {
         dest = dest_;
+        destLen = destLen_;
         dOff = 0;
-        if (fromPrevEnterLen > 0) {
-            memcpy(dest, buff + bOff, fromPrevEnterLen);
-            dOff += fromPrevEnterLen;
+        if (bOff > 0) {
+            memcpy(dest, buff, bOff);
+            dOff += bOff;
         }
         bOff = 0;
-        fromPrevEnterLen = 0;
     }
-    inline void newIteration() { bOff = 0; }
     inline void push(char d) {
         printf("ro(%d) ", rOff);
-        buff[bOff++] = d;
+        if (dOff < destLen) {
+            dest[dOff++] = d;
+        } else {
+            buff[bOff++] = d;
+        }
         rOff++;
     }
     inline void copyFromBack(size_t len, size_t backOff) {
-//        if(len == 4 && backOff == 20746) {
-//            printf("\n");
-//        }
         int destIdx = dOff - backOff;
         int romIdx = rOff - backOff;
         for (int k = 0; k < len; ++destIdx, ++romIdx, ++k) {
@@ -55,20 +55,9 @@ public:
                 push(b);
             }
         }
-     }
-    inline bool endIteration(size_t maxDestLen) { // true, while we have free space in the dest
-        auto len = bOff;
-        if (dOff + len > maxDestLen) { // ??? ensure
-            len = maxDestLen - dOff;
-            fromPrevEnterLen = bOff - len;
-            memcpy(dest + dOff, buff, len);
-            dOff += len;
-            bOff = len;
-            return false;
-        }
-        memcpy(dest + dOff, buff, len);
-        dOff += len;
-        return true;
+    }
+    inline bool endIteration() { // true, while we have free space in the dest
+        return bOff == 0;
     }
 };
 
@@ -83,9 +72,8 @@ struct LZWBlockInputStream {
     ~LZWBlockInputStream() { delete cd; };
     inline int read(char * dest, size_t destBuffLen, int * decompressed) {
         auto s = sOff;
-        cd->nextEnter(dest);
+        cd->nextEnter(dest, destBuffLen);
         do {
-            cd->newIteration();
             signed char token = _src[sOff++];
             printf("token: 0x%02X: ", (unsigned int)(token & 0xFF));
             if (token <= 0) {
@@ -104,7 +92,7 @@ struct LZWBlockInputStream {
                 cd->copyFromBack(token, backOff);
             }
             printf("\n");
-        } while(cd->endIteration(destBuffLen));
+        } while(cd->endIteration());
         return sOff - s;
     }
 };
