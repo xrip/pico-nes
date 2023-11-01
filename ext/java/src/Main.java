@@ -4,42 +4,6 @@ import java.nio.file.Paths;
 import java.util.*;
 
 public class Main {
-    static Map<List<Block>, Node> knownNodes = new HashMap<>();
-    public static Branch compress(Branch src, int size) {
-        final Branch res = new Branch();
-        for (final var node: src.nodes) {
-            if (node instanceof Branch branch) {
-                final var b = compress(branch, size);
-                res.nodes.add(b);
-            } else if (node instanceof Leaf leaf) {
-                final var blocks = leaf.blocks;
-                final List<Node> nodeCandidates = new ArrayList<>();
-                int optimized = 0;
-                for (int i = 0; i < blocks.size(); i += size) {
-                    final var sz = blocks.size() > i + size ? size : blocks.size() - i;
-                    final List<Block> k = new ArrayList<>();
-                    for (int j = 0; j < sz; ++j) {
-                        k.add(blocks.get(i + j));
-                    }
-                    final var lo = knownNodes.get(k);
-                    if (lo == null) {
-                        final var ln = new Leaf(k);
-                        knownNodes.put(k, ln);
-                        nodeCandidates.add(ln);
-                    } else {
-                        nodeCandidates.add(lo);
-                        optimized++;
-                    }
-                }
-                if (optimized > 0) {
-                    res.nodes.addAll(nodeCandidates);
-                } else {
-                    res.nodes.add(leaf);
-                }
-            }
-        }
-        return res.power() < src.power() ? res : src;
-    }
 // 3b - 24bit: 1b - len; 2b - back offset-code to prev. decoded / len<0 - not encoded part, -1..-128
     public static int MAX_OFFSET = (1 << 16) + 1; // 0..0xFFFF; 0 - means 1
     public static int getLen(int dOff, final byte[] data, int dOff2) {
@@ -238,36 +202,6 @@ public class Main {
         return recovered;
     }
 
-    static List<Command> compactCommands(List<Command> commands) {
-        final List<Command> res = new ArrayList<>();
-        int prevBlockOffset = -1;
-        int prevBlockSzCode = -1;
-        for (final var c : commands) {
-            if (c.szCode() >= 12) { // avoid to use block more than 4Kb
-                prevBlockOffset = -1;
-                prevBlockSzCode = -1;
-            }
-            if (prevBlockOffset + (1 << prevBlockSzCode) == c.offset() && prevBlockSzCode == c.szCode()) {
-                res.set(res.size() - 1, new Command(c.szCode() + 1, prevBlockOffset));
-                prevBlockOffset = -1;
-                prevBlockSzCode = -1;
-            } else {
-                res.add(c);
-                prevBlockOffset = c.offset();
-                prevBlockSzCode = c.szCode();
-            }
-        }
-        return res;
-    }
-
-    static int calcOffset(List<List<Block>> blocks) {
-        int res = 0;
-        for(final var b: blocks) {
-            res += b.size();
-        }
-        return res;
-    }
-
     static List<Byte> toBytes(long t) {
         final List<Byte> buff = new ArrayList<>();
         buff.add((byte)(t >> 24 & 0xFF));
@@ -291,26 +225,6 @@ public class Main {
         buff.add((byte)(t >> 8 & 0xFF));
         buff.add((byte)(t & 0xFF));
         return buff;
-    }
-
-    static byte extracted(int size) {
-        return switch (size) {
-            case 1 -> 0; // 4b
-            case 2 -> 1; // 8b
-            case 4 -> 2; // 16b
-            case 8 -> 3; // 32b
-            case 16 -> 4; // 64b
-            case 32 -> 5; // 128b
-            case 64 -> 6;
-            case 128 -> 7;
-            case 256 -> 8;
-            case 512 -> 9;
-            case 1024 -> 10;
-            case 2048 -> 11;
-            case 4096 -> 12;
-            default ->
-                throw new RuntimeException("Unexpected size");
-        };
     }
 
     static int convertToInt(byte[] data, int i, int remains) {

@@ -147,7 +147,7 @@ public class Dir2LZW {
                 offset = toBytes(arr, offset, d.compressedLength);
                 offset = toBytes(arr, offset, d.decompressedLength);
             }
-            Dir2LZMA.to3Bytes(arr, offset); // 2-0 - offset to props
+            to3Bytes(arr, offset); // 2-0 - offset to props
             for (final var d : descriptors) {
                 offset = toBytes(arr, offset, d.compressed.encoded);
             }
@@ -182,6 +182,11 @@ public class Dir2LZW {
             arr[offset++] = compressed.get(i);
         }
         return offset;
+    }
+    static void to3Bytes(byte[] arr, int t) {
+        arr[0] = (byte)(t >> 16 & 0xFF);
+        arr[1] = (byte)(t >> 8 & 0xFF);
+        arr[2] = (byte)(t & 0xFF);
     }
     static int toBytes(byte[] arr, int offset, long t) {
         arr[offset++] = (byte)(t >> 24 & 0xFF);
