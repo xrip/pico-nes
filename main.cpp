@@ -42,7 +42,7 @@ extern "C" {
 
 #define HOME_DIR (char*)"\\NES"
 
-//#define BUILD_IN_GAMES
+#define BUILD_IN_GAMES
 #ifdef BUILD_IN_GAMES
 #include "lzwSource.h"
 #include "lzw.h"
