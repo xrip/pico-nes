@@ -1104,6 +1104,10 @@ int InfoNES_LoadFrame() {
     return 0;
 }
 
+extern "C" {
+#include "usb.h"
+}
+
 int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);
     sleep_ms(33);
@@ -1116,6 +1120,7 @@ int main() {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
+    start_usb_drive();
 #if USE_PS2_KBD
     ps2kbd.init_gpio();
 #endif

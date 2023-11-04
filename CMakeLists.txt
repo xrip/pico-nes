@@ -8,6 +8,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
 include(pico_sdk_import.cmake)
+# We also need PICO EXTRAS
+include(pico_extras_import.cmake)
 
 project(dendy C CXX ASM)
 pico_sdk_init()
@@ -47,7 +49,7 @@ add_subdirectory(drivers/ps2kbd)
 add_subdirectory(drivers/nespad)
 add_subdirectory(drivers/fatfs)
 add_subdirectory(drivers/sdcard)
-
+add_subdirectory(drivers/usb)
 
 add_executable(dendy
         main.cpp
@@ -74,6 +76,7 @@ target_link_libraries(dendy PRIVATE
         nespad
         sdcard
         fatfs
+        usb
 
         pico_runtime
         pico_stdlib
