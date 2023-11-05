@@ -24,6 +24,8 @@
  */
 #include "usb.h"
 
+// #define LIB_PICO_STDIO_UART 1
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
