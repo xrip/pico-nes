@@ -8,8 +8,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
 include(pico_sdk_import.cmake)
-# We also need PICO EXTRAS
-include(pico_extras_import.cmake)
 
 project(dendy C CXX ASM)
 pico_sdk_init()
