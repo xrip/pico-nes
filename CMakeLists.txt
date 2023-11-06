@@ -118,5 +118,8 @@ target_compile_definitions(dendy PRIVATE
 
         # Other
         FF_USE_FIND
+        # usd
+        LED_PIN=25
+        PICO_DEFAULT_LED_PIN=25
 )
 pico_add_extra_outputs(dendy)

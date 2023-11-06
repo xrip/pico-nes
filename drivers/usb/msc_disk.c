@@ -1,4 +1,4 @@
-/* 
+/*
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
@@ -23,8 +23,8 @@
  *
  */
 
-#include "bsp/board.h"
-#include "tusb.h"
+#include "bsp/board_api2.h"
+#include "tusb2.h"
 
 #if CFG_TUD_MSC
 

@@ -2,10 +2,6 @@
 #include <cstring>
 #include <cstdarg>
 
-#ifndef PICO_DEFAULT_LED_PIN
-#define PICO_DEFAULT_LED_PIN 25
-#endif
-
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
@@ -41,6 +37,9 @@ extern "C" {
 #pragma GCC optimize("Ofast")
 
 #define HOME_DIR (char*)"\\NES"
+#ifndef PICO_DEFAULT_LED_PIN
+#define PICO_DEFAULT_LED_PIN 25
+#endif
 
 #define BUILD_IN_GAMES
 #ifdef BUILD_IN_GAMES
@@ -1109,6 +1108,7 @@ extern "C" {
 }
 
 int main() {
+        start_usb_drive();
     vreg_set_voltage(VREG_VOLTAGE_1_15);
     sleep_ms(33);
     set_sys_clock_khz(272000, true);
@@ -1120,7 +1120,6 @@ int main() {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
-    start_usb_drive();
 #if USE_PS2_KBD
     ps2kbd.init_gpio();
 #endif

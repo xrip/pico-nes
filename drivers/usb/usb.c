@@ -22,16 +22,14 @@
  * THE SOFTWARE.
  *
  */
-#include "usb.h"
-
-// #define LIB_PICO_STDIO_UART 1
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-#include "bsp/board.h"
-#include "tusb.h"
+#include "pico/stdlib.h"
+#include "bsp/board_api2.h"
+#include "tusb2.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -53,22 +51,13 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 void led_blinking_task(void);
 void cdc_task(void);
 
-// RHPort number used for device can be defined by board.mk, default to port 0
-#ifndef BOARD_TUD_RHPORT
-#define BOARD_TUD_RHPORT      0
-#endif
+/*------------- MAIN -------------*/
+int start_usb_drive(void)
+{
+  board_init();
 
-void board_init_after_tusb(void) {
-  // For board that use USB LDO regulator
-#if defined(BOARD_UNO_R4)
-  R_USB_FS0->USBMC |= R_USB_FS0_USBMC_VDCEN_Msk;
-#endif
-}
-
-void start_usb_drive() {
-    board_init();
-
-    tud_init(BOARD_TUD_RHPORT);
+  // init device stack on configured roothub port
+  tud_init(BOARD_TUD_RHPORT);
 
   if (board_init_after_tusb) {
     board_init_after_tusb();
@@ -81,7 +70,6 @@ void start_usb_drive() {
 
     cdc_task();
   }
-// TODO:
 }
 
 //--------------------------------------------------------------------+
