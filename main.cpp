@@ -37,9 +37,6 @@ extern "C" {
 #pragma GCC optimize("Ofast")
 
 #define HOME_DIR (char*)"\\NES"
-#ifndef PICO_DEFAULT_LED_PIN
-#define PICO_DEFAULT_LED_PIN 25
-#endif
 
 #define BUILD_IN_GAMES
 #ifdef BUILD_IN_GAMES
@@ -216,7 +213,7 @@ const int __not_in_flash_func(NesPalette888)[] = {
         };
 
 void updatePalette(PALETTES palette) {
-    for (int i = 0; i < 64; i++) {
+    for (uint8_t i = 0; i < 64; i++) {
         if (palette == RGB333) {
             setVGA_color_palette(i, NesPalette888[i+(64*settings.nes_palette)]);
         } else {
@@ -289,6 +286,7 @@ void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report
     keyboard_bits.down = isInReport(report, HID_KEY_ARROW_DOWN);
     keyboard_bits.left = isInReport(report, HID_KEY_ARROW_LEFT);
     keyboard_bits.right = isInReport(report, HID_KEY_ARROW_RIGHT);
+    prev_report = prev_report;
 }
 
 Ps2Kbd_Mrmltr ps2kbd(
@@ -437,7 +435,7 @@ void InfoNES_ReleaseRom() {
 void InfoNES_SoundInit() {
     i2s_config = i2s_get_default_config();
     i2s_config.sample_freq = 44100;
-    i2s_config.dma_trans_count = i2s_config.sample_freq / 50;
+    i2s_config.dma_trans_count = (uint16_t)i2s_config.sample_freq / 50;
     i2s_volume(&i2s_config, 0);
     i2s_init(&i2s_config);
 }
@@ -460,7 +458,6 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
     static int inx = 0;
     static int max = 0;
     static int min = 30000;
-    static uint32_t ii = 0;
     for (int i = 0; i < samples; i++) {
         int r, l;
         int w1 = *wave1++;
@@ -474,8 +471,8 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
         min = MIN(l, min);
         l -= 4000;
         r -= 4000;
-        samples_out[i_active_buf][inx * 2] = l * settings.snd_vol;
-        samples_out[i_active_buf][inx * 2 + 1] = r * settings.snd_vol;
+        samples_out[i_active_buf][inx * 2] = (int16_t)l * settings.snd_vol;
+        samples_out[i_active_buf][inx * 2 + 1] = (int16_t)r * settings.snd_vol;
         if (inx++ >= i2s_config.dma_trans_count) {
             inx = 0;
             i2s_dma_write(&i2s_config, reinterpret_cast<const int16_t *>(samples_out[i_active_buf]));
@@ -584,7 +581,6 @@ FRESULT in_open (
     fp->compressed = 0;
     while (fileNum++ < numberOfFiles) {
         int i = 5; // ignore trailing "\NES\"
-        size_t fnStart = fptr;
         while (fn[i++] == lz4source[fptr] && lz4source[fptr] != 0) {
             fptr++;
         }
@@ -647,7 +643,6 @@ inline void flash_range_program2(uint32_t addr, const u_int8_t * buff, size_t sz
 void filebrowser_loadfile(char *pathname, bool built_in) {
     setVGAmode(VGA640x480_text_80_30);
     clrScr(1);
-    int y = 0;
     if (strcmp((char*)rom_filename, pathname) == 0) {
         logMsg((char*)"Launching last rom");
         return;
@@ -928,11 +923,15 @@ void save_config() {
     char pathname[256];
     sprintf(pathname, "%s\\emulator.cfg", HOME_DIR);
     FRESULT fr = f_mount(&fs, "", 1);
-    FIL fd;
-    fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
-    UINT bw;
-    f_write(&fd, &settings, sizeof(settings), &bw);
-    f_close(&fd);
+    if (FR_OK != fr) {
+        FIL fd;
+        fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
+        if (FR_OK != fr) {
+            UINT bw;
+            f_write(&fd, &settings, sizeof(settings), &bw);
+            f_close(&fd);
+        }
+    }
 }
 
 enum menu_type_e {
@@ -1103,12 +1102,7 @@ int InfoNES_LoadFrame() {
     return 0;
 }
 
-extern "C" {
-#include "usb.h"
-}
-
-int main() {
-        start_usb_drive();
+int main2() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);
     sleep_ms(33);
     set_sys_clock_khz(272000, true);

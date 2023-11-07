@@ -42,7 +42,7 @@ public:
     inline void copyFromBack(size_t len, size_t backOff) {
         int destIdx = dOff - backOff;
         int romIdx = rOff - backOff;
-        for (int k = 0; k < len; ++destIdx, ++romIdx, ++k) {
+        for (size_t k = 0; k < len; ++destIdx, ++romIdx, ++k) {
             if (destIdx >= 0) {
                 printf("(%d) ", romIdx);
                 auto b = dest[destIdx];
@@ -58,6 +58,9 @@ public:
     }
     inline bool endIteration() { // true, while we have free space in the dest
         return bOff == 0;
+    }
+    inline int getDecompressedLen() {
+        return dOff;
     }
 };
 
@@ -79,7 +82,7 @@ struct LZWBlockInputStream {
             if (token <= 0) {
                 size_t len = 1 - token;
                 printf("len: %d -> ", len);
-                for (int j = 0; j < len; ++j) {
+                for (size_t j = 0; j < len; ++j) {
                     auto b = _src[sOff++];
                     printf("0x%02X ", (unsigned int)(b & 0xFF));
                     cd->push(b);
@@ -93,6 +96,7 @@ struct LZWBlockInputStream {
             }
             printf("\n");
         } while(cd->endIteration());
+        *decompressed = cd->getDecompressedLen();
         return sOff - s;
     }
 };
