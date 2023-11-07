@@ -37,8 +37,7 @@ static bool ejected = false;
 
 #define README_CONTENTS \
 "This is tinyusb's MassStorage Class demo.\r\n\r\n\
-If you find any bugs or get any questions, feel free to file an\r\n\
-issue at github.com/hathach/tinyusb"
+pico-ness project"
 
 enum
 {
@@ -47,9 +46,9 @@ enum
 };
 
 #ifdef CFG_EXAMPLE_MSC_READONLY
-const
+const __in_flash()
 #endif
-uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
+ uint8_t msc_disk[DISK_BLOCK_NUM][DISK_BLOCK_SIZE] =
 {
   //------------- Block0: Boot Sector -------------//
   // byte_per_sector    = DISK_BLOCK_SIZE; fat12_sector_num_16  = DISK_BLOCK_NUM;

@@ -17,6 +17,7 @@
 
 extern "C" {
 #include "vga.h"
+#include "usb.h"
 }
 
 #include "audio.h"
@@ -943,7 +944,8 @@ enum menu_type_e {
     LOAD,
     RESET,
     RETURN,
-    ROM_SELECT
+    ROM_SELECT,
+    USB_DEVICE
 };
 
 typedef struct __attribute__((__packed__)) {
@@ -954,7 +956,7 @@ typedef struct __attribute__((__packed__)) {
     char value_list[5][10];
 } MenuItem;
 
-#define MENU_ITEMS_NUMBER 16
+#define MENU_ITEMS_NUMBER 17
 const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "Player 1: %s",        ARRAY, &settings.player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
         { "Player 2: %s",        ARRAY, &settings.player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
@@ -971,7 +973,8 @@ const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "" },
         { "Reset",               RESET },
         { "Return to game",      RETURN },
-        { "ROM select",          ROM_SELECT }
+        { "ROM select",          ROM_SELECT },
+        { "From USB device",     USB_DEVICE }
 };
 
 int menu() {
@@ -1046,6 +1049,13 @@ int menu() {
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
                             return ROM_SELECT;
                         }
+                    case USB_DEVICE:
+                        if (nespad_state & DPAD_START || keyboard_bits.start) {
+                            init_pico_usb_drive();
+                            while(1) {
+                                pico_usb_drive_heartbeat();
+                            }
+                        }
                 }
             }
             static char result[80];
@@ -1102,7 +1112,7 @@ int InfoNES_LoadFrame() {
     return 0;
 }
 
-int main2() {
+int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);
     sleep_ms(33);
     set_sys_clock_khz(272000, true);

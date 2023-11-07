@@ -63,9 +63,9 @@ add_executable(dendy
 )
 
 target_sources(dendy PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/main.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/msc_disk.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/usb_descriptors.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/msc_disk.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb_descriptors.c
 )
 
 #pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
@@ -78,7 +78,7 @@ pico_set_program_version(dendy "development version")
 
 target_include_directories(dendy PRIVATE
  infones
- ${CMAKE_CURRENT_SOURCE_DIR}/src
+ ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb
 )
 
 family_configure_device_example(dendy noos)
@@ -153,5 +153,6 @@ target_compile_definitions(dendy PRIVATE
         FF_USE_FIND
         # usd
         PICO_DEFAULT_LED_PIN=25
+        CFG_EXAMPLE_MSC_READONLY=1
 )
 pico_add_extra_outputs(dendy)
