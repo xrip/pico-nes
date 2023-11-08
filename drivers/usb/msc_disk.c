@@ -36,12 +36,11 @@ static bool ejected = false;
 // CFG_EXAMPLE_MSC_READONLY defined
 
 #define README_CONTENTS \
-"This is tinyusb's MassStorage Class demo.\r\n\r\n\
-pico-ness project"
+"Just copy your \".nes\" file into this drive."
 
 enum
 {
-  DISK_BLOCK_NUM  = 16, // 8KB is the smallest size that windows allow to mount
+  DISK_BLOCK_NUM  = 16 * 2, // 8KB is the smallest size that windows allow to mount
   DISK_BLOCK_SIZE = 512
 };
 
@@ -59,10 +58,26 @@ const __in_flash()
   // filesystem_type    = "FAT12   "; volume_serial_number = 0x1234; volume_label = "TinyUSB MSC";
   // FAT magic code at offset 510-511
   {
-      0xEB, 0x3C, 0x90, 0x4D, 0x53, 0x44, 0x4F, 0x53, 0x35, 0x2E, 0x30, 0x00, 0x02, 0x01, 0x01, 0x00,
-      0x01, 0x10, 0x00, 0x10, 0x00, 0xF8, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x29, 0x34, 0x12, 0x00, 0x00, 'T' , 'i' , 'n' , 'y' , 'U' ,
-      'S' , 'B' , ' ' , 'M' , 'S' , 'C' , 0x46, 0x41, 0x54, 0x31, 0x32, 0x20, 0x20, 0x20, 0x00, 0x00,
+      0xEB, 0x3C, 0x90, // not really used jump to bootstrap
+      0x4D, 0x53, 0x44, 0x4F, 0x53, 0x35, 0x2E, 0x30, // "MSDOS5.0"
+      0x00, 0x02,       // byte_per_sector = DISK_BLOCK_SIZE 512
+      0x01,             // sector_per_cluster
+      0x01, 0x00,       // reserved_sectors
+      0x01,             // number of FAT copies
+      0x10, 0x00,       // number of root directory entries. fat12_root_entry_num=16?
+      0x20, 0x00,       // Total number of sectors in the filesystem. sector_per_fat=16?
+      0xF8,             // media_type // descriptor type - hard disk
+      0x01, 0x00,       // sector_per_fat
+      0x01, 0x00,       // sector_per_track
+      0x01, 0x00,       // head_num
+      0x00, 0x00,       // hidden_sectors
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //  ?
+      0x80, // drive_number
+      0x00, //  ?
+      0x29, // extended_boot_signature
+      0x34, 0x12, 0x00, 0x00, // serial number
+      'T' , 'i' , 'n' , 'y' , 'U' , 'S' , 'B' , ' ' , 'M' , 'S' , 'C' , // volume_label
+      0x46, 0x41, 0x54, 0x31, 0x32, 0x20, 0x20, 0x20, 0x00, 0x00,
 
       // Zero up to 2 last bytes of FAT magic code
       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -100,7 +115,8 @@ const __in_flash()
 
   //------------- Block1: FAT12 Table -------------//
   {
-      0xF8, 0xFF, 0xFF, 0xFF, 0x0F // // first 2 entries must be F8FF, third entry is cluster end of readme file
+      0xF8, 0xFF,      // first 2 entries must be F8FF
+      0xFF, 0xFF, 0x0F // third entry is cluster, end of readme file
   },
 
   //------------- Block2: Root Directory -------------//
@@ -202,11 +218,13 @@ bool tud_msc_is_writable_cb (uint8_t lun)
   (void) lun;
 
 #ifdef CFG_EXAMPLE_MSC_READONLY
-  return false;
+  return true; // false;
 #else
   return true;
 #endif
 }
+
+void logMsg(char * msg); // from vga.h
 
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
@@ -216,6 +234,13 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 
   // out of ramdisk
   if ( lba >= DISK_BLOCK_NUM ) return -1;
+
+  char tmp[81]; sprintf(tmp, "lun: 0x%X lba: 0x%X off: 0x%X sz: %d", lun, lba, offset, bufsize); logMsg(tmp);
+  for(size_t i = 0; i < bufsize; i += 80) {
+     memcpy(tmp, buffer + i, 80);
+     tmp[80] = 0;
+     logMsg(tmp);
+  }
 
 #ifndef CFG_EXAMPLE_MSC_READONLY
   uint8_t* addr = msc_disk[lba] + offset;
