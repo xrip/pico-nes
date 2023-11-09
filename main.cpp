@@ -43,6 +43,8 @@ extern "C" {
 #ifdef BUILD_IN_GAMES
 #include "lzwSource.h"
 #include "lzw.h"
+size_t get_rom4prog_size() { return sizeof(rom); }
+uint32_t get_rom4prog() { return (uint32_t)rom; }
 #endif
 #ifndef BUILD_IN_GAMES
 #define FLASH_TARGET_OFFSET (1024 * 1024)
@@ -624,7 +626,7 @@ FRESULT in_read (
     return FR_OK;
 }
 
-inline void flash_range_erase2(uint32_t addr, size_t sz) {
+void flash_range_erase2(uint32_t addr, size_t sz) {
     // char tmp[80]; sprintf(tmp, "Erase 0x%X len: 0x%X", addr, sz); logMsg(tmp);
     gpio_put(PICO_DEFAULT_LED_PIN, true);
     uint32_t interrupts = save_and_disable_interrupts();
@@ -632,13 +634,20 @@ inline void flash_range_erase2(uint32_t addr, size_t sz) {
     restore_interrupts(interrupts);
     gpio_put(PICO_DEFAULT_LED_PIN, false);
 }
-inline void flash_range_program2(uint32_t addr, const u_int8_t * buff, size_t sz) {
+void flash_range_program2(uint32_t addr, const u_int8_t * buff, size_t sz) {
     gpio_put(PICO_DEFAULT_LED_PIN, true);
     uint32_t interrupts = save_and_disable_interrupts();
     flash_range_program(addr - XIP_BASE, buff, sz);
     restore_interrupts(interrupts);
     gpio_put(PICO_DEFAULT_LED_PIN, false);
     char tmp[80]; sprintf(tmp, "Flashed 0x%X len: 0x%X from 0x%X", addr, sz, buff); logMsg(tmp);
+}
+
+char* get_shared_ram() {
+    return (char*)SCREEN;
+}
+size_t get_shared_ram_size() {
+    return sizeof(SCREEN) & 0xfffff000;
 }
 
 void filebrowser_loadfile(char *pathname, bool built_in) {
@@ -655,10 +664,10 @@ void filebrowser_loadfile(char *pathname, bool built_in) {
     sprintf(tmp, "Writing %s rom to flash %x", pathname, addr); logMsg(tmp);
     FRESULT result = built_in ? in_open((FILE_LZW*)&file, pathname) : f_open(&file, pathname, FA_READ);
     if (result == FR_OK) {
-        size_t bufsize = sizeof(SCREEN) & 0xfffff000;
-        BYTE * buffer = (BYTE*)SCREEN;
         flash_range_erase2(addr, 4096);
         flash_range_program2(addr, reinterpret_cast<const uint8_t *>(pathname), 256);
+        size_t bufsize = get_shared_ram_size();
+        BYTE * buffer = (BYTE*)get_shared_ram();
         addr = (uint32_t)rom;
         while(true) {
             result = !built_in

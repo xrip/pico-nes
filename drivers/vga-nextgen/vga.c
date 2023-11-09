@@ -345,11 +345,18 @@ void clrScr(uint8_t color) {
     y = 0;
 }
 void logMsg(char * msg) {
-    if (y >= text_buf_height) {
-        y = 0;
-        clrScr(1); // blue
+    if (y >= text_buf_height - 1) {
+        size_t sz = text_buf_height * text_buf_width - text_buf_width;
+        for(size_t i = 0; i < sz; ++i) {
+            text_buf[i] = text_buf[i + text_buf_width];
+            text_buf_color[i] = text_buf_color[i + text_buf_width];
+        }
+        memset(text_buf + sz, 0, text_buf_width);
+        memset(text_buf_color + sz, 1 << 4, text_buf_width);
+        draw_text(msg, 0, y, 4, 0);
+    } else {
+        draw_text(msg, 0, y++, 4, 0);
     }
-    draw_text(msg, 0, y++, 4, 0);
 }
 void draw_text(char* string, int x, int y, uint8_t color, uint8_t bgcolor) {
     if ((y < 0) | (y >= text_buf_height)) {

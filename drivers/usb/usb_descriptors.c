@@ -83,57 +83,11 @@ enum {
   ITF_NUM_TOTAL
 };
 
-#if CFG_TUSB_MCU == OPT_MCU_LPC175X_6X || CFG_TUSB_MCU == OPT_MCU_LPC177X_8X || CFG_TUSB_MCU == OPT_MCU_LPC40XX
-  // LPC 17xx and 40xx endpoint type (bulk/interrupt/iso) are fixed by its number
-  // 0 control, 1 In, 2 Bulk, 3 Iso, 4 In, 5 Bulk etc ...
-  #define EPNUM_CDC_NOTIF   0x81
-  #define EPNUM_CDC_OUT     0x02
-  #define EPNUM_CDC_IN      0x82
-
-  #define EPNUM_MSC_OUT     0x05
-  #define EPNUM_MSC_IN      0x85
-
-#elif CFG_TUSB_MCU == OPT_MCU_SAMG || CFG_TUSB_MCU == OPT_MCU_SAMX7X
-  // SAMG & SAME70 don't support a same endpoint number with different direction IN and OUT
-  //    e.g EP1 OUT & EP1 IN cannot exist together
-  #define EPNUM_CDC_NOTIF   0x81
-  #define EPNUM_CDC_OUT     0x02
-  #define EPNUM_CDC_IN      0x83
-
-  #define EPNUM_MSC_OUT     0x04
-  #define EPNUM_MSC_IN      0x85
-
-#elif CFG_TUSB_MCU == OPT_MCU_CXD56
-  // CXD56 doesn't support a same endpoint number with different direction IN and OUT
-  //    e.g EP1 OUT & EP1 IN cannot exist together
-  // CXD56 USB driver has fixed endpoint type (bulk/interrupt/iso) and direction (IN/OUT) by its number
-  // 0 control (IN/OUT), 1 Bulk (IN), 2 Bulk (OUT), 3 In (IN), 4 Bulk (IN), 5 Bulk (OUT), 6 In (IN)
-  #define EPNUM_CDC_NOTIF   0x83
-  #define EPNUM_CDC_OUT     0x02
-  #define EPNUM_CDC_IN      0x81
-
-  #define EPNUM_MSC_OUT     0x05
-  #define EPNUM_MSC_IN      0x84
-
-#elif CFG_TUSB_MCU == OPT_MCU_FT90X || CFG_TUSB_MCU == OPT_MCU_FT93X
-  // FT9XX doesn't support a same endpoint number with different direction IN and OUT
-  //    e.g EP1 OUT & EP1 IN cannot exist together
-  #define EPNUM_CDC_NOTIF   0x81
-  #define EPNUM_CDC_OUT     0x02
-  #define EPNUM_CDC_IN      0x83
-
-  #define EPNUM_MSC_OUT     0x04
-  #define EPNUM_MSC_IN      0x85
-
-#else
-  #define EPNUM_CDC_NOTIF   0x81
-  #define EPNUM_CDC_OUT     0x02
-  #define EPNUM_CDC_IN      0x82
-
-  #define EPNUM_MSC_OUT     0x03
-  #define EPNUM_MSC_IN      0x83
-
-#endif
+#define EPNUM_CDC_NOTIF   0x81
+#define EPNUM_CDC_OUT     0x02
+#define EPNUM_CDC_IN      0x82
+#define EPNUM_MSC_OUT     0x03
+#define EPNUM_MSC_IN      0x83
 
 #define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN + TUD_MSC_DESC_LEN)
 

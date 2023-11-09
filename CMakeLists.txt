@@ -151,8 +151,7 @@ target_compile_definitions(dendy PRIVATE
 
         # Other
         FF_USE_FIND
-        # usd
+        # usb
         PICO_DEFAULT_LED_PIN=25
-        CFG_EXAMPLE_MSC_READONLY=1
 )
 pico_add_extra_outputs(dendy)

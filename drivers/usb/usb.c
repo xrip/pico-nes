@@ -29,6 +29,7 @@
 
 #include "bsp/board_api.h"
 #include "tusb.h"
+#include "usb.h"
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -60,7 +61,7 @@ void init_pico_usb_drive() {
     }
 }
 
-int pico_usb_drive_heartbeat(void) {
+void pico_usb_drive_heartbeat() {
     tud_task(); // tinyusb device task
     led_blinking_task();
     cdc_task();
