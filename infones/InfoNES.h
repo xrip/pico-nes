@@ -319,12 +319,12 @@ void InfoNES_SetupPPU();
 void InfoNES_Mirroring(int nType);
 
 /* The main loop of InfoNES */
-void InfoNES_Main(bool skip_fb = true);
+bool InfoNES_Main(bool skip_fb = true);
 
 int InfoNES_Video();
 
 /* The loop of emulation */
-void InfoNES_Cycle();
+bool InfoNES_Cycle();
 
 /* A function in H-Sync */
 int InfoNES_HSync();

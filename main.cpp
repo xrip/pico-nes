@@ -53,6 +53,19 @@ const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET) + 4096;
 class Decoder {};
 #endif
 
+enum menu_type_e {
+    NONE,
+    INT,
+    TEXT,
+    ARRAY,
+    SAVE,
+    LOAD,
+    RESET,
+    RETURN,
+    ROM_SELECT,
+    USB_DEVICE
+};
+
 struct semaphore vga_start_semaphore;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH]; // 61440 bytes
 uint16_t linebuffer[256];
@@ -944,19 +957,6 @@ void save_config() {
     }
 }
 
-enum menu_type_e {
-    NONE,
-    INT,
-    TEXT,
-    ARRAY,
-    SAVE,
-    LOAD,
-    RESET,
-    RETURN,
-    ROM_SELECT,
-    USB_DEVICE
-};
-
 typedef struct __attribute__((__packed__)) {
     const char *text;
     menu_type_e type;
@@ -964,6 +964,8 @@ typedef struct __attribute__((__packed__)) {
     uint8_t max_value;
     char value_list[5][10];
 } MenuItem;
+
+static menu_type_e last_menu_type = menu_type_e::ROM_SELECT;
 
 #define MENU_ITEMS_NUMBER 17
 const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
@@ -1020,16 +1022,15 @@ int menu() {
             }
             const MenuItem *item = &menu_items[i];
             if (i == current_item) {
+                last_menu_type = item->type;
                 switch (item->type) {
                     case INT:
                     case ARRAY:
                         if (item->max_value != 0) {
                             auto *value = (uint8_t *) item->value;
-
                             if ((nespad_state & DPAD_RIGHT || keyboard_bits.right) && *value < item->max_value) {
                                 (*value)++;
                             }
-
                             if ((nespad_state & DPAD_LEFT || keyboard_bits.left) && *value > 0) {
                                 (*value)--;
                             }
@@ -1064,7 +1065,7 @@ int menu() {
                             while(!tud_msc_test_ejected()) {
                                 pico_usb_drive_heartbeat();
                             }
-                            return ROM_SELECT;
+                            return USB_DEVICE;
                         }
                 }
             }
@@ -1103,8 +1104,12 @@ int InfoNES_LoadFrame() {
     nespad_tick();
 #endif
     if ((keyboard_bits.start || gamepad1_bits.start) && (keyboard_bits.select || gamepad1_bits.select)) {
-        if(menu() == ROM_SELECT) {
+        auto selected = menu();
+        if(selected == ROM_SELECT) {
             return -1;
+        }
+        if(selected == USB_DEVICE) {
+            return -2; // TODO: enum
         }
     }
     frames++;
@@ -1145,9 +1150,9 @@ int main() {
     sem_release(&vga_start_semaphore);
     load_config();
     sleep_ms(50);
-    InfoNES_Main(true);
+    bool start_from_game = InfoNES_Main(true);
     while(1) {
         sleep_ms(500);
-        InfoNES_Main(false);
+        start_from_game = InfoNES_Main(start_from_game);
     }
 }
