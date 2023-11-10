@@ -653,7 +653,7 @@ void flash_range_program2(uint32_t addr, const u_int8_t * buff, size_t sz) {
     flash_range_program(addr - XIP_BASE, buff, sz);
     restore_interrupts(interrupts);
     gpio_put(PICO_DEFAULT_LED_PIN, false);
-    char tmp[80]; sprintf(tmp, "Flashed 0x%X len: 0x%X from 0x%X", addr, sz, buff); logMsg(tmp);
+    //char tmp[80]; sprintf(tmp, "Flashed 0x%X len: 0x%X from 0x%X", addr, sz, buff); logMsg(tmp);
 }
 
 char* get_shared_ram() {
@@ -662,6 +662,9 @@ char* get_shared_ram() {
 size_t get_shared_ram_size() {
     return sizeof(SCREEN) & 0xfffff000;
 }
+char* get_rom_filename() {
+    return (char*)rom_filename;
+} 
 
 void filebrowser_loadfile(char *pathname, bool built_in) {
     setVGAmode(VGA640x480_text_80_30);
@@ -792,6 +795,7 @@ void filebrowser(
             fileItems[total_files].size = 0;
             total_files++;
         }
+        bool add_extra_fn = true;
         while ((built_in ? in_readdir(&dir, &fileInfo) : f_readdir(&dir, &fileInfo)) == FR_OK &&
                fileInfo.fname[0] != '\0' &&
                total_files < maxfiles
@@ -805,6 +809,16 @@ void filebrowser(
                 fileItems[total_files].is_executable = 1;
             }
             strncpy(fileItems[total_files].filename, fileInfo.fname, 80);
+            total_files++;
+            if (add_extra_fn && strcmp((char*)rom_filename + 5/*\NES\*/, fileInfo.fname) == 0) {
+                add_extra_fn = false;
+            }
+        }
+        if (add_extra_fn) {
+            fileItems[total_files].is_directory = false;
+            fileItems[total_files].size = 0; // TODO:
+            fileItems[total_files].is_executable = 1;
+            strncpy(fileItems[total_files].filename, (char*)rom_filename + 5/*\NES\*/, 80);
             total_files++;
         }
         qsort(fileItems, total_files, sizeof(FileItem), compareFileItems);
@@ -1065,7 +1079,10 @@ int menu() {
                             while(!tud_msc_test_ejected()) {
                                 pico_usb_drive_heartbeat();
                             }
-                            return USB_DEVICE;
+                            watchdog_enable(100, true);
+                            //InfoNES_Init();
+                            exit = true;
+                            //return USB_DEVICE;
                         }
                 }
             }
@@ -1108,9 +1125,9 @@ int InfoNES_LoadFrame() {
         if(selected == ROM_SELECT) {
             return -1;
         }
-        if(selected == USB_DEVICE) {
-            return -2; // TODO: enum
-        }
+        //if(selected == USB_DEVICE) {
+        //    return -2; // TODO: enum
+        //}
     }
     frames++;
     if (settings.show_fps && frames >= 60) {

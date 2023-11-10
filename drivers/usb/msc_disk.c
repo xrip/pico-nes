@@ -38,14 +38,17 @@ enum
 };
 /*
 unsigned char data[128] = {
-	0x50, 0x49, 0x43, 0x4F, 0x2D, 0x4E, 0x45, 0x53, 0x20, 0x20, 0x20, 0x08, 0x00, 0x00, 0x00, 0x00,		//00000A00: PICO-NES   .....
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x24, 0x09, 0x6A, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		//00000010: ......$.jW......
-	0x52, 0x45, 0x41, 0x44, 0x4D, 0x45, 0x20, 0x20, 0x4D, 0x44, 0x20, 0x20, 0x10, 0x17, 0x37, 0x09,		//00000020: README  MD  ..7.
-	0x6A, 0x57, 0x6A, 0x57, 0x00, 0x00, 0x91, 0x9A, 0x51, 0x57, 0x02, 0x00, 0x45, 0x03, 0x00, 0x00,		//00000030: jWjW....QW..E...
-	0x41, 0x56, 0x00, 0x47, 0x00, 0x41, 0x00, 0x5F, 0x00, 0x52, 0x00, 0x0F, 0x00, 0xFC, 0x4F, 0x00,		//00000040: AV.G.A._.R....O.
-	0x4D, 0x00, 0x5F, 0x00, 0x46, 0x00, 0x31, 0x00, 0x36, 0x00, 0x00, 0x00, 0x2E, 0x00, 0x68, 0x00,		//00000050: M._.F.1.6.....h.
-	0x56, 0x47, 0x41, 0x5F, 0x52, 0x4F, 0x7E, 0x31, 0x48, 0x20, 0x20, 0x20, 0x00, 0x65, 0x98, 0x09,		//00000060: VGA_RO~1H   .e..
-	0x6A, 0x57, 0x6A, 0x57, 0x00, 0x00, 0x91, 0x9A, 0x51, 0x57, 0x04, 0x00, 0x66, 0x63, 0x00, 0x00 		//00000070: jWjW....QW..fc..
+	0x50, 0x49, 0x43, 0x4F, 0x2D, 0x4E, 0x45, 0x53, 0x20, 0x20, 0x20, 0x08, 0x00, 0x00, 0x00, 0x00,		//00001000: PICO-NES   .....
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x24, 0x09, 0x6A, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		//00001010: ......$.jW......
+	
+  0x52, 0x45, 0x41, 0x44, 0x4D, 0x45, 0x20, 0x20, 0x4D, 0x44, 0x20, 0x20, 0x10, 0x17, 0x37, 0x09,		//00001020: README  MD  ..7.
+	0x6A, 0x57, 0x6A, 0x57, 0x00, 0x00, 0x91, 0x9A, 0x51, 0x57, 0x02, 0x00, 0x45, 0x03, 0x00, 0x00,		//00001030: jWjW....QW..E...
+	
+  0x41, 0x56, 0x00, 0x47, 0x00, 0x41, 0x00, 0x5F, 0x00, 0x52, 0x00, 0x0F, 0x00, 0xFC, 0x4F, 0x00,		//00001040: AV.G.A._.R....O.
+	0x4D, 0x00, 0x5F, 0x00, 0x46, 0x00, 0x31, 0x00, 0x36, 0x00, 0x00, 0x00, 0x2E, 0x00, 0x68, 0x00,		//00001050: M._.F.1.6.....h.
+	
+  0x56, 0x47, 0x41, 0x5F, 0x52, 0x4F, 0x7E, 0x31, 0x48, 0x20, 0x20, 0x20, 0x00, 0x65, 0x98, 0x09,		//00001060: VGA_RO~1H   .e..
+	0x6A, 0x57, 0x6A, 0x57, 0x00, 0x00, 0x91, 0x9A, 0x51, 0x57, 0x04, 0x00, 0x66, 0x63, 0x00, 0x00 		//00001070: jWjW....QW..fc..
 };
 */
 // TODO: ^ read file name (ibject to file browser); support multiple FAT12 files
@@ -364,6 +367,11 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
   *block_size  = DISK_BLOCK_SIZE;
 }
 
+static char * rom_block = 0;
+static char * ram_block = 0;
+const uint32_t min_rom_block = 4096;
+const uint32_t sec_per_block = min_rom_block / DISK_BLOCK_SIZE;
+
 // Invoked when received Start Stop Unit command
 // - Start = 0 : stopped power mode, if load_eject = 1 : unload disk storage
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
@@ -377,6 +385,12 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
     } else {
       // unload disk storage
       ejected = true;
+      if (rom_block && ram_block) {
+          flash_range_erase2(rom_block, min_rom_block);
+          flash_range_program2(rom_block, ram_block, min_rom_block);
+          rom_block = 0;
+          ram_block = 0;
+      }
     }
   }
   return true;
@@ -389,7 +403,6 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
   size_t id_bs = sizeof(initial_data) / DISK_BLOCK_SIZE;
   // out of ramdisk
   if ( lba >= get_rom4prog_size() / DISK_BLOCK_SIZE + id_bs ) return -1;
-  //char tmp[80]; sprintf(tmp, "R lba: 0x%X off: 0x%X sz: %d", lba, offset, bufsize); logMsg(tmp);
   if (lba >= id_bs) {
     lba -= id_bs;
     memcpy(buffer, get_rom4prog() + lba * DISK_BLOCK_SIZE + offset, bufsize);
@@ -408,22 +421,16 @@ bool tud_msc_is_writable_cb (uint8_t lun) {
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
   (void) lun;
+  if (lba * DISK_BLOCK_SIZE == 0x1000) { // TODO: detect FAT start
+    uint32_t addr = get_rom_filename();
+    flash_range_erase2(addr, 4096);
+    char pathname[256]; sprintf(pathname, "\\NES\\load_from_usb.nes"); // TODO: read from FAT
+    flash_range_program2(addr, pathname, 256);
+  }
   size_t id_bs = sizeof(initial_data) / DISK_BLOCK_SIZE;
   // out of ramdisk
   if ( lba >= get_rom4prog_size() / DISK_BLOCK_SIZE + id_bs ) return -1;
-  //char tmp[81];
-      /*
-      for (size_t i = 0; i < 16*5; i += 16) {
-          sprintf(tmp, "%02X %02X %02X %02X.%02X %02X %02X %02X.%02X %02X %02X %02X.%02X %02X %02X %02X",
-          buffer[i], buffer[i+1], buffer[i+2], buffer[i+3], buffer[i+4], buffer[i+5], buffer[i+6], buffer[i+7],
-          buffer[i+8], buffer[i+9], buffer[i+10], buffer[i+11], buffer[i+12], buffer[i+13], buffer[i+14], buffer[i+15]);
-          logMsg(tmp);
-      } */
-  const uint32_t min_rom_block = 4096;
-  const uint32_t sec_per_block = min_rom_block / DISK_BLOCK_SIZE;
-  //sprintf(tmp, "W lba: 0x%X off: 0x%X sz: %d id_bs: 0x%X sec_per_block: %d", lba, offset, bufsize, id_bs, sec_per_block); logMsg(tmp);
-
-  char* rom; uint32_t LBA8;
+   char* rom; uint32_t LBA8;
   if (lba >= id_bs) {
     lba -= id_bs;
     LBA8 = lba / sec_per_block;
@@ -432,12 +439,19 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
     LBA8 = lba / sec_per_block;
     rom = initial_data + LBA8 * min_rom_block;
   }
+  if (ram_block == 0) {
+    ram_block = get_shared_ram();
+  }
+  if (rom_block != rom) {
+    if (rom_block != 0) {
+      flash_range_erase2(rom_block, min_rom_block);
+      flash_range_program2(rom_block, ram_block, min_rom_block);
+    }
+    rom_block = rom;
+    memcpy(ram_block, rom, min_rom_block);
+  }
   uint32_t off = lba * DISK_BLOCK_SIZE + offset - LBA8 * min_rom_block;
-  //sprintf(tmp, "W LBA8: 0x%X off: 0x%X rom: 0x%X rom base: 0x%X", LBA8, off, rom, get_rom4prog()); logMsg(tmp);
-  memcpy(get_shared_ram(), rom, min_rom_block);
-  memcpy(get_shared_ram() + off, buffer, bufsize);
-  flash_range_erase2(rom, min_rom_block);
-  flash_range_program2(rom, get_shared_ram(), min_rom_block);
+  memcpy(ram_block + off, buffer, bufsize);
   return (int32_t) bufsize;
 }
 

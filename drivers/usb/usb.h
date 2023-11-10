@@ -10,6 +10,7 @@ size_t get_rom4prog_size();
 uint32_t get_rom4prog();
 char* get_shared_ram();
 size_t get_shared_ram_size();
+char* get_rom_filename();
 bool tud_msc_test_ejected(); // msc_disk.c
 
 #endif
