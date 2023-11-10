@@ -502,7 +502,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
   // out of ramdisk
   if ( lba >= get_rom4prog_size() / DISK_BLOCK_SIZE + id_bs ) return -1;
   //char tmp[80]; sprintf(tmp, "R lba: 0x%X off: 0x%X sz: %d", lba, offset, bufsize); logMsg(tmp);
-  if (lba > id_bs) {
+  if (lba >= id_bs) {
     lba -= id_bs;
     memcpy(buffer, get_rom4prog() + lba * DISK_BLOCK_SIZE + offset, bufsize);
   } else {
@@ -531,19 +531,22 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
           buffer[i+8], buffer[i+9], buffer[i+10], buffer[i+11], buffer[i+12], buffer[i+13], buffer[i+14], buffer[i+15]);
           logMsg(tmp);
       } */
-  //sprintf(tmp, "W lba: 0x%X off: 0x%X sz: %d", lba, offset, bufsize); logMsg(tmp);
   const uint32_t min_rom_block = 4096;
+  const uint32_t sec_per_block = min_rom_block / DISK_BLOCK_SIZE;
+  //sprintf(tmp, "W lba: 0x%X off: 0x%X sz: %d id_bs: 0x%X sec_per_block: %d", lba, offset, bufsize, id_bs, sec_per_block); logMsg(tmp);
+
   char* rom; uint32_t LBA8;
-  if (lba > id_bs) {
+  if (lba >= id_bs) {
     lba -= id_bs;
-    LBA8 = lba * DISK_BLOCK_SIZE / min_rom_block;
+    LBA8 = lba / sec_per_block;
     rom = get_rom4prog() + LBA8 * min_rom_block;
   } else {
-    LBA8 = lba * DISK_BLOCK_SIZE / min_rom_block;
+    LBA8 = lba / sec_per_block;
     rom = initial_data + LBA8 * min_rom_block;
   }
-  memcpy(get_shared_ram(), rom, min_rom_block);
   uint32_t off = lba * DISK_BLOCK_SIZE + offset - LBA8 * min_rom_block;
+  //sprintf(tmp, "W LBA8: 0x%X off: 0x%X rom: 0x%X rom base: 0x%X", LBA8, off, rom, get_rom4prog()); logMsg(tmp);
+  memcpy(get_shared_ram(), rom, min_rom_block);
   memcpy(get_shared_ram() + off, buffer, bufsize);
   flash_range_erase2(rom, min_rom_block);
   flash_range_program2(rom, get_shared_ram(), min_rom_block);
