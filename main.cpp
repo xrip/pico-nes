@@ -1061,9 +1061,10 @@ int menu() {
                     case USB_DEVICE:
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
                             init_pico_usb_drive();
-                            while(1) {
+                            while(!tud_msc_test_ejected()) {
                                 pico_usb_drive_heartbeat();
                             }
+                            return ROM_SELECT;
                         }
                 }
             }
