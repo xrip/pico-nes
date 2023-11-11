@@ -67,6 +67,13 @@ void pico_usb_drive_heartbeat() {
     cdc_task();
 }
 
+void in_flash_drive() {
+  init_pico_usb_drive();
+  while(!tud_msc_test_ejected()) {
+    pico_usb_drive_heartbeat();
+  }  
+}
+
 //--------------------------------------------------------------------+
 // Device callbacks
 //--------------------------------------------------------------------+

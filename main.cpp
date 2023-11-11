@@ -788,12 +788,15 @@ void filebrowser(
         draw_window(tmp, 0, 0, 80, 29);
         memset(tmp, ' ', 80);
         draw_text(tmp, 0, 29, 0, 0);
-        draw_text((char*)"START", 0, 29, 7, 0);
-        draw_text((char*)" Run at cursor ", 5, 29, 0, 3);
-        draw_text((char*)"SELECT", 5 + 15 + 1, 29, 7, 0);
-        draw_text((char*)" Run previous  ", 5 + 15 + 1 + 6, 29, 0, 3);
-        draw_text((char*)"ARROWS", 5 + 15 + 1 + 6 + 15 + 1, 29, 7, 0);
-        draw_text((char*)" Navigation    ", 5 + 15 + 1 + 6 + 15 + 1 + 6, 29, 0, 3);
+        auto off = 0;
+        draw_text((char*)"START", off, 29, 7, 0); off += 5;
+        draw_text((char*)" Run at cursor ", off, 29, 0, 3); off += 16;
+        draw_text((char*)"SELECT", off, 29, 7, 0); off += 6;
+        draw_text((char*)" Run previous  ", off, 29, 0, 3); off += 16;
+        draw_text((char*)"ARROWS", off, 29, 7, 0); off += 6;
+        draw_text((char*)" Navigation    ", off, 29, 0, 3); off += 16;
+        draw_text((char*)"A/Z", off, 29, 7, 0); off += 3;
+        draw_text((char*)" USB DRV ", off, 29, 0, 3);
         // Open the directory
         if ((built_in ? in_opendir(&dir) : f_opendir(&dir, basepath)) != FR_OK) {
             draw_text((char*)"Failed to open directory", 1, 1, 4, 0);
@@ -861,6 +864,12 @@ void filebrowser(
             if (keyboard_bits.select || gamepad1_bits.select) {
                 gpio_put(PICO_DEFAULT_LED_PIN, true);
                 return;
+            }
+            if (keyboard_bits.a || gamepad1_bits.a) {
+                clrScr(1);
+                draw_text((char*)"Mount me as USB drive...", 30, 15, 4, 1);
+                in_flash_drive();
+                watchdog_enable(100, true);
             }
             if (keyboard_bits.down || gamepad1_bits.down) {
                 if ((offset + (current_item + 1) < total_files)) {
@@ -1011,7 +1020,7 @@ const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "Flash line: %s",      ARRAY, &settings.flash_line,     1, { "NO ",       "YES" }},
         { "Flash frame: %s",     ARRAY, &settings.flash_frame,    1, { "NO ",       "YES" }},
         { "VGA Mode: %s",        ARRAY, &settings.palette,        1, { "RGB333",    "RGB222" }},
-        { "NES Palette: %s",     ARRAY, &settings.nes_palette,        1, { "default ",    "palette1" }},
+        { "NES Palette: %s",     ARRAY, &settings.nes_palette,    1, { "default ",    "palette1" }},
         { "" },
         { "Save state",          SAVE },
         { "Load state",          LOAD },
@@ -1095,14 +1104,11 @@ int menu() {
                         }
                     case USB_DEVICE:
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
-                            init_pico_usb_drive();
-                            while(!tud_msc_test_ejected()) {
-                                pico_usb_drive_heartbeat();
-                            }
+                            clrScr(1);
+                            draw_text((char*)"Mount me as USB drive...", 30, 15, 4, 1);
+                            in_flash_drive();
                             watchdog_enable(100, true);
-                            //InfoNES_Init();
                             exit = true;
-                            //return USB_DEVICE;
                         }
                 }
             }

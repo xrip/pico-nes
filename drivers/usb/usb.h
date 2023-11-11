@@ -3,8 +3,7 @@
 
 #include "ff.h"
 
-void init_pico_usb_drive();
-void pico_usb_drive_heartbeat();
+void in_flash_drive();
 // from vga.h
 void logMsg(char * msg);
 // from main.cpp
