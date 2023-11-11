@@ -821,7 +821,7 @@ void filebrowser(
         }
         // in_flash drive
         if (f_opendir(&dir1, "F:\\") != FR_OK) {
-            sprintf(tmp, "f_opendir error: %s (%d)", FRESULT_str(result1), result1); logMsg(tmp);
+            sprintf(tmp, "f_opendir(F:\\) error: %s (%d)", FRESULT_str(result1), result1); logMsg(tmp);
             while (1) { sleep_ms(100); }
         }
         while (f_readdir(&dir1, &fileInfo) == FR_OK &&

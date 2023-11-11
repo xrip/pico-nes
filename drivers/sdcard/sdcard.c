@@ -399,26 +399,20 @@ DSTATUS disk_initialize (
 	return Stat;
 }
 
-
-
 /*-----------------------------------------------------------------------*/
 /* Get disk status                                                       */
 /*-----------------------------------------------------------------------*/
-
 DSTATUS disk_status (
 	BYTE drv		/* Physical drive number (0) */
 ) {
-	if (drv == 1) STA_PROTECT; // RO-support for in_flash drive 
+	if (drv == 1) return STA_PROTECT; // RO-support for in_flash drive 
 	if (drv) return STA_NOINIT;		/* Supports only drives 0 & 1 */
 	return Stat;	/* Return disk status */
 }
 
-
-
 /*-----------------------------------------------------------------------*/
 /* Read sector(s)                                                        */
 /*-----------------------------------------------------------------------*/
-
 DRESULT disk_read (
 	BYTE drv,		/* Physical drive number (0) */
 	BYTE *buff,		/* Pointer to the data buffer to store read data */
