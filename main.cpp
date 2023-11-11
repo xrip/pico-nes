@@ -108,6 +108,10 @@ SETTINGS settings = {
 
 static FATFS fs, fs1;
 
+FATFS* getFlashInDriveFATFSptr() {
+    return &fs1;
+}
+
 i2s_config_t i2s_config;
 
 char fps_text[3] = { "0" };
@@ -673,6 +677,7 @@ void filebrowser_loadfile(char *pathname, bool built_in) {
         logMsg((char*)"Launching last rom");
         return;
     }
+    restore_clean_fat(); // in case we write into space for flash drive, it is required to remove old FAT info
     FIL file;
     UINT bytesRead;
     char tmp[80];
@@ -800,7 +805,6 @@ void filebrowser(
             fileItems[total_files].size = 0;
             total_files++;
         }
-        bool add_extra_fn = true;
         while ((built_in ? in_readdir(&dir, &fileInfo) : f_readdir(&dir, &fileInfo)) == FR_OK &&
                fileInfo.fname[0] != '\0' &&
                total_files < maxfiles
@@ -815,12 +819,10 @@ void filebrowser(
             }
             strncpy(fileItems[total_files].filename, fileInfo.fname, 80);
             total_files++;
-            if (add_extra_fn && strcmp((char*)rom_filename + 5/*\NES\*/, fileInfo.fname) == 0) {
-                add_extra_fn = false;
-            }
         }
         // in_flash drive
-        if (f_opendir(&dir1, "F:\\") != FR_OK) {
+        result1 = f_opendir(&dir1, "F:\\");
+        if (result1 != FR_OK) {
             sprintf(tmp, "f_opendir(F:\\) error: %s (%d)", FRESULT_str(result1), result1); logMsg(tmp);
             while (1) { sleep_ms(100); }
         }
@@ -838,17 +840,7 @@ void filebrowser(
             }
             strncpy(fileItems[total_files].filename, fileInfo.fname, 80);
             total_files++;
-            if (add_extra_fn && strcmp((char*)rom_filename + 3/*F:\*/, fileInfo.fname) == 0) {
-                add_extra_fn = false;
-            }
         }                
-        if (add_extra_fn) {
-            fileItems[total_files].is_directory = false;
-            fileItems[total_files].size = 0; // TODO:
-            fileItems[total_files].is_executable = 1;
-            strncpy(fileItems[total_files].filename, (char*)rom_filename + 5/*\NES\*/, 80);
-            total_files++;
-        }
         qsort(fileItems, total_files, sizeof(FileItem), compareFileItems);
         // Cleanup
         built_in ? in_closedir(&dir) : f_closedir(&dir);

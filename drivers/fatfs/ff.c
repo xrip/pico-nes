@@ -3557,38 +3557,29 @@ static FRESULT validate (	/* Returns FR_OK or FR_INVALID_OBJECT */
 	return res;
 }
 
-
-
-
 /*---------------------------------------------------------------------------
 
    Public Functions (FatFs API)
 
 ----------------------------------------------------------------------------*/
 
-
-
 /*-----------------------------------------------------------------------*/
 /* Mount/Unmount a Logical Drive                                         */
 /*-----------------------------------------------------------------------*/
-
 FRESULT f_mount (
 	FATFS* fs,			/* Pointer to the filesystem object to be registered (NULL:unmount)*/
 	const TCHAR* path,	/* Logical drive number to be mounted/unmounted */
 	BYTE opt			/* Mount option: 0=Do not mount (delayed mount), 1=Mount immediately */
-)
-{
+) {
 	FATFS *cfs;
 	int vol;
 	FRESULT res;
 	const TCHAR *rp = path;
-
-
 	/* Get logical drive number */
 	vol = get_ldnumber(&rp);
-	if (vol < 0) return FR_INVALID_DRIVE;
+	if (vol < 0)
+	    return FR_INVALID_DRIVE;
 	cfs = FatFs[vol];					/* Pointer to fs object */
-
 	if (cfs) {
 #if FF_FS_LOCK != 0
 		clear_lock(cfs);

@@ -31,40 +31,8 @@
 
 // whether host does safe-eject
 static bool ejected = false;
+static size_t blocks_written = 0;
 
-/*
-unsigned char data[128] = {
-	0x50, 0x49, 0x43, 0x4F, 0x2D, 0x4E, 0x45, 0x53, 0x20, 0x20, 0x20, 0x08, 0x00, 0x00, 0x00, 0x00,		//00001000: PICO-NES   .....
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x24, 0x09, 0x6A, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		//00001010: ......$.jW......
-	
-  0x52, 0x45, 0x41, 0x44, 0x4D, 0x45, 0x20, 0x20, 0x4D, 0x44, 0x20, 0x20, 0x10, 0x17, 0x37, 0x09,		//00001020: README  MD  ..7.
-	0x6A, 0x57, 0x6A, 0x57, 0x00, 0x00, 0x91, 0x9A, 0x51, 0x57, 0x02, 0x00, 0x45, 0x03, 0x00, 0x00,		//00001030: jWjW....QW..E...
-	
-  0x41, 0x56, 0x00, 0x47, 0x00, 0x41, 0x00, 0x5F, 0x00, 0x52, 0x00, 0x0F, 0x00, 0xFC, 0x4F, 0x00,		//00001040: AV.G.A._.R....O.
-	0x4D, 0x00, 0x5F, 0x00, 0x46, 0x00, 0x31, 0x00, 0x36, 0x00, 0x00, 0x00, 0x2E, 0x00, 0x68, 0x00,		//00001050: M._.F.1.6.....h.
-	
-  0x56, 0x47, 0x41, 0x5F, 0x52, 0x4F, 0x7E, 0x31, 0x48, 0x20, 0x20, 0x20, 0x00, 0x65, 0x98, 0x09,		//00001060: VGA_RO~1H   .e..
-	0x6A, 0x57, 0x6A, 0x57, 0x00, 0x00, 0x91, 0x9A, 0x51, 0x57, 0x04, 0x00, 0x66, 0x63, 0x00, 0x00 		//00001070: jWjW....QW..fc..
-};
-unsigned char data[192] = {
-	0x50, 0x49, 0x43, 0x4F, 0x2D, 0x4E, 0x45, 0x53, 0x20, 0x20, 0x20, 0x08, 0x00, 0x00, 0x00, 0x00,		//00000000: PICO-NES   .....
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x26, 0x0A, 0x6A, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		//00000010: ......&.jW......
-	
-  0x44, 0x65, 0x00, 0x73, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F, 0x00, 0xEF, 0xFF, 0xFF,		//00000020: De.s............
-	0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,		//00000030: ................
-	0x03, 0x48, 0x00, 0x61, 0x00, 0x63, 0x00, 0x6B, 0x00, 0x20, 0x00, 0x0F, 0x00, 0xEF, 0x76, 0x00,		//00000040: .H.a.c.k. ....v.
-	0x31, 0x00, 0x2E, 0x00, 0x34, 0x00, 0x61, 0x00, 0x29, 0x00, 0x00, 0x00, 0x2E, 0x00, 0x6E, 0x00,		//00000050: 1...4.a.).....n.
-	0x02, 0x28, 0x00, 0x54, 0x00, 0x77, 0x00, 0x6F, 0x00, 0x20, 0x00, 0x0F, 0x00, 0xEF, 0x50, 0x00,		//00000060: .(.T.w.o. ....P.
-	0x6C, 0x00, 0x61, 0x00, 0x79, 0x00, 0x65, 0x00, 0x72, 0x00, 0x00, 0x00, 0x73, 0x00, 0x20, 0x00,		//00000070: l.a.y.e.r...s. .
-	0x01, 0x44, 0x00, 0x75, 0x00, 0x63, 0x00, 0x6B, 0x00, 0x20, 0x00, 0x0F, 0x00, 0xEF, 0x54, 0x00,		//00000080: .D.u.c.k. ....T.
-	0x61, 0x00, 0x6C, 0x00, 0x65, 0x00, 0x73, 0x00, 0x20, 0x00, 0x00, 0x00, 0x32, 0x00, 0x20, 0x00,		//00000090: a.l.e.s. ...2. .
-	
-  0x44, 0x55, 0x43, 0x4B, 0x54, 0x41, 0x7E, 0x31, 0x4E, 0x45, 0x53, 0x20, 0x00, 0x58, 0x71, 0xA5,		//000000A0: DUCKTA~1NES .Xq.
-	0x6A, 0x57, 0x6A, 0x57, 0x00, 0x00, 0x86, 0x99, 0x50, 0x57, 0x02, 0x00, 0x10, 0x00, 0x04, 0x00 		//000000B0: jWjW....PW......
-};
-
-*/
-// TODO: ^ read file name (ibject to file browser); support multiple FAT12 files
 // TODO: optimize space used:
 const unsigned char __in_flash() __aligned(4096) initial_data[0x5000] = {
 	0xEB, 0x3C, 0x90,                               // not really used jump to bootstrap
@@ -343,6 +311,21 @@ const unsigned char __in_flash() __aligned(4096) initial_data[0x5000] = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x26, 0x0A, 0x6A, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		//00001010: ......&.jW......
 };
 
+const unsigned char __in_flash() restore_fat_data[DISK_BLOCK_SIZE] = {
+  0x50, 0x49, 0x43, 0x4F, 0x2D, 0x4E, 0x45, 0x53, 0x20, 0x20, 0x20, 0x08, 0x00, 0x00, 0x00, 0x00,		//00001000: PICO-NES   .....
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x26, 0x0A, 0x6A, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,		//00001010: ......&.jW......
+};
+
+const uint32_t min_rom_block = 4096;
+const uint32_t sec_per_block = min_rom_block / DISK_BLOCK_SIZE;
+
+void restore_clean_fat() {
+  flash_range_erase2(initial_data + FAT_OFFSET, min_rom_block);
+  char* ram = get_shared_ram();
+  memcpy(ram, restore_fat_data, DISK_BLOCK_SIZE);
+  flash_range_program2(initial_data + FAT_OFFSET, ram, DISK_BLOCK_SIZE);  
+}
+
 // Invoked when received SCSI_CMD_INQUIRY
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {
@@ -382,14 +365,21 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 
 static char * rom_block = 0;
 static char * ram_block = 0;
-const uint32_t min_rom_block = 4096;
-const uint32_t sec_per_block = min_rom_block / DISK_BLOCK_SIZE;
+
+void flush() {
+  if (rom_block && ram_block) {
+    flash_range_erase2(rom_block, min_rom_block);
+    flash_range_program2(rom_block, ram_block, min_rom_block);
+    rom_block = 0;
+    ram_block = 0;
+  }
+}
 
 // Invoked when received Start Stop Unit command
 // - Start = 0 : stopped power mode, if load_eject = 1 : unload disk storage
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
 bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject) {
-  // char tmp[81]; sprintf(tmp, "power_condition: 0x%X start: %d load_eject: %d", power_condition, start, load_eject); logMsg(tmp);
+  //char tmp[81]; sprintf(tmp, "power_condition: 0x%X start: %d load_eject: %d", power_condition, start, load_eject); logMsg(tmp);
   (void) lun;
   (void) power_condition;
   if ( load_eject ) {
@@ -398,12 +388,7 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
     } else {
       // unload disk storage
       ejected = true;
-      if (rom_block && ram_block) {
-          flash_range_erase2(rom_block, min_rom_block);
-          flash_range_program2(rom_block, ram_block, min_rom_block);
-          rom_block = 0;
-          ram_block = 0;
-      }
+      flush();
     }
   }
   return true;
@@ -422,6 +407,10 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
   } else {
     memcpy(buffer, initial_data + lba * DISK_BLOCK_SIZE + offset, bufsize);
   }
+  if (ejected) { // read means it is mount back
+    ejected = false;
+    blocks_written = 0;
+  }
   return (int32_t) bufsize;
 }
 
@@ -434,16 +423,14 @@ bool tud_msc_is_writable_cb (uint8_t lun) {
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
   (void) lun;
-  if (lba * DISK_BLOCK_SIZE == 0x1000) { // TODO: detect FAT start
-    uint32_t addr = get_rom_filename();
-    flash_range_erase2(addr, 4096);
-    char pathname[256]; sprintf(pathname, "\\NES\\load_from_usb.nes"); // TODO: read from FAT
-    flash_range_program2(addr, pathname, 256);
-  }
   size_t id_bs = sizeof(initial_data) / DISK_BLOCK_SIZE;
   // out of ramdisk
-  if ( lba >= get_rom4prog_size() / DISK_BLOCK_SIZE + id_bs ) return -1;
-   char* rom; uint32_t LBA8;
+  if ( lba >= get_rom4prog_size() / DISK_BLOCK_SIZE + id_bs ) {
+    return -1;
+  }
+  blocks_written += 1;
+  bool fat_changed = lba * DISK_BLOCK_SIZE == FAT_OFFSET; 
+  char* rom; uint32_t LBA8;
   if (lba >= id_bs) {
     lba -= id_bs;
     LBA8 = lba / sec_per_block;
@@ -465,6 +452,33 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
   }
   uint32_t off = lba * DISK_BLOCK_SIZE + offset - LBA8 * min_rom_block;
   memcpy(ram_block + off, buffer, bufsize);
+  if (fat_changed) {
+    flush();
+    FRESULT res = f_mount(getFlashInDriveFATFSptr(), "F:", 0);
+    if (FR_OK != res) {
+        char tmp[80]; sprintf(tmp, "f_mount F: error: %s (%d)", FRESULT_str(res), res); logMsg(tmp);
+        while (1) { sleep_ms(100); /*TODO: reboot? */}
+    }
+    DIR dir1;
+    res = f_opendir(&dir1, "F:\\");
+    if (res != FR_OK) {
+        char tmp[80]; sprintf(tmp, "f_opendir F:\\ error: %s (%d)", FRESULT_str(res), res); logMsg(tmp);
+        while (1) { sleep_ms(100); }
+    }
+    FILINFO fileInfo;
+    if (f_readdir(&dir1, &fileInfo) == FR_OK && fileInfo.fname[0] != '\0' && fileInfo.fsize != 0) {
+        uint32_t addr = get_rom_filename();
+        flash_range_erase2(addr, 4096);
+        char pathname[256]; sprintf(pathname, "\\NES\\%s", fileInfo.fname);
+        flash_range_program2(addr, pathname, 256);
+        // auto-eject
+        QWORD written_bytes = blocks_written * DISK_BLOCK_SIZE;
+        if (fileInfo.fsize <= written_bytes) {
+            written_bytes = 0;
+            ejected = true;
+        }
+    }
+  }
   return (int32_t) bufsize;
 }
 
