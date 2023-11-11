@@ -95,10 +95,8 @@ enum {
 uint8_t const desc_fs_configuration[] = {
     // Config number, interface count, string index, total length, attribute, power in mA
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
-
     // Interface number, string index, EP notification address and size, EP data address (out, in) and size.
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 8, EPNUM_CDC_OUT, EPNUM_CDC_IN, 64),
-
     // Interface number, string index, EP Out & EP In address, EP size
     TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC_OUT, EPNUM_MSC_IN, 64),
 };
@@ -169,7 +167,7 @@ uint8_t const *tud_descriptor_other_speed_configuration_cb(uint8_t index) {
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
   (void) index; // for multiple configurations
-
+  char tmp[81]; sprintf(tmp, "tud_descriptor_configuration_cb(%d)", index); logMsg(tmp);
 #if TUD_OPT_HIGH_SPEED
   // Although we are highspeed, host may be fullspeed.
   return (tud_speed_get() == TUSB_SPEED_HIGH) ? desc_hs_configuration : desc_fs_configuration;
@@ -207,7 +205,7 @@ static uint16_t _desc_str[32 + 1];
 uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
   (void) langid;
   size_t chr_count;
-
+char tmp[81]; sprintf(tmp, "tud_descriptor_string_cb(%d, %d)", index, langid); logMsg(tmp);
   switch ( index ) {
     case STRID_LANGID:
       memcpy(&_desc_str[1], string_desc_arr[0], 2);

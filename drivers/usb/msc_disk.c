@@ -329,11 +329,16 @@ void restore_clean_fat() {
 // Invoked when received SCSI_CMD_INQUIRY
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {
-  (void) lun;
-  const char vid[] = "TinyUSB";
+  //char tmp[81]; sprintf(tmp, "tud_msc_inquiry_cb: %d", lun); logMsg(tmp);
+  if (lun == 0) {
+    const char vid[] = "Pico-ness in flash";
+    memcpy(vendor_id, vid, strlen(vid));
+  } else {
+    const char vid[] = "Pico-ness SD-Card";
+    memcpy(vendor_id, vid, strlen(vid));
+  }
   const char pid[] = "Mass Storage";
   const char rev[] = "1.0";
-  memcpy(vendor_id  , vid, strlen(vid));
   memcpy(product_id , pid, strlen(pid));
   memcpy(product_rev, rev, strlen(rev));
 }
@@ -357,10 +362,14 @@ bool tud_msc_test_ejected() {
 // Invoked when received SCSI_CMD_READ_CAPACITY_10 and SCSI_CMD_READ_FORMAT_CAPACITY to determine the disk size
 // Application update block count and block size
 void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_size) {
-  (void) lun;
-  size_t id_bs = sizeof(initial_data) / DISK_BLOCK_SIZE;
-  *block_count = get_rom4prog_size() / DISK_BLOCK_SIZE + id_bs;
-  *block_size  = DISK_BLOCK_SIZE;
+  if (lun == 0) {
+    size_t id_bs = sizeof(initial_data) / DISK_BLOCK_SIZE;
+    *block_count = get_rom4prog_size() / DISK_BLOCK_SIZE + id_bs;
+    *block_size  = DISK_BLOCK_SIZE;
+  } else {
+    disk_ioctl(0, 1/*GET_SECTOR_COUNT*/, block_count);
+    disk_ioctl(0, 3/*GET_BLOCK_SIZE*/, block_size);
+  }
 }
 
 static char * rom_block = 0;
@@ -397,7 +406,9 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 // Callback invoked when received READ10 command.
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) {
-  (void) lun;
+  if (lun != 0) {
+    return disk_read(0, buffer, lba, 1) == 0/*RES_OK*/ ? bufsize : -1; // TODO: offset ?
+  }
   size_t id_bs = sizeof(initial_data) / DISK_BLOCK_SIZE;
   // out of ramdisk
   if ( lba >= get_rom4prog_size() / DISK_BLOCK_SIZE + id_bs ) return -1;
@@ -415,14 +426,17 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 }
 
 bool tud_msc_is_writable_cb (uint8_t lun) {
-  (void) lun;
+  if (lun != 0)
+    return !(disk_status(0) & 0x04/*STA_PROTECT*/); // TODO: sd-card write protected ioctl?
   return true;
 }
 
 // Callback invoked when received WRITE10 command.
 // Process data in buffer to disk's storage and return number of written bytes
 int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
-  (void) lun;
+  if (lun != 0) {
+    return disk_write(0, buffer, lba, 1) == 0 ? bufsize : -1;
+  }
   size_t id_bs = sizeof(initial_data) / DISK_BLOCK_SIZE;
   // out of ramdisk
   if ( lba >= get_rom4prog_size() / DISK_BLOCK_SIZE + id_bs ) {

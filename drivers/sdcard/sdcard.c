@@ -546,11 +546,9 @@ DRESULT disk_write (
 }
 #endif
 
-
 /*-----------------------------------------------------------------------*/
 /* Miscellaneous drive controls other than data read/write               */
 /*-----------------------------------------------------------------------*/
-
 DRESULT disk_ioctl (
 	BYTE drv,		/* Physical drive number (0) */
 	BYTE cmd,		/* Control command code */
