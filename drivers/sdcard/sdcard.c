@@ -347,14 +347,13 @@ BYTE send_cmd (		/* Return value: R1 resp (bit7==1:Failed to send) */
 
 DSTATUS disk_initialize (
 	BYTE drv		/* Physical drive number (0) */
-)
-{
+) {
+	if (drv == 1) { return STA_PROTECT; } // Read-only support for in_flash drive
 	BYTE n, cmd, ty, ocr[4];
 	const uint32_t timeout = 1000; /* Initialization timeout = 1 sec */
 	uint32_t t;
 
-
-	if (drv) return STA_NOINIT;			/* Supports only drive 0 */
+	if (drv) return STA_NOINIT;			/* Supports only drive 0 for sd-card */
 	init_spi();							/* Initialize SPI */
     sleep_ms(10);
 
@@ -408,10 +407,9 @@ DSTATUS disk_initialize (
 
 DSTATUS disk_status (
 	BYTE drv		/* Physical drive number (0) */
-)
-{
-	if (drv) return STA_NOINIT;		/* Supports only drive 0 */
-
+) {
+	if (drv == 1) STA_PROTECT; // RO-support for in_flash drive 
+	if (drv) return STA_NOINIT;		/* Supports only drives 0 & 1 */
 	return Stat;	/* Return disk status */
 }
 
@@ -428,6 +426,16 @@ DRESULT disk_read (
 	UINT count		/* Number of sectors to read (1..128) */
 )
 {
+	if (drv == 1) { // in_flash drive support
+		BYTE* buffer = buff;
+		uint32_t offset = 0;
+		for (LBA_t lba = sector; lba < sector + count; ++lba, buffer += DISK_BLOCK_SIZE, offset += DISK_BLOCK_SIZE) {
+            if (tud_msc_read10_cb(0, lba, offset, buffer, DISK_BLOCK_SIZE) != DISK_BLOCK_SIZE) {
+				return RES_ERROR;
+			}
+		}
+		return RES_OK;
+	}
 	if (drv || !count) return RES_PARERR;		/* Check parameter */
 	if (Stat & STA_NOINIT) return RES_NOTRDY;	/* Check if drive is ready */
 
@@ -553,12 +561,34 @@ DRESULT disk_ioctl (
 	BYTE drv,		/* Physical drive number (0) */
 	BYTE cmd,		/* Control command code */
 	void *buff		/* Pointer to the conrtol data */
-)
-{
+) {
+	if (drv == 1) { // in_flash drive support
+	    switch (cmd) {
+			case GET_SECTOR_COUNT: {
+				uint32_t block_count;
+				uint16_t block_size;
+				tud_msc_capacity_cb(0, &block_count, &block_size);
+			    *(DWORD*)buff = block_count;
+				break;
+			}
+			case GET_BLOCK_SIZE: {
+				uint32_t block_count;
+				uint16_t block_size;
+				tud_msc_capacity_cb(0, &block_count, &block_size);
+			    *(DWORD*)buff = block_size;
+				break;
+			}
+			case CTRL_TRIM: // TODO: ??
+			case CTRL_SYNC:
+			    break;
+			default:
+			    return RES_PARERR;
+	    }
+		return RES_OK;
+	}
 	DRESULT res;
 	BYTE n, csd[16];
 	DWORD *dp, st, ed, csize;
-
 
 	if (drv) return RES_PARERR;					/* Check parameter */
 	if (Stat & STA_NOINIT) return RES_NOTRDY;	/* Check if drive is ready */

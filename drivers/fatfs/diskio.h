@@ -25,7 +25,7 @@ typedef enum {
 /*---------------------------------------*/
 /* Prototypes for disk control functions */
 
-
+#include "usb.h"
 DSTATUS disk_initialize (BYTE pdrv);
 DSTATUS disk_status (BYTE pdrv);
 DRESULT disk_read (BYTE pdrv, BYTE* buff, LBA_t sector, UINT count);

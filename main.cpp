@@ -106,7 +106,7 @@ SETTINGS settings = {
         .nes_palette = 0,
 };
 
-static FATFS fs;
+static FATFS fs, fs1;
 
 i2s_config_t i2s_config;
 
@@ -756,7 +756,7 @@ void filebrowser(
     constexpr int per_page = 27;
     auto *fileItems = reinterpret_cast<FileItem *>(&SCREEN[0][0] + (1024 * 6));
     constexpr int maxfiles = (sizeof(SCREEN) - (1024 * 6)) / sizeof(FileItem);
-    DIR dir;
+    DIR dir, dir1;
     FILINFO fileInfo;
     FRESULT result = f_mount(&fs, "", 1);
     int built_in = false;
@@ -770,6 +770,11 @@ void filebrowser(
 #ifndef BUILD_IN_GAMES
         while (1) { sleep_ms(100); /*TODO: reboot? */}
 #endif
+    }
+    FRESULT result1 = f_mount(&fs1, "F:", 0);
+    if (FR_OK != result1) {
+        sprintf(tmp, "f_mount error: %s (%d)", FRESULT_str(result1), result1); logMsg(tmp);
+        while (1) { sleep_ms(100); /*TODO: reboot? */}
     }
     while (1) {
         int total_files = 0;
@@ -814,6 +819,29 @@ void filebrowser(
                 add_extra_fn = false;
             }
         }
+        // in_flash drive
+        if (f_opendir(&dir1, "F:\\") != FR_OK) {
+            sprintf(tmp, "f_opendir error: %s (%d)", FRESULT_str(result1), result1); logMsg(tmp);
+            while (1) { sleep_ms(100); }
+        }
+        while (f_readdir(&dir1, &fileInfo) == FR_OK &&
+               fileInfo.fname[0] != '\0' &&
+               total_files < maxfiles
+        ) {
+            // Set the file item properties
+            fileItems[total_files].is_directory = fileInfo.fattrib & AM_DIR;
+            fileItems[total_files].size = fileInfo.fsize;
+            // Extract the extension from the file name
+            char *extension = strrchr(fileInfo.fname, '.');
+            if (extension != NULL && strncmp(executable, extension + 1, 3) == 0) {
+                fileItems[total_files].is_executable = 1;
+            }
+            strncpy(fileItems[total_files].filename, fileInfo.fname, 80);
+            total_files++;
+            if (add_extra_fn && strcmp((char*)rom_filename + 3/*F:\*/, fileInfo.fname) == 0) {
+                add_extra_fn = false;
+            }
+        }                
         if (add_extra_fn) {
             fileItems[total_files].is_directory = false;
             fileItems[total_files].size = 0; // TODO:
