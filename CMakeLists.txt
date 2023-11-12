@@ -68,9 +68,12 @@ target_sources(dendy PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb_descriptors.c
 )
 
+#if (NOT PICO_DEFAULT_BOOT_STAGE2_FILE)
+#  set(PICO_DEFAULT_BOOT_STAGE2_FILE "${PICO_SDK_PATH}/src/rp2_common/boot_stage2/compile_time_choice.S")
+#endif()
 #pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
 #target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
-#pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
+#pico_set_boot_stage2(dendy slower_boot2)
 
 pico_set_program_name(dendy "NES Emulator by xrip/DnCraptor")
 pico_set_program_version(dendy "development version")
