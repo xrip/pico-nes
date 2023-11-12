@@ -39,19 +39,18 @@ extern "C" {
 
 #define HOME_DIR (char*)"\\NES"
 
-#define BUILD_IN_GAMES
 #ifdef BUILD_IN_GAMES
 #include "lzwSource.h"
 #include "lzw.h"
 size_t get_rom4prog_size() { return sizeof(rom); }
-uint32_t get_rom4prog() { return (uint32_t)rom; }
-#endif
-#ifndef BUILD_IN_GAMES
+#else
 #define FLASH_TARGET_OFFSET (1024 * 1024)
 const char *rom_filename = (const char *) (XIP_BASE + FLASH_TARGET_OFFSET);
 const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET) + 4096;
+size_t get_rom4prog_size() { return FLASH_TARGET_OFFSET - 4096; }
 class Decoder {};
 #endif
+uint32_t get_rom4prog() { return (uint32_t)rom; }
 
 enum menu_type_e {
     NONE,
@@ -951,16 +950,20 @@ void filebrowser(
     }
 }
 
+int menu();
+
 int InfoNES_Video() {
     setVGAmode(VGA640x480_text_80_30);
     clrScr(1);    
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
         logMsg((char*)"NES file parse error.");
-        return 1;
+        menu();
+        return 0; // TODO: 1?
     }
     if (InfoNES_Reset() < 0) {
         logMsg((char*)"NES reset error.");
-        return 1; 
+        menu();
+        return 1; // TODO: ?
     }
     memset(SCREEN, 63, sizeof(SCREEN));    
     setVGAmode(VGA640x480div2);
