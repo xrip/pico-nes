@@ -131,7 +131,7 @@ target_compile_definitions(dendy PRIVATE
         # usb
         PICO_DEFAULT_LED_PIN=25
         # internal games
-        BUILD_IN_GAMES
+        #BUILD_IN_GAMES
 )
 
 pico_add_extra_outputs(dendy)

@@ -1199,6 +1199,11 @@ int main() {
     sem_release(&vga_start_semaphore);
     load_config();
     sleep_ms(50);
+#ifndef BUILD_IN_GAMES
+    if(!parseROM(reinterpret_cast<const uint8_t *>(rom)) && f_mount(&fs, "", 1) == FR_OK) {
+        InfoNES_Menu();
+    }
+#endif
     bool start_from_game = InfoNES_Main(true);
     while(1) {
         sleep_ms(500);
