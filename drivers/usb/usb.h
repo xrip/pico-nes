@@ -2,6 +2,7 @@
 #define PICO_USB_DRIVE
 
 #include "ff.h"
+#include "diskio.h"
 
 void in_flash_drive();
 // from vga.h
@@ -15,6 +16,7 @@ char* get_shared_ram();
 size_t get_shared_ram_size();
 char* get_rom_filename();
 FATFS* getFlashInDriveFATFSptr();
+FATFS* getSDCardFATFSptr();
 // msc_disk.c
 _Bool tud_msc_test_ejected();
 enum {

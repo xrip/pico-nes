@@ -11,16 +11,15 @@
 #include "hardware/gpio.h"
 //#include "hardware/gpio_ex.h"
 
+#include "usb.h"
 #include "ff.h"
 #include "diskio.h"
-
 
 /*--------------------------------------------------------------------------
 
    Module Private Functions
 
 ---------------------------------------------------------------------------*/
-
 /* MMC/SD command */
 #define CMD0	(0)			/* GO_IDLE_STATE */
 #define CMD1	(1)			/* SEND_OP_COND (MMC) */
@@ -578,6 +577,7 @@ DRESULT disk_ioctl (
 	    }
 		return RES_OK;
 	}
+	char tmp[80]; sprintf(tmp, "disk_ioctl(%d, %d)", drv, cmd); logMsg(tmp);
 	DRESULT res;
 	BYTE n, csd[16];
 	DWORD *dp, st, ed, csize;

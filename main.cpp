@@ -111,6 +111,9 @@ static FATFS fs, fs1;
 FATFS* getFlashInDriveFATFSptr() {
     return &fs1;
 }
+FATFS* getSDCardFATFSptr() {
+    return &fs;
+}
 
 i2s_config_t i2s_config;
 
