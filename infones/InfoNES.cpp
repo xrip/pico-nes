@@ -602,7 +602,7 @@ void InfoNES_Mirroring(int nType)
 /*              InfoNES_Main() : The main loop of InfoNES            */
 /*                                                                   */
 /*===================================================================*/
-void InfoNES_Main()
+bool InfoNES_Main(bool skip_fb)
 {
   /*
    *  The main loop of InfoNES
@@ -611,25 +611,18 @@ void InfoNES_Main()
 
   // Initialize InfoNES
   InfoNES_Init();
-
-  // Main loop
-  // while (1)
-  // {
   /*-------------------------------------------------------------------*/
   /*  To the menu screen                                               */
   /*-------------------------------------------------------------------*/
-  if (InfoNES_Menu() == 0)
-  {
-    
+  if ((skip_fb || InfoNES_Menu() == 0) && InfoNES_Video() == 0) {
     /*-------------------------------------------------------------------*/
     /*  Start a NES emulation                                            */
     /*-------------------------------------------------------------------*/
-    InfoNES_Cycle();
+    skip_fb = InfoNES_Cycle();
   }
-  //}
-
   // Completion treatment
   InfoNES_Fin();
+  return skip_fb;
 }
 
 /*===================================================================*/
@@ -637,7 +630,7 @@ void InfoNES_Main()
 /*              InfoNES_Cycle() : The loop of emulation              */
 /*                                                                   */
 /*===================================================================*/
-void __not_in_flash_func(InfoNES_Cycle)()
+bool __not_in_flash_func(InfoNES_Cycle)()
 {
   /*
    *  The loop of emulation
@@ -692,12 +685,14 @@ void __not_in_flash_func(InfoNES_Cycle)()
     MapperHSync();
 
     // A function in H-Sync
-    if (InfoNES_HSync() == -1)
-      return; // To the menu screen
+    auto todo = InfoNES_HSync();
+    if (todo < 0)
+      return todo == -2; // true - restart game / false - to the menu screen
 
     // HSYNC Wait
     InfoNES_Wait();
   }
+  return false;
 }
 
 /*===================================================================*/
@@ -803,11 +798,12 @@ int __not_in_flash_func(InfoNES_HSync)()
     break;
 
   case SCAN_UNKNOWN_START:
-    if (FrameCnt == 0)
-    {
+    if (FrameCnt == 0) {
       // Transfer the contents of work frame on the screen
-      InfoNES_LoadFrame();
-
+      auto res = InfoNES_LoadFrame();
+      if (res < 0) {
+        return res;
+      }
 #if 0
         // Switching of the double buffer
         WorkFrameIdx = 1 - WorkFrameIdx;
@@ -1723,7 +1719,7 @@ char* replaceSpecialCharacters(const char* str) {
 void save_state(const char * rom_filename)
 {
     char pathname[255];
-    sprintf(pathname, "NES\\%s.save", replaceSpecialCharacters(rom_filename));
+    sprintf(pathname, "%s.save", replaceSpecialCharacters(rom_filename));
     FRESULT fr = f_mount(&fs, "", 1);
     FIL fd;
     fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);

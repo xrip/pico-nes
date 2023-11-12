@@ -17,6 +17,7 @@
 
 extern "C" {
 #include "vga.h"
+#include "usb.h"
 }
 
 #include "audio.h"
@@ -36,13 +37,37 @@ extern "C" {
 
 #pragma GCC optimize("Ofast")
 
-#define HOME_DIR "\\NES"
+#define HOME_DIR (char*)"\\NES"
+
+#define BUILD_IN_GAMES
+#ifdef BUILD_IN_GAMES
+#include "lzwSource.h"
+#include "lzw.h"
+size_t get_rom4prog_size() { return sizeof(rom); }
+uint32_t get_rom4prog() { return (uint32_t)rom; }
+#endif
+#ifndef BUILD_IN_GAMES
 #define FLASH_TARGET_OFFSET (1024 * 1024)
 const char *rom_filename = (const char *) (XIP_BASE + FLASH_TARGET_OFFSET);
 const uint8_t *rom = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET) + 4096;
+class Decoder {};
+#endif
+
+enum menu_type_e {
+    NONE,
+    INT,
+    TEXT,
+    ARRAY,
+    SAVE,
+    LOAD,
+    RESET,
+    RETURN,
+    ROM_SELECT,
+    USB_DEVICE
+};
 
 struct semaphore vga_start_semaphore;
-uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH];
+uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH]; // 61440 bytes
 uint16_t linebuffer[256];
 extern uint8_t fnt8x16[];
 
@@ -76,13 +101,19 @@ SETTINGS settings = {
         .flash_frame = true,
         .palette = RGB333,
         .snd_vol = 8,
-        .player_1_input = GAMEPAD1,
-        .player_2_input = KEYBOARD,
+        .player_1_input = KEYBOARD,
+        .player_2_input = GAMEPAD1,
         .nes_palette = 0,
 };
 
+static FATFS fs, fs1;
 
-static FATFS fs;
+FATFS* getFlashInDriveFATFSptr() {
+    return &fs1;
+}
+FATFS* getSDCardFATFSptr() {
+    return &fs;
+}
 
 i2s_config_t i2s_config;
 
@@ -98,8 +129,7 @@ const BYTE NesPalette[64] = {
         0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f
 };
 
-const int __not_in_flash_func(NesPalette888)
-[] = {
+const int __not_in_flash_func(NesPalette888)[] = {
                 /**/
                 RGB888(0x7c, 0x7c, 0x7c),
                 RGB888(0x00, 0x00, 0xfc),
@@ -183,38 +213,37 @@ const int __not_in_flash_func(NesPalette888)
                 /**/
                 /* Matthew Conte's Palette */
                 /**/
-                0x808080, 0x0000bb, 0x3700bf, 0x8400a6,
-                0xbb006a, 0xb7001e, 0xb30000, 0x912600,
-                0x7b2b00, 0x003e00, 0x00480d, 0x003c22,
-                0x002f66, 0x000000, 0x050505, 0x050505,
+                        0x808080, 0x0000bb, 0x3700bf, 0x8400a6,
+                        0xbb006a, 0xb7001e, 0xb30000, 0x912600,
+                        0x7b2b00, 0x003e00, 0x00480d, 0x003c22,
+                        0x002f66, 0x000000, 0x050505, 0x050505,
 
-                0xc8c8c8, 0x0059ff, 0x443cff, 0xb733cc,
-                0xff33aa, 0xff375e, 0xff371a, 0xd54b00,
-                0xc46200, 0x3c7b00, 0x1e8415, 0x009566,
-                0x0084c4, 0x111111, 0x090909, 0x090909,
+                        0xc8c8c8, 0x0059ff, 0x443cff, 0xb733cc,
+                        0xff33aa, 0xff375e, 0xff371a, 0xd54b00,
+                        0xc46200, 0x3c7b00, 0x1e8415, 0x009566,
+                        0x0084c4, 0x111111, 0x090909, 0x090909,
 
-                0xffffff, 0x0095ff, 0x6f84ff, 0xd56fff,
-                0xff77cc, 0xff6f99, 0xff7b59, 0xff915f,
-                0xffa233, 0xa6bf00, 0x51d96a, 0x4dd5ae,
-                0x00d9ff, 0x666666, 0x0d0d0d, 0x0d0d0d,
+                        0xffffff, 0x0095ff, 0x6f84ff, 0xd56fff,
+                        0xff77cc, 0xff6f99, 0xff7b59, 0xff915f,
+                        0xffa233, 0xa6bf00, 0x51d96a, 0x4dd5ae,
+                        0x00d9ff, 0x666666, 0x0d0d0d, 0x0d0d0d,
 
-                0xffffff, 0x84bfff, 0xbbbbff, 0xd0bbff,
-                0xffbfea, 0xffbfcc, 0xffc4b7, 0xffccae,
-                0xffd9a2, 0xcce199, 0xaeeeb7, 0xaaf7ee,
-                0xb3eeff, 0xdddddd, 0x111111, 0x111111,
-                /**/
+                        0xffffff, 0x84bfff, 0xbbbbff, 0xd0bbff,
+                        0xffbfea, 0xffbfcc, 0xffc4b7, 0xffccae,
+                        0xffd9a2, 0xcce199, 0xaeeeb7, 0xaaf7ee,
+                        0xb3eeff, 0xdddddd, 0x111111, 0x111111,
+                        /**/
         };
 
 void updatePalette(PALETTES palette) {
-    for (int i = 0; i < 64; i++) {
+    for (uint8_t i = 0; i < 64; i++) {
         if (palette == RGB333) {
-            setVGA_color_palette(i, NesPalette888[i + (64 * settings.nes_palette)]);
+            setVGA_color_palette(i, NesPalette888[i+(64*settings.nes_palette)]);
         } else {
-            uint32_t c = NesPalette888[i + (64 * settings.nes_palette)];
+            uint32_t c = NesPalette888[i+(64*settings.nes_palette)];
             uint8_t r = (c >> (16 + 6)) & 0x3;
             uint8_t g = (c >> (8 + 6)) & 0x3;
             uint8_t b = (c >> (0 + 6)) & 0x3;
-
             r *= 42 * 2;
             g *= 42 * 2;
             b *= 42 * 2;
@@ -222,7 +251,6 @@ void updatePalette(PALETTES palette) {
         }
     }
 }
-
 
 struct input_bits_t {
     bool a: true;
@@ -242,7 +270,6 @@ static input_bits_t gamepad2_bits = { false, false, false, false, false, false, 
 
 void nespad_tick() {
     nespad_read();
-
     gamepad1_bits.a = (nespad_state & DPAD_A) != 0;
     gamepad1_bits.b = (nespad_state & DPAD_B) != 0;
     gamepad1_bits.select = (nespad_state & DPAD_SELECT) != 0;
@@ -251,7 +278,7 @@ void nespad_tick() {
     gamepad1_bits.down = (nespad_state & DPAD_DOWN) != 0;
     gamepad1_bits.left = (nespad_state & DPAD_LEFT) != 0;
     gamepad1_bits.right = (nespad_state & DPAD_RIGHT) != 0;
-
+    // second
     gamepad2_bits.a = (nespad_state2 & DPAD_A) != 0;
     gamepad2_bits.b = (nespad_state2 & DPAD_B) != 0;
     gamepad2_bits.select = (nespad_state2 & DPAD_SELECT) != 0;
@@ -261,12 +288,9 @@ void nespad_tick() {
     gamepad2_bits.left = (nespad_state2 & DPAD_LEFT) != 0;
     gamepad2_bits.right = (nespad_state2 & DPAD_RIGHT) != 0;
 }
-
 #endif
 
 #if USE_PS2_KBD
-
-
 static bool isInReport(hid_keyboard_report_t const *report, const unsigned char keycode) {
     for (unsigned char i: report->keycode) {
         if (i == keycode) {
@@ -276,13 +300,7 @@ static bool isInReport(hid_keyboard_report_t const *report, const unsigned char 
     return false;
 }
 
-void
-__not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report, hid_keyboard_report_t const *prev_report) {
-    /* printf("HID key report modifiers %2.2X report ", report->modifier);
-    for (unsigned char i: report->keycode)
-        printf("%2.2X", i);
-    printf("\r\n");
-     */
+void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report, hid_keyboard_report_t const *prev_report) {
     keyboard_bits.start = isInReport(report, HID_KEY_ENTER);
     keyboard_bits.select = isInReport(report, HID_KEY_BACKSPACE);
     keyboard_bits.a = isInReport(report, HID_KEY_Z);
@@ -291,7 +309,7 @@ __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const *report, hid
     keyboard_bits.down = isInReport(report, HID_KEY_ARROW_DOWN);
     keyboard_bits.left = isInReport(report, HID_KEY_ARROW_LEFT);
     keyboard_bits.right = isInReport(report, HID_KEY_ARROW_RIGHT);
-    //-------------------------------------------------------------------------
+    prev_report = prev_report;
 }
 
 Ps2Kbd_Mrmltr ps2kbd(
@@ -329,10 +347,8 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
     static constexpr int START = 1 << 3;
     static constexpr int A = 1 << 0;
     static constexpr int B = 1 << 1;
-
     input_bits_t player1_state = {};
     input_bits_t player2_state = {};
-
     switch (settings.player_1_input) {
         case 0:
             player1_state = keyboard_bits;
@@ -344,7 +360,6 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
             player1_state = gamepad2_bits;
             break;
     }
-
     switch (settings.player_2_input) {
         case 0:
             player2_state = keyboard_bits;
@@ -356,7 +371,6 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
             player2_state = gamepad2_bits;
             break;
     }
-
     int gamepad_state = (player1_state.left ? LEFT : 0) |
                         (player1_state.right ? RIGHT : 0) |
                         (player1_state.up ? UP : 0) |
@@ -366,23 +380,15 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
                         (player1_state.a ? A : 0) |
                         (player1_state.b ? B : 0) |
                         0;
-
-
     ++rapidFireCounter;
     bool reset = false;
-
     auto &dst = *pdwPad1;
-
-
     int rv = gamepad_state;
     if (rapidFireCounter & 2) {
         // 15 fire/sec
         rv &= ~rapidFireMask;
     }
-
     dst = rv;
-
-
     gamepad_state = (player2_state.left ? LEFT : 0) |
                     (player2_state.right ? RIGHT : 0) |
                     (player2_state.up ? UP : 0) |
@@ -392,22 +398,14 @@ void InfoNES_PadState(DWORD *pdwPad1, DWORD *pdwPad2, DWORD *pdwSystem) {
                     (player2_state.a ? A : 0) |
                     (player2_state.b ? B : 0) |
                     0;
-
-
     ++rapidFireCounter2;
-
     auto &dst2 = *pdwPad2;
-
-
     rv = gamepad_state;
     if (rapidFireCounter2 & 2) {
         // 15 fire/sec
         rv &= ~rapidFireMask2;
     }
-
     dst2 = rv;
-
-
     *pdwSystem = reset ? PAD_SYS_QUIT : 0;
 }
 
@@ -435,26 +433,20 @@ bool parseROM(const uint8_t *nesFile) {
     if (!checkNESMagic(NesHeader.byID)) {
         return false;
     }
-
     nesFile += sizeof(NesHeader);
-
     memset(SRAM, 0, SRAM_SIZE);
-
     if (NesHeader.byInfo1 & 4) {
         memcpy(&SRAM[0x1000], nesFile, 512);
         nesFile += 512;
     }
-
     auto romSize = NesHeader.byRomSize * 0x4000;
     ROM = (BYTE *) nesFile;
     nesFile += romSize;
-
     if (NesHeader.byVRomSize > 0) {
         auto vromSize = NesHeader.byVRomSize * 0x2000;
         VROM = (BYTE *) nesFile;
         nesFile += vromSize;
     }
-
     return true;
 }
 
@@ -463,15 +455,13 @@ void InfoNES_ReleaseRom() {
     VROM = nullptr;
 }
 
-
 void InfoNES_SoundInit() {
     i2s_config = i2s_get_default_config();
     i2s_config.sample_freq = 44100;
-    i2s_config.dma_trans_count = i2s_config.sample_freq / 50;
+    i2s_config.dma_trans_count = (uint16_t)i2s_config.sample_freq / 50;
     i2s_volume(&i2s_config, 0);
     i2s_init(&i2s_config);
 }
-
 
 int InfoNES_SoundOpen(int samples_per_sync, int sample_rate) {
     return 0;
@@ -480,11 +470,7 @@ int InfoNES_SoundOpen(int samples_per_sync, int sample_rate) {
 void InfoNES_SoundClose() {
 }
 
-int __not_in_flash_func(InfoNES_GetSoundBufferSize)
-()
-{
-return 735;
-}
+int __not_in_flash_func(InfoNES_GetSoundBufferSize)() { return 735; }
 
 #define buffermax 1280
 
@@ -493,39 +479,23 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
     static int16_t samples_out[2][buffermax * 2];
     static int i_active_buf = 0;
     static int inx = 0;
-
     static int max = 0;
     static int min = 30000;
-    static uint32_t ii = 0;
-
-    //if (((ii++) & 0xff) == 0) printf("max=%d  min=%d\n", max, min);
-
     for (int i = 0; i < samples; i++) {
         int r, l;
-
-        //mono
-//            l=(((unsigned char)wave1[i] + (unsigned char)wave2[i] + (unsigned char)wave3[i] + (unsigned char)wave4[i] + (unsigned char)wave5[i])-640)<<5;
-//            r=l;
-
         int w1 = *wave1++;
         int w2 = *wave2++;
         int w3 = *wave3++;
         int w4 = *wave4++;
         int w5 = *wave5++;
-        //            w3 = w2 = w4 = w5 = 0;
         l = w1 * 6 + w2 * 3 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
         r = w1 * 3 + w2 * 6 + w3 * 5 + w4 * 3 * 17 + w5 * 2 * 32;
-
-
         max = MAX(l, max);
         min = MIN(l, min);
-//
         l -= 4000;
         r -= 4000;
-
-
-        samples_out[i_active_buf][inx * 2] = l * settings.snd_vol;
-        samples_out[i_active_buf][inx * 2 + 1] = r * settings.snd_vol;
+        samples_out[i_active_buf][inx * 2] = (int16_t)l * settings.snd_vol;
+        samples_out[i_active_buf][inx * 2 + 1] = (int16_t)r * settings.snd_vol;
         if (inx++ >= i2s_config.dma_trans_count) {
             inx = 0;
             i2s_dma_write(&i2s_config, reinterpret_cast<const int16_t *>(samples_out[i_active_buf]));
@@ -533,48 +503,28 @@ void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, cons
 
         }
     }
-
 }
 
-
-void __not_in_flash_func(InfoNES_PreDrawLine)
-(
-int line
-){
-InfoNES_SetLineBuffer(linebuffer,
-NES_DISP_WIDTH);
+void __not_in_flash_func(InfoNES_PreDrawLine)(int line) {
+    InfoNES_SetLineBuffer(linebuffer, NES_DISP_WIDTH);
 }
 
 void __inline draw_fps(const char fps[3], uint8_t y, uint8_t color) {
     for (uint8_t x = 0; x < 3; x++) {
         uint8_t glyph_col = fnt8x16[(fps[x] << 4) + y];
-
         for (uint8_t bit = 0; bit < 8; bit++)
             if ((glyph_col >> bit) & 1)
                 SCREEN[y][(NES_DISP_WIDTH - 8 * 2) + 8 * x + bit] = color;
     }
 }
 
-
 #define X2(a) (a | (a << 8))
-void __not_in_flash_func(InfoNES_PostDrawLine)
-(
-int line
-){
-for(
-int x = 0;
-x< NES_DISP_WIDTH; x++) SCREEN[line][x] = linebuffer[x];
-if (
-settings.
-show_fps &&line<
-16)
-draw_fps(fps_text, line,
-255);
+void __not_in_flash_func(InfoNES_PostDrawLine)(int line ){
+   for(int x = 0; x< NES_DISP_WIDTH; x++) SCREEN[line][x] = linebuffer[x];
+   if (settings.show_fps && line < 16) draw_fps(fps_text, line, 255);
 }
 
-
 #define CHECK_BIT(var, pos) (((var)>>(pos)) & 1)
-
 
 /* Renderer loop on Pico's second core */
 void __time_critical_func(render_core)() {
@@ -587,10 +537,8 @@ void __time_critical_func(render_core)() {
     setVGAbuf_pos(32, 0);
     updatePalette(settings.palette);
     setVGA_color_flash_mode(settings.flash_line, settings.flash_frame);
-
     sem_acquire_blocking(&vga_start_semaphore);
 }
-
 
 typedef struct __attribute__((__packed__)) {
     bool is_directory;
@@ -602,20 +550,17 @@ typedef struct __attribute__((__packed__)) {
 int compareFileItems(const void *a, const void *b) {
     auto *itemA = (FileItem *) a;
     auto *itemB = (FileItem *) b;
-
     // Directories come first
     if (itemA->is_directory && !itemB->is_directory)
         return -1;
     if (!itemA->is_directory && itemB->is_directory)
         return 1;
-
     // Sort files alphabetically
     return strcmp(itemA->filename, itemB->filename);
 }
 
 void __inline draw_window(char *title, int x, int y, int width, int height) {
     char textline[80];
-
     width--;
     height--;
     // Рисуем рамки
@@ -626,12 +571,9 @@ void __inline draw_window(char *title, int x, int y, int width, int height) {
     textline[width] = 0xBB;
     draw_text(textline, x, y, 11, 1);
     draw_text(title, (80 - strlen(title)) >> 1, 0, 0, 3);
-
     textline[0] = 0xC8;
     textline[width] = 0xBC;
     draw_text(textline, x, height - y, 11, 1);
-
-
     memset(textline, ' ', width);
     textline[0] = textline[width] = 0xBA;
     for (int i = 1; i < height; i++) {
@@ -639,157 +581,298 @@ void __inline draw_window(char *title, int x, int y, int width, int height) {
     }
 }
 
-void filebrowser_loadfile(char *pathname) {
-    if (strcmp(rom_filename, pathname) == 0) {
-        printf("Launching last rom");
+typedef struct {
+	DWORD	compressed;
+    int     remainsDecompressed;
+} FILE_LZW;
+#ifdef LZW_INCLUDE
+static LZWBlockInputStream * pIs = 0;
+#endif
+FRESULT in_open (
+    FILE_LZW* fp,			/* Pointer to the blank file object */
+    char* fn
+) {
+#ifdef LZW_INCLUDE
+    size_t fptr = 0;
+    DWORD token = toDWORD((char*)lz4source, fptr);
+    DWORD numberOfFiles = token & 0xFF;
+    DWORD bbOffset = token >> 8;
+    fptr += 4;
+    DWORD fileNum = 0;
+    DWORD compressed = 0;
+    DWORD compressedOff = 0;
+    fp->compressed = 0;
+    while (fileNum++ < numberOfFiles) {
+        int i = 5; // ignore trailing "\NES\"
+        while (fn[i++] == lz4source[fptr] && lz4source[fptr] != 0) {
+            fptr++;
+        }
+        if (lz4source[fptr++] == 0) { // file was found
+            compressed = toDWORD((char*)lz4source, fptr); fptr += 4;
+            fp->remainsDecompressed = toDWORD((char*)lz4source, fptr); fptr += 4;
+            fp->compressed = compressed;
+            fptr = (size_t)lz4source + bbOffset + compressedOff;
+            if (pIs) {
+                delete pIs;
+            }
+            pIs = new LZWBlockInputStream((char*)fptr, (const char*)rom);
+            return FR_OK;
+        } else {
+            while(lz4source[fptr++] != 0) {}
+            compressed = toDWORD((char*)lz4source, fptr); fptr += 8;
+            compressedOff += compressed;
+        }
+    }
+#endif
+    return FR_NO_FILE;
+}
+
+FRESULT in_read (
+	FILE_LZW* fp, 	/* Open file to be read */
+	char*     buff,	/* Data buffer to store the read data */
+	size_t    btr,	/* Number of bytes to read */
+	UINT*     br	/* Number of bytes read */
+) {
+#ifdef LZW_INCLUDE
+    if (fp->remainsDecompressed <= 0) {
+        *br = 0;
+    } else {
+        int decompressed = btr;
+        size_t read = pIs->read(buff, btr, &decompressed);
+        fp->remainsDecompressed -= decompressed;
+        *br = read;
+    }
+#endif
+    return FR_OK;
+}
+
+void flash_range_erase2(uint32_t addr, size_t sz) {
+    // char tmp[80]; sprintf(tmp, "Erase 0x%X len: 0x%X", addr, sz); logMsg(tmp);
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
+    uint32_t interrupts = save_and_disable_interrupts();
+    flash_range_erase(addr - XIP_BASE, sz);
+    restore_interrupts(interrupts);
+    gpio_put(PICO_DEFAULT_LED_PIN, false);
+}
+void flash_range_program2(uint32_t addr, const u_int8_t * buff, size_t sz) {
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
+    uint32_t interrupts = save_and_disable_interrupts();
+    flash_range_program(addr - XIP_BASE, buff, sz);
+    restore_interrupts(interrupts);
+    gpio_put(PICO_DEFAULT_LED_PIN, false);
+    //char tmp[80]; sprintf(tmp, "Flashed 0x%X len: 0x%X from 0x%X", addr, sz, buff); logMsg(tmp);
+}
+
+char* get_shared_ram() {
+    return (char*)SCREEN;
+}
+size_t get_shared_ram_size() {
+    return sizeof(SCREEN) & 0xfffff000;
+}
+char* get_rom_filename() {
+    return (char*)rom_filename;
+} 
+
+void filebrowser_loadfile(char *pathname, bool built_in) {
+    setVGAmode(VGA640x480_text_80_30);
+    clrScr(1);
+    if (strcmp((char*)rom_filename, pathname) == 0) {
+        logMsg((char*)"Launching last rom");
         return;
     }
-
+    restore_clean_fat(); // in case we write into space for flash drive, it is required to remove old FAT info
     FIL file;
-    size_t bufsize = sizeof(SCREEN) & 0xfffff000;
-    BYTE *buffer = (BYTE *) SCREEN;
-    auto offset = FLASH_TARGET_OFFSET;
     UINT bytesRead;
-
-    printf("Writing %s rom to flash %x\r\n", pathname, offset);
-    FRESULT result = f_open(&file, pathname, FA_READ);
-
-
+    char tmp[80];
+    uint32_t addr = (uint32_t)rom_filename;
+    sprintf(tmp, "Writing %s rom to flash %x", pathname, addr); logMsg(tmp);
+    FRESULT result = built_in ? in_open((FILE_LZW*)&file, pathname) : f_open(&file, pathname, FA_READ);
     if (result == FR_OK) {
-        uint32_t interrupts = save_and_disable_interrupts();
-
-        // TODO: Save it after success loading to prevent corruptions
-        printf("Flashing %d bytes to flash address %x\r\n", 256, offset);
-        flash_range_erase(offset, 4096);
-        flash_range_program(offset, reinterpret_cast<const uint8_t *>(pathname), 256);
-
-        offset += 4096;
-        for (;;) {
-            gpio_put(PICO_DEFAULT_LED_PIN, true);
-            result = f_read(&file, buffer, bufsize, &bytesRead);
+        flash_range_erase2(addr, 4096);
+        flash_range_program2(addr, reinterpret_cast<const uint8_t *>(pathname), 256);
+        size_t bufsize = get_shared_ram_size();
+        BYTE * buffer = (BYTE*)get_shared_ram();
+        addr = (uint32_t)rom;
+        while(true) {
+            result = !built_in
+              ? f_read(&file, buffer, bufsize, &bytesRead)
+              : in_read((FILE_LZW*)&file, (char*)buffer, bufsize, &bytesRead);
             if (result == FR_OK) {
                 if (bytesRead == 0) {
+                    logMsg((char*)"Done");
                     break;
                 }
-
-                printf("Flashing %d bytes to flash address %x\r\n", bytesRead, offset);
-
-                printf("Erasing...");
-                // Disable interupts, erase, flash and enable interrupts
-                gpio_put(PICO_DEFAULT_LED_PIN, false);
-                flash_range_erase(offset, bufsize);
-                printf("  -> Flashing...\r\n");
-                flash_range_program(offset, buffer, bufsize);
-
-                offset += bufsize;
+                flash_range_erase2(addr, bufsize);
+                flash_range_program2(addr, buffer, bufsize);
+                addr += bufsize;
             } else {
-                printf("Error reading rom: %d\n", result);
+                sprintf(tmp, "Error reading rom: %d", result); logMsg(tmp);
                 break;
             }
         }
-
-        f_close(&file);
-        restore_interrupts(interrupts);
+#ifdef LZW_INCLUDE
+        if (pIs) { delete pIs; pIs = 0; }
+#endif
+        if (!built_in) f_close(&file);
     }
 }
 
-void filebrowser(char *path, char *executable) {
+FRESULT in_opendir(DIR* dp) {
+    dp->blk_ofs = 4; // offset to filename
+    dp->clust = 0; // file number
+    return FR_OK;
+}
+
+FRESULT in_closedir(DIR* dp) {
+    dp->blk_ofs = 0xFFFFFFFF;
+    dp->clust = 0;
+    return FR_OK;
+}
+
+FRESULT in_readdir (
+	DIR*     dp,		/* Pointer to the open directory object */
+	FILINFO* fno		/* Pointer to file information to return */
+) {
+#ifdef BUILD_IN_GAMES
+    dp->clust++;
+    DWORD numberOfFiles = toDWORD((char*)lz4source, 0) & 0xFF;
+    if (dp->clust > numberOfFiles) {
+        return FR_NO_FILE;
+    }
+    DWORD fnz = 0;
+    while (lz4source[dp->blk_ofs] != 0) {
+        fno->fname[fnz++] = lz4source[dp->blk_ofs++];
+    }
+    fno->fname[fnz] = 0; dp->blk_ofs++; // traling zero
+    dp->blk_ofs += 4; // ignore compressedSize there
+    fno->fsize = toDWORD((char*)lz4source, dp->blk_ofs); dp->blk_ofs += 4;
+    fno->fattrib = AM_RDO;
+#endif
+    return FR_OK;    
+}
+
+void filebrowser(
+    char *path,
+    char *executable
+) {
     setVGAmode(VGA640x480_text_80_30);
     bool debounce = true;
     clrScr(1);
-    char basepath[255];
-    char tmp[80];
+    char basepath[256];
+    char tmp[256];
     strcpy(basepath, path);
-
     constexpr int per_page = 27;
     auto *fileItems = reinterpret_cast<FileItem *>(&SCREEN[0][0] + (1024 * 6));
     constexpr int maxfiles = (sizeof(SCREEN) - (1024 * 6)) / sizeof(FileItem);
-
-
-    DIR dir;
+    DIR dir, dir1;
     FILINFO fileInfo;
     FRESULT result = f_mount(&fs, "", 1);
-
+    int built_in = false;
     if (FR_OK != result) {
         printf("f_mount error: %s (%d)\r\n", FRESULT_str(result), result);
-        draw_text("SD Card mount error. Halt.", 0, 1, 4, 1);
-        while (1) {}
+        draw_text((char*)"No SD Card detected", 1, 1, 4, 1);
+#ifdef BUILD_IN_GAMES
+        built_in = true;
+        sleep_ms(200);
+#endif
+#ifndef BUILD_IN_GAMES
+        while (1) { sleep_ms(100); /*TODO: reboot? */}
+#endif
     }
-
+    FRESULT result1 = f_mount(&fs1, "F:", 0);
+    if (FR_OK != result1) {
+        sprintf(tmp, "f_mount error: %s (%d)", FRESULT_str(result1), result1); logMsg(tmp);
+        while (1) { sleep_ms(100); /*TODO: reboot? */}
+    }
     while (1) {
         int total_files = 0;
         memset(fileItems, 0, maxfiles * sizeof(FileItem));
-
-        sprintf(tmp, " SDCARD:\\%s ", basepath);
+        sprintf(tmp, !built_in ? " SDCARD:\\%s " : " DEFAULT:\\%s ", basepath);
         draw_window(tmp, 0, 0, 80, 29);
-
         memset(tmp, ' ', 80);
         draw_text(tmp, 0, 29, 0, 0);
-        draw_text("START", 0, 29, 7, 0);
-        draw_text(" Run at cursor ", 5, 29, 0, 3);
-
-        draw_text("SELECT", 5 + 15 + 1, 29, 7, 0);
-        draw_text(" Run previous  ", 5 + 15 + 1 + 6, 29, 0, 3);
-
-        draw_text("ARROWS", 5 + 15 + 1 + 6 + 15 + 1, 29, 7, 0);
-        draw_text(" Navigation    ", 5 + 15 + 1 + 6 + 15 + 1 + 6, 29, 0, 3);
-
-
+        auto off = 0;
+        draw_text((char*)"START", off, 29, 7, 0); off += 5;
+        draw_text((char*)" Run at cursor ", off, 29, 0, 3); off += 16;
+        draw_text((char*)"SELECT", off, 29, 7, 0); off += 6;
+        draw_text((char*)" Run previous  ", off, 29, 0, 3); off += 16;
+        draw_text((char*)"ARROWS", off, 29, 7, 0); off += 6;
+        draw_text((char*)" Navigation    ", off, 29, 0, 3); off += 16;
+        draw_text((char*)"A/Z", off, 29, 7, 0); off += 3;
+        draw_text((char*)" USB DRV ", off, 29, 0, 3);
         // Open the directory
-        if (f_opendir(&dir, basepath) != FR_OK) {
-            draw_text("Failed to open directory", 0, 1, 4, 0);
-            while (1) {}
+        if ((built_in ? in_opendir(&dir) : f_opendir(&dir, basepath)) != FR_OK) {
+            draw_text((char*)"Failed to open directory", 1, 1, 4, 0);
+            while (1) { sleep_ms(100); }
         }
-
-        if (strlen(basepath) > 0) {
+        if (!built_in && strlen(basepath) > 0) {
             strcpy(fileItems[total_files].filename, "..\0");
             fileItems[total_files].is_directory = true;
             fileItems[total_files].size = 0;
             total_files++;
         }
-
-        // Read all entries from the directory
-        while (f_readdir(&dir, &fileInfo) == FR_OK && fileInfo.fname[0] != '\0' && total_files < maxfiles) {
+        while ((built_in ? in_readdir(&dir, &fileInfo) : f_readdir(&dir, &fileInfo)) == FR_OK &&
+               fileInfo.fname[0] != '\0' &&
+               total_files < maxfiles
+        ) {
             // Set the file item properties
             fileItems[total_files].is_directory = fileInfo.fattrib & AM_DIR;
             fileItems[total_files].size = fileInfo.fsize;
-
             // Extract the extension from the file name
             char *extension = strrchr(fileInfo.fname, '.');
-
             if (extension != NULL && strncmp(executable, extension + 1, 3) == 0) {
                 fileItems[total_files].is_executable = 1;
             }
-
             strncpy(fileItems[total_files].filename, fileInfo.fname, 80);
-
             total_files++;
         }
+        // in_flash drive
+        result1 = f_opendir(&dir1, "F:\\");
+        if (result1 != FR_OK) {
+            sprintf(tmp, "f_opendir(F:\\) error: %s (%d)", FRESULT_str(result1), result1); logMsg(tmp);
+            while (1) { sleep_ms(100); }
+        }
+        while (f_readdir(&dir1, &fileInfo) == FR_OK &&
+               fileInfo.fname[0] != '\0' &&
+               total_files < maxfiles
+        ) {
+            // Set the file item properties
+            fileItems[total_files].is_directory = fileInfo.fattrib & AM_DIR;
+            fileItems[total_files].size = fileInfo.fsize;
+            // Extract the extension from the file name
+            char *extension = strrchr(fileInfo.fname, '.');
+            if (extension != NULL && strncmp(executable, extension + 1, 3) == 0) {
+                fileItems[total_files].is_executable = 1;
+            }
+            strncpy(fileItems[total_files].filename, fileInfo.fname, 80);
+            total_files++;
+        }                
         qsort(fileItems, total_files, sizeof(FileItem), compareFileItems);
         // Cleanup
-        f_closedir(&dir);
-
+        built_in ? in_closedir(&dir) : f_closedir(&dir);
         if (total_files > 500) {
-            draw_text(" files > 500!!! ", 80 - 17, 0, 12, 3);
+            draw_text((char*)" files > 500!!! ", 80 - 17, 0, 12, 3);
         }
-
         uint8_t color, bg_color;
         uint32_t offset = 0;
         uint32_t current_item = 0;
-
         while (1) {
             ps2kbd.tick();
             nespad_tick();
             sleep_ms(25);
             nespad_tick();
-
             if (!debounce) {
                 debounce = !(keyboard_bits.start || gamepad1_bits.start);
             }
-
             if (keyboard_bits.select || gamepad1_bits.select) {
                 gpio_put(PICO_DEFAULT_LED_PIN, true);
                 return;
+            }
+            if (keyboard_bits.a || gamepad1_bits.a) {
+                clrScr(1);
+                draw_text((char*)"Mount me as USB drive...", 30, 15, 7, 1);
+                in_flash_drive();
+                watchdog_enable(100, true);
             }
             if (keyboard_bits.down || gamepad1_bits.down) {
                 if ((offset + (current_item + 1) < total_files)) {
@@ -800,7 +883,6 @@ void filebrowser(char *path, char *executable) {
                     }
                 }
             }
-
             if (keyboard_bits.up || gamepad1_bits.up) {
                 if (current_item > 0) {
                     current_item--;
@@ -808,15 +890,12 @@ void filebrowser(char *path, char *executable) {
                     offset--;
                 }
             }
-
             if (keyboard_bits.right || gamepad1_bits.right) {
                 offset += per_page;
                 if (offset + (current_item + 1) > total_files) {
                     offset = total_files - (current_item + 1);
-
                 }
             }
-
             if (keyboard_bits.left || gamepad1_bits.left) {
                 if (offset > per_page) {
                     offset -= per_page;
@@ -825,10 +904,8 @@ void filebrowser(char *path, char *executable) {
                     current_item = 0;
                 }
             }
-
             if (debounce && (keyboard_bits.start || gamepad1_bits.start)) {
                 auto file_at_cursor = fileItems[offset + current_item];
-
                 if (file_at_cursor.is_directory) {
                     if (strcmp(file_at_cursor.filename, "..") == 0) {
                         char *lastBackslash = strrchr(basepath, '\\');
@@ -842,13 +919,11 @@ void filebrowser(char *path, char *executable) {
                     debounce = false;
                     break;
                 }
-
                 if (file_at_cursor.is_executable) {
                     sprintf(tmp, "%s\\%s", basepath, file_at_cursor.filename);
-                    return filebrowser_loadfile(tmp);
+                    return filebrowser_loadfile(tmp, built_in);
                 }
             }
-
             for (int i = 0; i < per_page; i++) {
                 auto item = fileItems[offset + i];
                 color = 11;
@@ -856,7 +931,6 @@ void filebrowser(char *path, char *executable) {
                 if (i == current_item) {
                     color = 0;
                     bg_color = 3;
-
                     memset(tmp, 0xCD, 78);
                     tmp[78] = '\0';
                     draw_text(tmp, 1, per_page + 1, 11, 1);
@@ -866,41 +940,42 @@ void filebrowser(char *path, char *executable) {
                 auto len = strlen(item.filename);
                 color = item.is_directory ? 15 : color;
                 color = item.is_executable ? 10 : color;
-                color = strstr(rom_filename, item.filename) != nullptr ? 13 : color;
-
+                color = strstr((char*)rom_filename, item.filename) != nullptr ? 13 : color;
                 memset(tmp, ' ', 78);
                 tmp[78] = '\0';
-
                 memcpy(&tmp, item.filename, len < 78 ? len : 78);
-
                 draw_text(tmp, 1, i + 1, color, bg_color);
             }
-
             sleep_ms(100);
         }
     }
 }
 
-
-int InfoNES_Menu() {
+int InfoNES_Video() {
     setVGAmode(VGA640x480_text_80_30);
-    filebrowser(HOME_DIR, (char*)"nes");
+    clrScr(1);    
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
-        draw_text((char*)"NES file parse error.", 1, 1, 4, 0);
+        logMsg((char*)"NES file parse error.");
         return 1;
     }
     if (InfoNES_Reset() < 0) {
-        draw_text((char*)"NES reset error.", 1, 1, 4, 0);
-        return 1;
+        logMsg((char*)"NES reset error.");
+        return 1; 
     }
-    memset(SCREEN, 63, sizeof(SCREEN));
+    memset(SCREEN, 63, sizeof(SCREEN));    
     setVGAmode(VGA640x480div2);
     return 0;
 }
 
+int InfoNES_Menu() {
+    setVGAmode(VGA640x480_text_80_30);
+    clrScr(1);
+    filebrowser(HOME_DIR, (char*)"nes");
+    return 0;
+}
 
 void load_config() {
-    char pathname[255];
+    char pathname[256];
     sprintf(pathname, "%s\\emulator.cfg", HOME_DIR);
     FRESULT fr = f_mount(&fs, "", 1);
     FIL fd;
@@ -909,34 +984,24 @@ void load_config() {
         return;
     }
     UINT br;
-
     f_read(&fd, &settings, sizeof(settings), &br);
     f_close(&fd);
 }
 
 void save_config() {
-    char pathname[255];
+    char pathname[256];
     sprintf(pathname, "%s\\emulator.cfg", HOME_DIR);
     FRESULT fr = f_mount(&fs, "", 1);
-    FIL fd;
-    fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
-    UINT bw;
-
-    f_write(&fd, &settings, sizeof(settings), &bw);
-    f_close(&fd);
+    if (FR_OK != fr) {
+        FIL fd;
+        fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
+        if (FR_OK != fr) {
+            UINT bw;
+            f_write(&fd, &settings, sizeof(settings), &bw);
+            f_close(&fd);
+        }
+    }
 }
-
-enum menu_type_e {
-    NONE,
-    INT,
-    TEXT,
-    ARRAY,
-
-    SAVE,
-    LOAD,
-    RESET,
-    RETURN,
-};
 
 typedef struct __attribute__((__packed__)) {
     const char *text;
@@ -946,7 +1011,9 @@ typedef struct __attribute__((__packed__)) {
     char value_list[5][10];
 } MenuItem;
 
-#define MENU_ITEMS_NUMBER 15
+static menu_type_e last_menu_type = menu_type_e::ROM_SELECT;
+
+#define MENU_ITEMS_NUMBER 17
 const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "Player 1: %s",        ARRAY, &settings.player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
         { "Player 2: %s",        ARRAY, &settings.player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
@@ -956,43 +1023,40 @@ const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "Flash line: %s",      ARRAY, &settings.flash_line,     1, { "NO ",       "YES" }},
         { "Flash frame: %s",     ARRAY, &settings.flash_frame,    1, { "NO ",       "YES" }},
         { "VGA Mode: %s",        ARRAY, &settings.palette,        1, { "RGB333",    "RGB222" }},
-        { "NES Palette: %s",     ARRAY, &settings.nes_palette,    1, { "default ",  "palette1" }},
+        { "NES Palette: %s",     ARRAY, &settings.nes_palette,    1, { "default ",    "palette1" }},
         { "" },
         { "Save state",          SAVE },
         { "Load state",          LOAD },
         { "" },
-        { "Reset to ROM select", RESET },
-        { "Return to game",      RETURN }
+        { "Reset",               RESET },
+        { "Return to game",      RETURN },
+        { "ROM select",          ROM_SELECT },
+        { "From USB device",     USB_DEVICE }
 };
 
-void menu() {
+int menu() {
     bool exit = false;
     clrScr(0);
     setVGAmode(VGA640x480_text_80_30);
-
     char footer[80];
     sprintf(footer, ":: %s %s build %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__, __TIME__);
     draw_text(footer, (sizeof(footer) - strlen(footer)) >> 1, 0, 11, 1);
     int current_item = 0;
-
     while (!exit) {
         ps2kbd.tick();
         nespad_read();
         sleep_ms(25);
         nespad_read();
-
         if ((nespad_state & DPAD_DOWN || keyboard_bits.down) != 0) {
             current_item = (current_item + 1) % MENU_ITEMS_NUMBER;
             if (menu_items[current_item].type == NONE)
                 current_item++;
         }
-
         if ((nespad_state & DPAD_UP || keyboard_bits.up) != 0) {
             current_item = (current_item - 1 + MENU_ITEMS_NUMBER) % MENU_ITEMS_NUMBER;
             if (menu_items[current_item].type == NONE)
                 current_item--;
         }
-
         for (int i = 0; i < MENU_ITEMS_NUMBER; i++) {
             uint8_t y = i + ((30 - MENU_ITEMS_NUMBER) >> 1);
             uint8_t x = 30;
@@ -1002,20 +1066,17 @@ void menu() {
                 color = 0x01;
                 bg_color = 0xFF;
             }
-
             const MenuItem *item = &menu_items[i];
-
             if (i == current_item) {
+                last_menu_type = item->type;
                 switch (item->type) {
                     case INT:
                     case ARRAY:
                         if (item->max_value != 0) {
                             auto *value = (uint8_t *) item->value;
-
                             if ((nespad_state & DPAD_RIGHT || keyboard_bits.right) && *value < item->max_value) {
                                 (*value)++;
                             }
-
                             if ((nespad_state & DPAD_LEFT || keyboard_bits.left) && *value > 0) {
                                 (*value)--;
                             }
@@ -1023,13 +1084,13 @@ void menu() {
                         break;
                     case SAVE:
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
-                            save_state(rom_filename);
+                            save_state((char*)rom_filename);
                             exit = true;
                         }
                         break;
                     case LOAD:
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
-                            load_state(rom_filename);
+                            load_state((char*)rom_filename);
                             exit = true;
                         }
                         break;
@@ -1040,11 +1101,21 @@ void menu() {
                     case RESET:
                         if (nespad_state & DPAD_START || keyboard_bits.start)
                             watchdog_enable(100, true);
+                    case ROM_SELECT:
+                        if (nespad_state & DPAD_START || keyboard_bits.start) {
+                            return ROM_SELECT;
+                        }
+                    case USB_DEVICE:
+                        if (nespad_state & DPAD_START || keyboard_bits.start) {
+                            clrScr(1);
+                            draw_text((char*)"Mount me as USB drive...", 30, 15, 7, 1);
+                            in_flash_drive();
+                            watchdog_enable(100, true);
+                            exit = true;
+                        }
                 }
-
             }
             static char result[80];
-
             switch (item->type) {
                 case INT:
                     sprintf(result, item->text, *(uint8_t *) item->value);
@@ -1058,18 +1129,16 @@ void menu() {
                 default:
                     sprintf(result, "%s", item->text);
             }
-
             draw_text(result, x, y, color, bg_color);
         }
-
         sleep_ms(100);
     }
-
     memset(SCREEN, 63, sizeof SCREEN);
     setVGA_color_flash_mode(settings.flash_line, settings.flash_frame);
     updatePalette(settings.palette);
     setVGAmode(VGA640x480div2);
     save_config();
+    return 0;
 }
 
 
@@ -1081,9 +1150,14 @@ int InfoNES_LoadFrame() {
     nespad_tick();
 #endif
     if ((keyboard_bits.start || gamepad1_bits.start) && (keyboard_bits.select || gamepad1_bits.select)) {
-        menu();
+        auto selected = menu();
+        if(selected == ROM_SELECT) {
+            return -1;
+        }
+        //if(selected == USB_DEVICE) {
+        //    return -2; // TODO: enum
+        //}
     }
-
     frames++;
     if (settings.show_fps && frames >= 60) {
         uint64_t end_time;
@@ -1092,9 +1166,7 @@ int InfoNES_LoadFrame() {
         end_time = time_us_64();
         diff = end_time - start_time;
         fps = ((uint64_t) frames * 1000 * 1000) / diff;
-
         sprintf(fps_text, "%i", fps);
-        //draw_text(fps_text, 77, 0, 0xFF, 0x00);
         frames = 0;
         start_time = time_us_64();
     }
@@ -1105,38 +1177,28 @@ int main() {
     vreg_set_voltage(VREG_VOLTAGE_1_15);
     sleep_ms(33);
     set_sys_clock_khz(272000, true);
-
-#if !NDEBUG
-    //stdio_init_all();
-#endif
-
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-
-
     for (int i = 0; i < 6; i++) {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, true);
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
-
-    printf("Start program\n");
-
 #if USE_PS2_KBD
-    printf("PS2 KBD ");
     ps2kbd.init_gpio();
 #endif
-
 #if USE_NESPAD
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
 #endif
-
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
     load_config();
     sleep_ms(50);
-
-    InfoNES_Main();
+    bool start_from_game = InfoNES_Main(true);
+    while(1) {
+        sleep_ms(500);
+        start_from_game = InfoNES_Main(start_from_game);
+    }
 }

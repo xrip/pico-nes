@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.13)
 
+set(FAMILY rp2040)
+set(BOARD pico_sdk)
+
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+include(${PICO_SDK_PATH}/lib/tinyusb/hw/bsp/family_support.cmake)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
@@ -10,7 +16,11 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 include(pico_sdk_import.cmake)
 
 project(dendy C CXX ASM)
-pico_sdk_init()
+
+# Checks this example is valid for the family and initializes the project
+family_initialize_project(dendy ${CMAKE_CURRENT_LIST_DIR})
+
+#pico_sdk_init()
 SET(GCC_RELEASENODEBUG_FLAGS "-O2 -DNDEBUG")
 SET(CMAKE_ASM_FLAGS_RELEASENODEBUG
         "${GCC_RELEASENODEBUG_FLAGS}"
@@ -40,21 +50,6 @@ MARK_AS_ADVANCED(
         CMAKE_EXE_LINKER_FLAGS_RELEASENODEBUG
         CMAKE_SHARED_LINKER_FLAGS_RELEASENODEBUG)
 
-if(OVERCLOCKING)
-    set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME  "${PROJECT_NAME}-${OVERCLOCKING}MHz")
-
-    target_compile_definitions(${PROJECT_NAME} PRIVATE OVERCLOCKING=${OVERCLOCKING})
-
-    pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
-    target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
-    pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
-
-    message(STATUS "==================================")
-    message(STATUS "Overclocking ${OVERCLOCKING}MHz enabled")
-    message(STATUS "==================================")
-    message(STATUS "")
-endif ()
-
 add_subdirectory(infones)
 add_subdirectory(drivers/vga-nextgen)
 add_subdirectory(drivers/audio)
@@ -63,19 +58,33 @@ add_subdirectory(drivers/nespad)
 add_subdirectory(drivers/fatfs)
 add_subdirectory(drivers/sdcard)
 
-
 add_executable(dendy
         main.cpp
 )
 
-pico_set_program_name(dendy "NES Emulator by xrip")
+target_sources(dendy PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/msc_disk.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb_descriptors.c
+)
+
+#if (NOT PICO_DEFAULT_BOOT_STAGE2_FILE)
+#  set(PICO_DEFAULT_BOOT_STAGE2_FILE "${PICO_SDK_PATH}/src/rp2_common/boot_stage2/compile_time_choice.S")
+#endif()
+#pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
+#target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
+#pico_set_boot_stage2(dendy slower_boot2)
+
+pico_set_program_name(dendy "NES Emulator by xrip/DnCraptor")
 pico_set_program_version(dendy "development version")
 
 
-target_include_directories(dendy PRIVATE infones)
+target_include_directories(dendy PRIVATE
+ infones
+ ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb
+)
 
-pico_enable_stdio_uart(dendy 0)
-pico_enable_stdio_usb(dendy 1)
+family_configure_device_example(dendy noos)
 
 target_link_libraries(dendy PRIVATE
         infones
@@ -99,6 +108,22 @@ target_link_libraries(dendy PRIVATE
         hardware_pwm
         hardware_flash
 )
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+target_compile_options(dendy PUBLIC
+-Wno-error=suggest-attribute=format
+-Wno-error=cast-qual
+-Wno-error=unused-parameter
+-Wno-error=conversion
+-Wno-error=format=
+-Wno-error=sign-compare
+-Wno-error=missing-field-initializers
+-Wno-error=switch
+-Wno-error=implicit-fallthrough=
+-Wno-error=stringop-truncation
+-Wno-error=restrict
+-w
+)
+endif ()
 
 target_compile_definitions(dendy PRIVATE
         SPEAKER_ENABLED
@@ -129,8 +154,7 @@ target_compile_definitions(dendy PRIVATE
 
         # Other
         FF_USE_FIND
+        # usb
+        PICO_DEFAULT_LED_PIN=25
 )
 pico_add_extra_outputs(dendy)
-
-
-
