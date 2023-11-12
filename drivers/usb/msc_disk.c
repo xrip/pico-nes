@@ -426,8 +426,12 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 }
 
 bool tud_msc_is_writable_cb (uint8_t lun) {
-  if (lun != 0)
-    return !(disk_status(0) & 0x04/*STA_PROTECT*/); // TODO: sd-card write protected ioctl?
+  if (lun != 0) {
+    auto ds = disk_status(0);
+    auto rs = ds & 0x04/*STA_PROTECT*/;
+    char tmp[80]; sprintf(tmp, "tud_msc_is_writable_cb(1) ds: %d rs: %d r: %d", ds, rs, !rs); logMsg(tmp);
+    return !rs; // TODO: sd-card write protected ioctl?
+  }
   return true;
 }
 

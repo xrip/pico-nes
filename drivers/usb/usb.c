@@ -102,8 +102,13 @@ void tud_resume_cb(void) {
 
 // Invoked to determine max LUN
 uint8_t tud_msc_get_maxlun_cb(void) {
-  if (disk_status() & 0x01/*STA_NOINIT*/) {
-    return disk_initialize(0) == 0 ? 2 : 1;
+  auto ds = disk_status();
+  auto rs = ds & 0x01;/*STA_NOINIT*/
+  char tmp[80]; sprintf(tmp, "tud_msc_get_maxlun_cb() ds: %d rs: %d", ds, rs); logMsg(tmp);
+  if (rs) {
+    auto di = disk_initialize(0);
+    sprintf(tmp, "disk_initialize(0): %d", di); logMsg(tmp);
+    return di == 0 ? 2 : 1;
   }
   return 2; // dual LUN
 }
