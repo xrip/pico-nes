@@ -1,54 +1,26 @@
 cmake_minimum_required(VERSION 3.13)
+include(pico_sdk_import.cmake)
 
-set(FAMILY rp2040)
-set(BOARD pico_sdk)
-
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-include(${PICO_SDK_PATH}/lib/tinyusb/hw/bsp/family_support.cmake)
+project(dendy C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+
+pico_sdk_init()
+
 set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-include(pico_sdk_import.cmake)
 
-project(dendy C CXX ASM)
+#set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set(FAMILY rp2040)
+set(BOARD pico_sdk)
+#[[include(${PICO_SDK_PATH}/lib/tinyusb/hw/bsp/family_support.cmake)
 
 # Checks this example is valid for the family and initializes the project
-family_initialize_project(dendy ${CMAKE_CURRENT_LIST_DIR})
-
-#pico_sdk_init()
-SET(GCC_RELEASENODEBUG_FLAGS "-O2 -DNDEBUG")
-SET(CMAKE_ASM_FLAGS_RELEASENODEBUG
-        "${GCC_RELEASENODEBUG_FLAGS}"
-        CACHE STRING "Flags used by the ASM compiler during REL_O2 builds."
-        FORCE)
-
-SET(CMAKE_CXX_FLAGS_RELEASENODEBUG
-        "${GCC_RELEASENODEBUG_FLAGS}"
-        CACHE STRING "Flags used by the C++ compiler during REL_O2 builds."
-        FORCE)
-SET(CMAKE_C_FLAGS_RELEASENODEBUG
-        "${GCC_RELEASENODEBUG_FLAGS}"
-        CACHE STRING "Flags used by the C compiler during REL_O2 builds."
-        FORCE)
-SET(CMAKE_EXE_LINKER_FLAGS_RELEASENODEBUG
-        ""
-        CACHE STRING "Flags used for linking binaries during REL_O2 builds."
-        FORCE)
-SET(CMAKE_SHARED_LINKER_FLAGS_RELEASENODEBUG
-        ""
-        CACHE STRING "Flags used by the shared libraries linker during REL_O2 builds."
-        FORCE)
-MARK_AS_ADVANCED(
-        CMAKE_CXX_FLAGS_RELEASENODEBUG
-        CMAKE_ASM_FLAGS_RELEASENODEBUG
-        CMAKE_C_FLAGS_RELEASENODEBUG
-        CMAKE_EXE_LINKER_FLAGS_RELEASENODEBUG
-        CMAKE_SHARED_LINKER_FLAGS_RELEASENODEBUG)
+family_initialize_project(dendy ${CMAKE_CURRENT_LIST_DIR})]]
 
 add_subdirectory(infones)
 add_subdirectory(drivers/vga-nextgen)
@@ -62,29 +34,30 @@ add_executable(dendy
         main.cpp
 )
 
+pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
+target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
+pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
+
+set(FAMILY rp2040)
+set(BOARD pico_sdk)
+family_configure_device_example(dendy noos)
+
 target_sources(dendy PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/msc_disk.c
-  ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb_descriptors.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/msc_disk.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb_descriptors.c
 )
 
-#if (NOT PICO_DEFAULT_BOOT_STAGE2_FILE)
-#  set(PICO_DEFAULT_BOOT_STAGE2_FILE "${PICO_SDK_PATH}/src/rp2_common/boot_stage2/compile_time_choice.S")
-#endif()
-#pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
-#target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
-#pico_set_boot_stage2(dendy slower_boot2)
 
 pico_set_program_name(dendy "NES Emulator by xrip/DnCraptor")
 pico_set_program_version(dendy "development version")
 
 
 target_include_directories(dendy PRIVATE
- infones
- ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb
+        infones
+        ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb
 )
 
-family_configure_device_example(dendy noos)
 
 target_link_libraries(dendy PRIVATE
         infones
@@ -108,21 +81,22 @@ target_link_libraries(dendy PRIVATE
         hardware_pwm
         hardware_flash
 )
+
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-target_compile_options(dendy PUBLIC
--Wno-error=suggest-attribute=format
--Wno-error=cast-qual
--Wno-error=unused-parameter
--Wno-error=conversion
--Wno-error=format=
--Wno-error=sign-compare
--Wno-error=missing-field-initializers
--Wno-error=switch
--Wno-error=implicit-fallthrough=
--Wno-error=stringop-truncation
--Wno-error=restrict
--w
-)
+    target_compile_options(dendy PUBLIC
+            -Wno-error=suggest-attribute=format
+            -Wno-error=cast-qual
+            -Wno-error=unused-parameter
+            -Wno-error=conversion
+            -Wno-error=format=
+            -Wno-error=sign-compare
+            -Wno-error=missing-field-initializers
+            -Wno-error=switch
+            -Wno-error=implicit-fallthrough=
+            -Wno-error=stringop-truncation
+            -Wno-error=restrict
+            -w
+    )
 endif ()
 
 target_compile_definitions(dendy PRIVATE
@@ -157,4 +131,5 @@ target_compile_definitions(dendy PRIVATE
         # usb
         PICO_DEFAULT_LED_PIN=25
 )
+
 pico_add_extra_outputs(dendy)
