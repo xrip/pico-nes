@@ -329,7 +329,7 @@ void restore_clean_fat() {
 // Invoked when received SCSI_CMD_INQUIRY
 // Application fill vendor id, product id and revision with string up to 8, 16, 4 characters respectively
 void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16], uint8_t product_rev[4]) {
-  char tmp[81]; sprintf(tmp, "tud_msc_inquiry_cb: %d", lun); logMsg(tmp);
+  //char tmp[81]; sprintf(tmp, "tud_msc_inquiry_cb: %d", lun); logMsg(tmp);
   if (lun == 0) {
     const char vid[] = "Pico-ness in flash";
     memcpy(vendor_id, vid, strlen(vid));
@@ -367,13 +367,12 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
     *block_count = get_rom4prog_size() / DISK_BLOCK_SIZE + id_bs;
     *block_size  = DISK_BLOCK_SIZE;
   } else {
-    char tmp[80]; sprintf(tmp, "tud_msc_capacity_cb(%d)", lun); logMsg(tmp);
     DWORD dw;
     auto dio = disk_ioctl(0, GET_SECTOR_COUNT, &dw);
     if (dio == RES_OK) {
       *block_count = dw;
     } else {
-      sprintf(tmp, "disk_ioctl(GET_SECTOR_COUNT) failed: %d", dio); logMsg(tmp);
+      char tmp[80]; sprintf(tmp, "disk_ioctl(GET_SECTOR_COUNT) failed: %d", dio); logMsg(tmp);
       *block_count = 0;
       return;
     }
@@ -389,7 +388,7 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
   #else
     *block_size = FF_MAX_SS;
   #endif
-    sprintf(tmp, "tud_msc_capacity_cb(%d) block_count: %d block_size: %d r: %d", lun, block_count, block_size); logMsg(tmp);
+    //sprintf(tmp, "tud_msc_capacity_cb(%d) block_count: %d block_size: %d r: %d", lun, block_count, block_size); logMsg(tmp);
   }
 }
 
@@ -409,7 +408,7 @@ void flush() {
 // - Start = 0 : stopped power mode, if load_eject = 1 : unload disk storage
 // - Start = 1 : active mode, if load_eject = 1 : load disk storage
 bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, bool load_eject) {
-  char tmp[81]; sprintf(tmp, "power_condition: 0x%X start: %d load_eject: %d", power_condition, start, load_eject); logMsg(tmp);
+  //char tmp[81]; sprintf(tmp, "power_condition: 0x%X start: %d load_eject: %d", power_condition, start, load_eject); logMsg(tmp);
   (void) lun;
   (void) power_condition;
   if ( load_eject ) {
@@ -428,9 +427,9 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
 // Copy disk's data to buffer (up to bufsize) and return number of copied bytes.
 int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) {
   if (lun != 0) {
-    char tmp[80]; sprintf(tmp, "tud_msc_read10_cb(%d, %d, %d, %d)", lun, lba, offset, bufsize); logMsg(tmp);
+    //char tmp[80]; sprintf(tmp, "tud_msc_read10_cb(%d, %d, %d, %d)", lun, lba, offset, bufsize); logMsg(tmp);
     auto res = disk_read(0, buffer, lba, 1);
-    sprintf(tmp, "disk_read(0) lba: %d offset: %d r: %d", lba, offset, res); logMsg(tmp);
+    //sprintf(tmp, "disk_read(0) lba: %d offset: %d r: %d", lba, offset, res); logMsg(tmp);
     return res == RES_OK ? bufsize : -1; // TODO: offset ?
   }
   size_t id_bs = sizeof(initial_data) / DISK_BLOCK_SIZE;
@@ -453,7 +452,7 @@ bool tud_msc_is_writable_cb (uint8_t lun) {
   if (lun != 0) {
     auto ds = disk_status(0);
     auto rs = ds & 0x04/*STA_PROTECT*/;
-    char tmp[80]; sprintf(tmp, "tud_msc_is_writable_cb(1) ds: %d rs: %d r: %d", ds, rs, !rs); logMsg(tmp);
+    //char tmp[80]; sprintf(tmp, "tud_msc_is_writable_cb(1) ds: %d rs: %d r: %d", ds, rs, !rs); logMsg(tmp);
     return !rs; // TODO: sd-card write protected ioctl?
   }
   return true;
@@ -528,7 +527,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 // - READ_CAPACITY10, READ_FORMAT_CAPACITY, INQUIRY, MODE_SENSE6, REQUEST_SENSE
 // - READ10 and WRITE10 has their own callbacks
 int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, uint16_t bufsize) {
-  char tmp[81]; sprintf(tmp, "scsi_cmd0(%d) 0x%X 1: 0x%X 2: 0x%X 3: 0x%X ...", lun, scsi_cmd[0], scsi_cmd[1], scsi_cmd[2], scsi_cmd[3]); logMsg(tmp);
+  //char tmp[81]; sprintf(tmp, "scsi_cmd0(%d) 0x%X 1: 0x%X 2: 0x%X 3: 0x%X ...", lun, scsi_cmd[0], scsi_cmd[1], scsi_cmd[2], scsi_cmd[3]); logMsg(tmp);
   // read10 & write10 has their own callback and MUST not be handled here
   void const* response = NULL;
   int32_t resplen = 0;

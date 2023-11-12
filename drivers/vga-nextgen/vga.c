@@ -353,9 +353,9 @@ void logMsg(char * msg) {
         }
         memset(text_buf + sz, 0, text_buf_width);
         memset(text_buf_color + sz, 1 << 4, text_buf_width);
-        draw_text(msg, 0, y, 7, 1 << 4);
+        draw_text(msg, 0, y, 7, 1);
     } else {
-        draw_text(msg, 0, y++, 7, 1 << 4);
+        draw_text(msg, 0, y++, 7, 1);
     }
 }
 void draw_text(char* string, int x, int y, uint8_t color, uint8_t bgcolor) {

@@ -103,7 +103,7 @@ void tud_resume_cb(void) {
 // Invoked to determine max LUN
 uint8_t tud_msc_get_maxlun_cb(void) {
   FRESULT result = f_mount(getSDCardFATFSptr(), "", 1);
-  char tmp[80]; sprintf(tmp, "tud_msc_get_maxlun_cb sd card mount: %s (%d)", FRESULT_str(result), result); logMsg(tmp);
+  //char tmp[80]; sprintf(tmp, "tud_msc_get_maxlun_cb sd card mount: %s (%d)", FRESULT_str(result), result); logMsg(tmp);
   if (result == FR_OK) { logMsg((char*)"Two drives mode"); } else { logMsg((char*)"One drive mode"); }
   return result == FR_OK ? 2 : 1; // dual LUN
 }

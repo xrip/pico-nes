@@ -870,7 +870,7 @@ void filebrowser(
             }
             if (keyboard_bits.a || gamepad1_bits.a) {
                 clrScr(1);
-                draw_text((char*)"Mount me as USB drive...", 30, 15, 4, 1);
+                draw_text((char*)"Mount me as USB drive...", 30, 15, 7, 1);
                 in_flash_drive();
                 watchdog_enable(100, true);
             }
@@ -1108,7 +1108,7 @@ int menu() {
                     case USB_DEVICE:
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
                             clrScr(1);
-                            draw_text((char*)"Mount me as USB drive...", 30, 15, 4, 1);
+                            draw_text((char*)"Mount me as USB drive...", 30, 15, 7, 1);
                             in_flash_drive();
                             watchdog_enable(100, true);
                             exit = true;
