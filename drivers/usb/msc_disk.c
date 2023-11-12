@@ -369,8 +369,22 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
   } else {
     char tmp[80]; sprintf(tmp, "tud_msc_capacity_cb(%d)", lun); logMsg(tmp);
     DWORD dw;
-    disk_ioctl(0, GET_SECTOR_COUNT, &dw); *block_count = dw;
-    disk_ioctl(0, GET_BLOCK_SIZE, &dw); *block_size = dw;
+    auto dio = disk_ioctl(0, GET_SECTOR_COUNT, &dw);
+    if (dio == RES_OK) {
+      *block_count = dw;
+    } else {
+      sprintf(tmp, "disk_ioctl(GET_SECTOR_COUNT) failed: %d", dio); logMsg(tmp);
+      *block_count = 0;
+      return;
+    }
+    dio = disk_ioctl(0, GET_BLOCK_SIZE, &dw);
+    if (dio == RES_OK) {
+      *block_size = dw;
+    } else {
+      sprintf(tmp, "disk_ioctl(GET_BLOCK_SIZE) failed: %d", dio); logMsg(tmp);
+      *block_size = 0;
+      return;
+    }
     sprintf(tmp, "tud_msc_capacity_cb(%d) block_count: %d block_size: %d r: %d", lun, block_count, block_size); logMsg(tmp);
   }
 }

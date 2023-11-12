@@ -577,7 +577,7 @@ DRESULT disk_ioctl (
 	    }
 		return RES_OK;
 	}
-	char tmp[80]; sprintf(tmp, "disk_ioctl(%d, %d)", drv, cmd); logMsg(tmp);
+	//char tmp[80]; sprintf(tmp, "disk_ioctl(%d, %d)", drv, cmd); logMsg(tmp);
 	DRESULT res;
 	BYTE n, csd[16];
 	DWORD *dp, st, ed, csize;
@@ -628,7 +628,7 @@ DRESULT disk_ioctl (
 		}
 		break;
 
-	case CTRL_TRIM :	/* Erase a block of sectors (used when _USE_ERASE == 1) */
+	case CTRL_TRIM :                                    /* Erase a block of sectors (used when _USE_ERASE == 1) */
 		if (!(CardType & CT_SDC)) break;				/* Check if the card is SDC */
 		if (disk_ioctl(drv, MMC_GET_CSD, csd)) break;	/* Get CSD */
 		if (!(csd[0] >> 6) && !(csd[10] & 0x40)) break;	/* Check if sector erase can be applied to the card */

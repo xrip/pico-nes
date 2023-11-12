@@ -1067,21 +1067,14 @@ static FRESULT move_window (	/* Returns FR_OK or FR_DISK_ERR */
 	return res;
 }
 
-
-
-
 #if !FF_FS_READONLY
 /*-----------------------------------------------------------------------*/
 /* Synchronize filesystem and data on the storage                        */
 /*-----------------------------------------------------------------------*/
-
 static FRESULT sync_fs (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs		/* Filesystem object */
-)
-{
+) {
 	FRESULT res;
-
-
 	res = sync_window(fs);
 	if (res == FR_OK) {
 		if (fs->fs_type == FS_FAT32 && fs->fsi_flag == 1) {	/* FAT32: Update FSInfo sector if needed */
@@ -1099,18 +1092,13 @@ static FRESULT sync_fs (	/* Returns FR_OK or FR_DISK_ERR */
 		/* Make sure that no pending write process in the lower layer */
 		if (disk_ioctl(fs->pdrv, CTRL_SYNC, 0) != RES_OK) res = FR_DISK_ERR;
 	}
-
 	return res;
 }
-
 #endif
-
-
 
 /*-----------------------------------------------------------------------*/
 /* Get physical sector number from cluster number                        */
 /*-----------------------------------------------------------------------*/
-
 static LBA_t clst2sect (	/* !=0:Sector number, 0:Failed (invalid cluster#) */
 	FATFS* fs,		/* Filesystem object */
 	DWORD clst		/* Cluster# to be converted */
