@@ -1016,19 +1016,14 @@ static void clear_lock (	/* Clear lock entries of the volume */
 
 #endif	/* FF_FS_LOCK != 0 */
 
-
-
 /*-----------------------------------------------------------------------*/
 /* Move/Flush disk access window in the filesystem object                */
 /*-----------------------------------------------------------------------*/
 #if !FF_FS_READONLY
 static FRESULT sync_window (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs			/* Filesystem object */
-)
-{
+) {
 	FRESULT res = FR_OK;
-
-
 	if (fs->wflag) {	/* Is the disk access window dirty? */
 		if (disk_write(fs->pdrv, fs->win, fs->winsect, 1) == RES_OK) {	/* Write it back into the volume */
 			fs->wflag = 0;	/* Clear window dirty flag */
@@ -1043,15 +1038,11 @@ static FRESULT sync_window (	/* Returns FR_OK or FR_DISK_ERR */
 }
 #endif
 
-
 static FRESULT move_window (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs,		/* Filesystem object */
 	LBA_t sect		/* Sector LBA to make appearance in the fs->win[] */
-)
-{
+) {
 	FRESULT res = FR_OK;
-
-
 	if (sect != fs->winsect) {	/* Window offset changed? */
 #if !FF_FS_READONLY
 		res = sync_window(fs);		/* Flush the window */

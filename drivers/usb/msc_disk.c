@@ -377,6 +377,7 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
       *block_count = 0;
       return;
     }
+  #if FF_MAX_SS != FF_MIN_SS
     dio = disk_ioctl(0, GET_BLOCK_SIZE, &dw);
     if (dio == RES_OK) {
       *block_size = dw;
@@ -385,6 +386,9 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
       *block_size = 0;
       return;
     }
+  #else
+    *block_size = FF_MAX_SS;
+  #endif
     sprintf(tmp, "tud_msc_capacity_cb(%d) block_count: %d block_size: %d r: %d", lun, block_count, block_size); logMsg(tmp);
   }
 }
