@@ -50,7 +50,7 @@ target_sources(dendy PUBLIC
 
 
 pico_set_program_name(dendy "NES Emulator by xrip/DnCraptor")
-pico_set_program_version(dendy "development version")
+pico_set_program_version(dendy "test")
 
 
 target_include_directories(dendy PRIVATE

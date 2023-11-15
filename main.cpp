@@ -1016,13 +1016,12 @@ typedef struct __attribute__((__packed__)) {
 
 static menu_type_e last_menu_type = menu_type_e::ROM_SELECT;
 
-#define MENU_ITEMS_NUMBER 17
+#define MENU_ITEMS_NUMBER 16
 const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "Player 1: %s",        ARRAY, &settings.player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
         { "Player 2: %s",        ARRAY, &settings.player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" }},
         { "" },
         { "Volume: %d",          INT,   &settings.snd_vol,        8 },
-        { "" },
         { "Flash line: %s",      ARRAY, &settings.flash_line,     1, { "NO ",       "YES" }},
         { "Flash frame: %s",     ARRAY, &settings.flash_frame,    1, { "NO ",       "YES" }},
         { "VGA Mode: %s",        ARRAY, &settings.palette,        1, { "RGB333",    "RGB222" }},
@@ -1031,7 +1030,7 @@ const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
         { "Save state",          SAVE },
         { "Load state",          LOAD },
         { "" },
-        { "Reset",               RESET },
+        { "Reset game",          RESET },
         { "Return to game",      RETURN },
         { "ROM select",          ROM_SELECT },
         { "From USB device",     USB_DEVICE }
@@ -1043,7 +1042,7 @@ int menu() {
     setVGAmode(VGA640x480_text_80_30);
     char footer[80];
     sprintf(footer, ":: %s %s build %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__, __TIME__);
-    draw_text(footer, (sizeof(footer) - strlen(footer)) >> 1, 0, 11, 1);
+    draw_text(footer, (sizeof(footer) - strlen(footer)) >> 1, 1, 11, 1);
     int current_item = 0;
     while (!exit) {
         ps2kbd.tick();
