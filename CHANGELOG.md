@@ -17,7 +17,7 @@ MMC1 fixes by @AlexEkb4ever
 
 # v1.4.0
 
-- Mos mappers enabled. 
+- Most mappers enabled. 
 - Added 212 mapper for XXX-in-1 like cartridges.
 - Default overclocking now 272Mhz - this must run on every pico.
 
