@@ -1,3 +1,11 @@
+# v2.0.0
+
+**Release by @DnCraptor**
+- If no SD card available, there is option to drag&drop roms directly to Pico flash  
+- Pico as SD card reader mode 
+- Ability to have builtin roms stored compressed in pico flash
+ 
+
 # v1.5.0
 
 - Filebrowser now with folders
