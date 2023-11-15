@@ -58,7 +58,8 @@ jobs:
                  cd $HOME && \
                  git clone https://github.com/raspberrypi/pico-sdk.git --branch master && \
                  cd pico-sdk/ && \
-                 git submodule update --init
+                 git submodule update --init && \
+                 cd lib/tinyusb && git pull
 
           - name: Install picotool
             run: |
