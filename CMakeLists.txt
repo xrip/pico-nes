@@ -124,7 +124,7 @@ target_compile_definitions(dendy PRIVATE
         NES_GPIO_LAT=15
 
         #AUDIO
-        AUDIO_PWM_PIN=26
+        #AUDIO_PWM_PIN=26
 
         # Other
         FF_USE_FIND

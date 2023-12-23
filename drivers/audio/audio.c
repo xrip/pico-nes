@@ -77,7 +77,7 @@ void i2s_init(i2s_config_t *i2s_config) {
     /* Set PIO clock */
     uint32_t system_clock_frequency = clock_get_hz(clk_sys);
     uint32_t divider = system_clock_frequency * 4 / i2s_config->sample_freq; // avoid arithmetic overflow
-    pio_sm_set_clkdiv_int_frac(i2s_config->pio, i2s_config->sm , divider >> 8u, divider & 0xffu);
+    pio_sm_set_clkdiv_int_frac(i2s_config->pio, i2s_config->sm , (divider / 8) >> 8u, (divider / 8) & 0xffu);
 
     pio_sm_set_enabled(i2s_config->pio, i2s_config->sm, false);
 #endif
