@@ -26,8 +26,8 @@
 
 .program audio_i2s
 .side_set 2
-
      out pins, 31       side 0b11
+.wrap_target
 loop:
      set y,4             side 0b10
      set x,15            side 0b11
@@ -50,6 +50,7 @@ l3:
      nop                 side 0b00
      jmp y--,l3          side 0b01
      set y,5             side 0b00
+
      jmp x--,l2          side 0b01
 
 % c-sdk {
@@ -67,7 +68,7 @@ static inline void audio_i2s_program_init(PIO pio, uint sm, uint offset, uint da
     pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
     pio_sm_set_pins(pio, sm, 0); // clear pins
 
-    pio_sm_exec(pio, sm, pio_encode_jmp(offset + 0));
+    //pio_sm_exec(pio, sm, pio_encode_jmp(offset + 0));
 }
 
 %}
