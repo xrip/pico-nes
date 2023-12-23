@@ -74,17 +74,17 @@ void i2s_init(i2s_config_t *i2s_config) {
     uint32_t system_clock_frequency = clock_get_hz(clk_sys);
     uint32_t divider = system_clock_frequency * 4 / i2s_config->sample_freq; // avoid arithmetic overflow
 
-#ifndef AUDIO_CS4334
+#ifdef AUDIO_CS4334
     uint offset = pio_add_program(i2s_config->pio, &audio_i2s_cs4334_program);
     audio_i2s_cs4334_program_init(i2s_config->pio, i2s_config->sm , offset, i2s_config->data_pin , i2s_config->clock_pin_base);
-    divider = divider / 8;
+    divider >>= 3;
 #else
     uint offset = pio_add_program(i2s_config->pio, &audio_i2s_program);
     audio_i2s_program_init(i2s_config->pio, i2s_config->sm , offset, i2s_config->data_pin , i2s_config->clock_pin_base);
 
 #endif
 
-    pio_sm_set_clkdiv_int_frac(i2s_config->pio, i2s_config->sm , divider >> 8u, divider  & 0xffu);
+    pio_sm_set_clkdiv_int_frac(i2s_config->pio, i2s_config->sm , divider >> 8u, divider & 0xffu);
 
     pio_sm_set_enabled(i2s_config->pio, i2s_config->sm, false);
 #endif
