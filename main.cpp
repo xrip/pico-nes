@@ -94,14 +94,14 @@ typedef struct __attribute__((__packed__)) {
 } SETTINGS;
 
 SETTINGS settings = {
-        .version = 1,
+        .version = 2,
         .show_fps = false,
         .flash_line = true,
         .flash_frame = true,
         .palette = RGB333,
         .snd_vol = 8,
-        .player_1_input = KEYBOARD,
-        .player_2_input = GAMEPAD1,
+        .player_1_input = GAMEPAD1,
+        .player_2_input = KEYBOARD,
         .nes_palette = 0,
 };
 
@@ -979,7 +979,7 @@ int InfoNES_Menu() {
 
 void load_config() {
     char pathname[256];
-    sprintf(pathname, "%s\\emulator.cfg", HOME_DIR);
+    sprintf(pathname, "%s\\emulator.cfg", "NES");
     FRESULT fr = f_mount(&fs, "", 1);
     FIL fd;
     fr = f_open(&fd, pathname, FA_READ);
@@ -993,7 +993,7 @@ void load_config() {
 
 void save_config() {
     char pathname[256];
-    sprintf(pathname, "%s\\emulator.cfg", HOME_DIR);
+    sprintf(pathname, "%s\\emulator.cfg", "NES");
     FRESULT fr = f_mount(&fs, "", 1);
     if (FR_OK != fr) {
         FIL fd;

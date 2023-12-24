@@ -1719,7 +1719,7 @@ char* replaceSpecialCharacters(const char* str) {
 void save_state(const char * rom_filename)
 {
     char pathname[255];
-    sprintf(pathname, "%s.save", replaceSpecialCharacters(rom_filename));
+    sprintf(pathname, "%s\\%s.save", "NES", replaceSpecialCharacters(rom_filename));
     FRESULT fr = f_mount(&fs, "", 1);
     FIL fd;
     fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
@@ -1831,7 +1831,7 @@ void save_state(const char * rom_filename)
 void load_state(const char * rom_filename)
 {
     char pathname[255];
-    sprintf(pathname, "NES\\%s.save", replaceSpecialCharacters(rom_filename));
+    sprintf(pathname, "%s\\%s.save", "NES", replaceSpecialCharacters(rom_filename));
     FRESULT fr = f_mount(&fs, "", 1);
     FIL fd;
     fr = f_open(&fd, pathname, FA_READ);
