@@ -125,6 +125,7 @@ target_compile_definitions(dendy PRIVATE
 
         #AUDIO
         AUDIO_PWM_PIN=26
+        #AUDIO_CS4334
 
         # Other
         FF_USE_FIND
