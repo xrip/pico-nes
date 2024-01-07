@@ -51,6 +51,9 @@ size_t get_rom4prog_size() { return FLASH_TARGET_OFFSET - 4096; }
 class Decoder {};
 #endif
 uint32_t get_rom4prog() { return (uint32_t)rom; }
+bool cursor_blink_state = false;
+uint8_t CURSOR_X, CURSOR_Y = 0;
+uint8_t manager_started = false;
 
 enum menu_type_e {
     NONE,
@@ -68,7 +71,7 @@ enum menu_type_e {
 struct semaphore vga_start_semaphore;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH]; // 61440 bytes
 uint16_t linebuffer[256];
-extern uint8_t fnt8x16[];
+extern uint8_t font_8x16[];
 
 enum PALETTES {
     RGB333,
@@ -237,7 +240,7 @@ const int __not_in_flash_func(NesPalette888)[] = {
 void updatePalette(PALETTES palette) {
     for (uint8_t i = 0; i < 64; i++) {
         if (palette == RGB333) {
-            setVGA_color_palette(i, NesPalette888[i+(64*settings.nes_palette)]);
+            graphics_set_palette(i, NesPalette888[i+(64*settings.nes_palette)]);
         } else {
             uint32_t c = NesPalette888[i+(64*settings.nes_palette)];
             uint8_t r = (c >> (16 + 6)) & 0x3;
@@ -246,7 +249,7 @@ void updatePalette(PALETTES palette) {
             r *= 42 * 2;
             g *= 42 * 2;
             b *= 42 * 2;
-            setVGA_color_palette(i, RGB888(r, g, b));
+            graphics_set_palette(i, RGB888(r, g, b));
         }
     }
 }
@@ -457,7 +460,7 @@ void InfoNES_ReleaseRom() {
 void InfoNES_SoundInit() {
     i2s_config = i2s_get_default_config();
     i2s_config.sample_freq = 44100;
-    i2s_config.dma_trans_count = (uint16_t)i2s_config.sample_freq / 50;
+    i2s_config.dma_trans_count = (uint16_t)i2s_config.sample_freq / 60;
     i2s_volume(&i2s_config, 0);
     i2s_init(&i2s_config);
 }
@@ -468,10 +471,10 @@ int InfoNES_SoundOpen(int samples_per_sync, int sample_rate) {
 
 void InfoNES_SoundClose() {
 }
+#define buffermax (44100 / 60)*2
+int __not_in_flash_func(InfoNES_GetSoundBufferSize)() { return buffermax; }
 
-int __not_in_flash_func(InfoNES_GetSoundBufferSize)() { return 735; }
 
-#define buffermax 1280
 
 void InfoNES_SoundOutput(int samples, const BYTE *wave1, const BYTE *wave2, const BYTE *wave3, const BYTE *wave4,
                          const BYTE *wave5) {
@@ -510,7 +513,7 @@ void __not_in_flash_func(InfoNES_PreDrawLine)(int line) {
 
 void __inline draw_fps(const char fps[3], uint8_t y, uint8_t color) {
     for (uint8_t x = 0; x < 3; x++) {
-        uint8_t glyph_col = fnt8x16[(fps[x] << 4) + y];
+        uint8_t glyph_col = font_8x16[(fps[x] << 4) + y];
         for (uint8_t bit = 0; bit < 8; bit++)
             if ((glyph_col >> bit) & 1)
                 SCREEN[y][(NES_DISP_WIDTH - 8 * 2) + 8 * x + bit] = color;
@@ -527,15 +530,15 @@ void __not_in_flash_func(InfoNES_PostDrawLine)(int line ){
 
 /* Renderer loop on Pico's second core */
 void __time_critical_func(render_core)() {
-    initVGA();
+    graphics_init();
     auto *buffer = reinterpret_cast<uint8_t *>(&SCREEN[0][0]);
-    setVGAbuf(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
+    graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
     uint8_t *text_buf = buffer + 1000;
-    setVGA_text_buf(text_buf, &text_buf[80 * 30]);
-    setVGA_bg_color(63);
-    setVGAbuf_pos(32, 0);
+    graphics_set_textbuffer(text_buf);
+    graphics_set_bgcolor(63);
+    graphics_set_offset(32, 0);
     updatePalette(settings.palette);
-    setVGA_color_flash_mode(settings.flash_line, settings.flash_frame);
+    graphics_set_flashmode(settings.flash_line, settings.flash_frame);
     sem_acquire_blocking(&vga_start_semaphore);
 }
 
@@ -673,7 +676,7 @@ char* get_rom_filename() {
 } 
 
 void filebrowser_loadfile(char *pathname, bool built_in) {
-    setVGAmode(VGA640x480_text_80_30);
+    graphics_set_mode(VGA_320x200x256);
     clrScr(1);
     if (strcmp((char*)rom_filename, pathname) == 0) {
         logMsg((char*)"Launching last rom");
@@ -754,7 +757,7 @@ void filebrowser(
     char *path,
     char *executable
 ) {
-    setVGAmode(VGA640x480_text_80_30);
+    graphics_set_mode(TEXTMODE_80x30);
     bool debounce = true;
     clrScr(1);
     char basepath[256];
@@ -953,7 +956,7 @@ void filebrowser(
 int menu();
 
 int InfoNES_Video() {
-    setVGAmode(VGA640x480_text_80_30);
+    graphics_set_mode(TEXTMODE_80x30);
     clrScr(1);    
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
         logMsg((char*)"NES file parse error.");
@@ -966,12 +969,12 @@ int InfoNES_Video() {
         return 1; // TODO: ?
     }
     memset(SCREEN, 63, sizeof(SCREEN));    
-    setVGAmode(VGA640x480div2);
+    graphics_set_mode(VGA_320x200x256);
     return 0;
 }
 
 int InfoNES_Menu() {
-    setVGAmode(VGA640x480_text_80_30);
+    graphics_set_mode(TEXTMODE_80x30);
     clrScr(1);
     filebrowser(HOME_DIR, (char*)"nes");
     return 0;
@@ -1039,7 +1042,7 @@ const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
 int menu() {
     bool exit = false;
     clrScr(0);
-    setVGAmode(VGA640x480_text_80_30);
+    graphics_set_mode(TEXTMODE_80x30);
     char footer[80];
     sprintf(footer, ":: %s %s build %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__, __TIME__);
     draw_text(footer, (sizeof(footer) - strlen(footer)) >> 1, 1, 11, 1);
@@ -1136,9 +1139,9 @@ int menu() {
         sleep_ms(100);
     }
     memset(SCREEN, 63, sizeof SCREEN);
-    setVGA_color_flash_mode(settings.flash_line, settings.flash_frame);
+    graphics_set_flashmode(settings.flash_line, settings.flash_frame);
     updatePalette(settings.palette);
-    setVGAmode(VGA640x480div2);
+    graphics_set_mode(VGA_320x200x256);
     save_config();
     return 0;
 }
