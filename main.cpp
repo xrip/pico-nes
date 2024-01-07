@@ -533,9 +533,9 @@ void __time_critical_func(render_core)() {
     graphics_init();
     auto *buffer = reinterpret_cast<uint8_t *>(&SCREEN[0][0]);
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
-    uint8_t *text_buf = buffer + 1000;
+    uint8_t *text_buf = buffer;
     graphics_set_textbuffer(text_buf);
-    graphics_set_bgcolor(63);
+    graphics_set_bgcolor(1);
     graphics_set_offset(32, 0);
     updatePalette(settings.palette);
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
@@ -676,8 +676,6 @@ char* get_rom_filename() {
 } 
 
 void filebrowser_loadfile(char *pathname, bool built_in) {
-    graphics_set_mode(VGA_320x200x256);
-    clrScr(1);
     if (strcmp((char*)rom_filename, pathname) == 0) {
         logMsg((char*)"Launching last rom");
         return;
@@ -717,6 +715,8 @@ void filebrowser_loadfile(char *pathname, bool built_in) {
 #endif
         if (!built_in) f_close(&file);
     }
+    // FIXME! Починить графический драйвер при загрузке
+    watchdog_enable(100, true);
 }
 
 FRESULT in_opendir(DIR* dp) {
@@ -968,7 +968,6 @@ int InfoNES_Video() {
         menu();
         return 1; // TODO: ?
     }
-    memset(SCREEN, 63, sizeof(SCREEN));    
     graphics_set_mode(VGA_320x200x256);
     return 0;
 }
@@ -1138,7 +1137,6 @@ int menu() {
         }
         sleep_ms(100);
     }
-    memset(SCREEN, 63, sizeof SCREEN);
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
     updatePalette(settings.palette);
     graphics_set_mode(VGA_320x200x256);

@@ -313,7 +313,7 @@ void __scratch_y("vga_driver") dma_handler_VGA() {
             break;
         }
         case VGA_320x200x256:
-            input_buffer_8bit = input_buffer + y * 320;
+            input_buffer_8bit = input_buffer + y * width;
             for (int i = width; i--;) {
                 //*output_buffer_16bit++=current_palette[*input_buffer_8bit++];
                 *output_buffer_16bit++ = current_palette[*input_buffer_8bit++];
@@ -535,6 +535,7 @@ void logFile(char* msg);
 
 extern volatile bool manager_started;
 void logMsg(char* msg) {
+    return;
 #if BOOT_DEBUG
     { char tmp[85]; sprintf(tmp, "%s\n", msg); logFile(tmp); }
 #else
