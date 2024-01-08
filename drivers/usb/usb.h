@@ -6,7 +6,6 @@
 
 void in_flash_drive();
 // from vga.h
-void logMsg(char * msg);
 // from main.cpp
 void flash_range_erase2(uint32_t addr, size_t sz);
 void flash_range_program2(uint32_t addr, const unsigned char* buff, size_t sz);

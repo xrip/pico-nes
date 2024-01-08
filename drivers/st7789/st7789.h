@@ -29,11 +29,30 @@
 #endif
 
 
-extern void refresh_lcd(int16_t x, 
-                        int16_t y, 
-                        int16_t width, 
-                        int16_t height, 
+void graphics_init();
+void graphics_set_buffer(uint8_t *buffer, uint16_t width, uint16_t height);
+
+void graphics_set_palette(uint8_t i, uint32_t color);
+
+inline void graphics_set_offset(int x, int y) {
+// dummy
+}
+
+inline void graphics_set_textbuffer(uint8_t *buffer) {
+// dummy
+}
+
+inline void graphics_set_bgcolor(uint32_t color888) {
+// dummy
+}
+inline void graphics_set_flashmode(bool flash_line, bool flash_frame) {
+// dummy
+}
+
+void logMsg(char * msg);
+void refresh_lcd(int16_t x,
+                        int16_t y,
+                        int16_t width,
+                        int16_t height,
                         const uint8_t *bitmap);
-extern void start_lcd();
-extern void lcd_set_palette(uint8_t i, uint16_t color);
 #endif

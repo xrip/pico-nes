@@ -78,7 +78,6 @@ enum menu_type_e {
 struct semaphore vga_start_semaphore;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH]; // 61440 bytes
 uint16_t linebuffer[256];
-extern uint8_t font_8x16[];
 
 enum PALETTES {
     RGB333,
@@ -131,96 +130,18 @@ char fps_text[3] = { "0" };
 int start_time;
 int frames;
 
-#define RGB888_TO_RGB565(r, g, b) (((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)
+#ifdef TFT
+#define RGB888(r, g, b) (((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)
+#else
 #define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
+#endif
 const BYTE NesPalette[64] = {
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
     0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f,
     0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f,
     0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f
 };
-const uint16_t NesPalette565[] = {
-    /**/
-    RGB888_TO_RGB565(0x7c, 0x7c, 0x7c),
-    RGB888_TO_RGB565(0x00, 0x00, 0xfc),
-    RGB888_TO_RGB565(0x00, 0x00, 0xbc),
-    RGB888_TO_RGB565(0x44, 0x28, 0xbc),
 
-    RGB888_TO_RGB565(0x94, 0x00, 0x84),
-    RGB888_TO_RGB565(0xa8, 0x00, 0x20),
-    RGB888_TO_RGB565(0xa8, 0x10, 0x00),
-    RGB888_TO_RGB565(0x88, 0x14, 0x00),
-
-    RGB888_TO_RGB565(0x50, 0x30, 0x00),
-    RGB888_TO_RGB565(0x00, 0x78, 0x00),
-    RGB888_TO_RGB565(0x00, 0x68, 0x00),
-    RGB888_TO_RGB565(0x00, 0x58, 0x00),
-
-    RGB888_TO_RGB565(0x00, 0x40, 0x58),
-    RGB888_TO_RGB565(0x00, 0x00, 0x00),
-    RGB888_TO_RGB565(0x00, 0x00, 0x00),
-    RGB888_TO_RGB565(0x00, 0x00, 0x00),
-
-    RGB888_TO_RGB565(0xbc, 0xbc, 0xbc),
-    RGB888_TO_RGB565(0x00, 0x78, 0xf8),
-    RGB888_TO_RGB565(0x00, 0x58, 0xf8),
-    RGB888_TO_RGB565(0x68, 0x44, 0xfc),
-
-    RGB888_TO_RGB565(0xd8, 0x00, 0xcc),
-    RGB888_TO_RGB565(0xe4, 0x00, 0x58),
-    RGB888_TO_RGB565(0xf8, 0x38, 0x00),
-    RGB888_TO_RGB565(0xe4, 0x5c, 0x10),
-
-    RGB888_TO_RGB565(0xac, 0x7c, 0x00),
-    RGB888_TO_RGB565(0x00, 0xb8, 0x00),
-    RGB888_TO_RGB565(0x00, 0xa8, 0x00),
-    RGB888_TO_RGB565(0x00, 0xa8, 0x44),
-
-    RGB888_TO_RGB565(0x00, 0x88, 0x88),
-    RGB888_TO_RGB565(0x00, 0x00, 0x00),
-    RGB888_TO_RGB565(0x00, 0x00, 0x00),
-    RGB888_TO_RGB565(0x00, 0x00, 0x00),
-
-    RGB888_TO_RGB565(0xf8, 0xf8, 0xf8),
-    RGB888_TO_RGB565(0x3c, 0xbc, 0xfc),
-    RGB888_TO_RGB565(0x68, 0x88, 0xfc),
-    RGB888_TO_RGB565(0x98, 0x78, 0xf8),
-
-    RGB888_TO_RGB565(0xf8, 0x78, 0xf8),
-    RGB888_TO_RGB565(0xf8, 0x58, 0x98),
-    RGB888_TO_RGB565(0xf8, 0x78, 0x58),
-    RGB888_TO_RGB565(0xfc, 0xa0, 0x44),
-
-    RGB888_TO_RGB565(0xf8, 0xb8, 0x00),
-    RGB888_TO_RGB565(0xb8, 0xf8, 0x18),
-    RGB888_TO_RGB565(0x58, 0xd8, 0x54),
-    RGB888_TO_RGB565(0x58, 0xf8, 0x98),
-
-    RGB888_TO_RGB565(0x00, 0xe8, 0xd8),
-    RGB888_TO_RGB565(0x78, 0x78, 0x78),
-    RGB888_TO_RGB565(0x00, 0x00, 0x00),
-    RGB888_TO_RGB565(0x00, 0x00, 0x00),
-
-    RGB888_TO_RGB565(0xfc, 0xfc, 0xfc),
-    RGB888_TO_RGB565(0xa4, 0xe4, 0xfc),
-    RGB888_TO_RGB565(0xb8, 0xb8, 0xf8),
-    RGB888_TO_RGB565(0xd8, 0xb8, 0xf8),
-
-    RGB888_TO_RGB565(0xf8, 0xb8, 0xf8),
-    RGB888_TO_RGB565(0xf8, 0xa4, 0xc0),
-    RGB888_TO_RGB565(0xf0, 0xd0, 0xb0),
-    RGB888_TO_RGB565(0xfc, 0xe0, 0xa8),
-
-    RGB888_TO_RGB565(0xf8, 0xd8, 0x78),
-    RGB888_TO_RGB565(0xd8, 0xf8, 0x78),
-    RGB888_TO_RGB565(0xb8, 0xf8, 0xb8),
-    RGB888_TO_RGB565(0xb8, 0xf8, 0xd8),
-
-    RGB888_TO_RGB565(0x00, 0xfc, 0xfc),
-    RGB888_TO_RGB565(0xf8, 0xd8, 0xf8),
-    RGB888_TO_RGB565(0x00, 0x00, 0x00),
-    RGB888_TO_RGB565(0x00, 0x00, 0x00),
-};
 const int __not_in_flash_func(NesPalette888)[] = {
     /**/
     RGB888(0x7c, 0x7c, 0x7c),
@@ -327,7 +248,6 @@ const int __not_in_flash_func(NesPalette888)[] = {
     /**/
 };
 
-#ifndef TFT
 void updatePalette(PALETTES palette) {
     for (uint8_t i = 0; i < 64; i++) {
         if (palette == RGB333) {
@@ -344,7 +264,6 @@ void updatePalette(PALETTES palette) {
         }
     }
 }
-#endif
 
 struct input_bits_t {
     bool a: true;
@@ -604,27 +523,18 @@ void __not_in_flash_func(InfoNES_PreDrawLine)(int line) {
     InfoNES_SetLineBuffer(linebuffer, NES_DISP_WIDTH);
 }
 
-void __inline draw_fps(const char fps[3], uint8_t y, uint8_t color) {
-    for (uint8_t x = 0; x < 3; x++) {
-        uint8_t glyph_col = font_8x16[(fps[x] << 4) + y];
-        for (uint8_t bit = 0; bit < 8; bit++)
-            if ((glyph_col >> bit) & 1)
-                SCREEN[y][(NES_DISP_WIDTH - 8 * 2) + 8 * x + bit] = color;
-    }
-}
-
 #define X2(a) (a | (a << 8))
 
 void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
     for (int x = 0; x < NES_DISP_WIDTH; x++) SCREEN[line][x] = linebuffer[x];
-    if (settings.show_fps && line < 16) draw_fps(fps_text, line, 255);
+    // if (settings.show_fps && line < 16) draw_fps(fps_text, line, 255);
 }
 
 #define CHECK_BIT(var, pos) (((var)>>(pos)) & 1)
 
 /* Renderer loop on Pico's second core */
 void __time_critical_func(render_core)() {
-#ifndef TFT
+
     graphics_init();
     auto *buffer = reinterpret_cast<uint8_t *>(&SCREEN[0][0]);
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
@@ -635,15 +545,7 @@ void __time_critical_func(render_core)() {
     updatePalette(settings.palette);
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
     sem_acquire_blocking(&vga_start_semaphore);
-#else
-    start_lcd();
-
-for (uint8_t i = 0; i < 64; i++) {
-    lcd_set_palette(i, NesPalette565[i]);
-}
-    auto *buffer = reinterpret_cast<uint8_t *>(&SCREEN[0][0]);
-
-    sem_acquire_blocking(&vga_start_semaphore);
+#ifdef TFT
     while (true) {
         //uint8_t b[320] = { 0 };
         //memset(b, 127, sizeof b);

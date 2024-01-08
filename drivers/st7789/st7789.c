@@ -103,7 +103,7 @@ static inline void st7789_start_pixels(PIO pio, uint sm) {
     lcd_set_dc_cs(1, 0);
 }
 
-void start_lcd()
+void graphics_init()
 {
     uint offset = pio_add_program(pio, &st7789_lcd_program);
     st7789_lcd_program_init(pio, sm, offset, PIN_DIN, PIN_CLK, SERIAL_CLK_DIV);
@@ -122,6 +122,10 @@ void start_lcd()
     lcd_init(pio, sm, st7789_init_seq);
     gpio_put(PIN_BL, 1);
     lcd_clear();
+}
+
+void graphics_set_buffer(uint8_t *buffer, uint16_t width, uint16_t height) {
+
 }
 
 void lcd_clear() {
@@ -155,7 +159,10 @@ void refresh_lcd(int16_t x,
 }
 
 
-void lcd_set_palette(uint8_t i, uint16_t color) {
+void graphics_set_palette(uint8_t i, uint32_t color) {
     palette[i] = color;
 }
 
+void logMsg(char * msg) {
+// dummy
+}
