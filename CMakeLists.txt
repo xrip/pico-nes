@@ -29,6 +29,7 @@ add_subdirectory(drivers/ps2kbd)
 add_subdirectory(drivers/nespad)
 add_subdirectory(drivers/fatfs)
 add_subdirectory(drivers/sdcard)
+add_subdirectory(drivers/st7789)
 
 add_executable(dendy
         main.cpp
@@ -62,12 +63,13 @@ target_include_directories(dendy PRIVATE
 target_link_libraries(dendy PRIVATE
         infones
 
-        vga-nextgen
+        #vga-nextgen
         audio
         ps2kbd
         nespad
         sdcard
         fatfs
+        st7789
 
         pico_runtime
         pico_stdlib
@@ -133,6 +135,8 @@ target_compile_definitions(dendy PRIVATE
         PICO_DEFAULT_LED_PIN=25
         # internal games
         #BUILD_IN_GAMES
+
+        TFT
 )
 
 pico_add_extra_outputs(dendy)
