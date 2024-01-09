@@ -131,7 +131,7 @@ int start_time;
 int frames;
 
 #ifdef TFT
-#define RGB888(r, g, b) (((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)
+
 #else
 #define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
 #endif
@@ -536,7 +536,7 @@ void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
 void __time_critical_func(render_core)() {
 
     graphics_init();
-    auto *buffer = reinterpret_cast<uint8_t *>(&SCREEN[0][0]);
+    auto *buffer = &SCREEN[0][0];
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
     uint8_t *text_buf = buffer;
     graphics_set_textbuffer(text_buf);
@@ -547,9 +547,7 @@ void __time_critical_func(render_core)() {
     sem_acquire_blocking(&vga_start_semaphore);
 #ifdef TFT
     while (true) {
-        //uint8_t b[320] = { 0 };
-        //memset(b, 127, sizeof b);
-        refresh_lcd(32, 0, 256, 240, buffer);
+        refresh_lcd();
     }
 #endif
 }
@@ -573,11 +571,9 @@ int compareFileItems(const void* a, const void* b) {
     return strcmp(itemA->filename, itemB->filename);
 }
 
-void draw_text(char *string, int x, int y, uint8_t color, uint8_t bgcolor) {
 
-}
 void __inline draw_window(char* title, int x, int y, int width, int height) {
-    char textline[80];
+    char textline[TEXTMODE_COLS];
     width--;
     height--;
     // Рисуем рамки
@@ -587,7 +583,7 @@ void __inline draw_window(char* title, int x, int y, int width, int height) {
     textline[0] = 0xC9;
     textline[width] = 0xBB;
     draw_text(textline, x, y, 11, 1);
-    draw_text(title, (80 - strlen(title)) >> 1, 0, 0, 3);
+    draw_text(title, (width - strlen(title)) >> 1, 0, 0, 3);
     textline[0] = 0xC8;
     textline[width] = 0xBC;
     draw_text(textline, x, height - y, 11, 1);
@@ -694,6 +690,7 @@ char* get_rom_filename() {
 }
 
 void filebrowser_loadfile(char* pathname, bool built_in) {
+    graphics_set_mode(VGA_320x200x256);
     if (strcmp((char *)rom_filename, pathname) == 0) {
         logMsg((char *)"Launching last rom");
         return;
@@ -701,10 +698,8 @@ void filebrowser_loadfile(char* pathname, bool built_in) {
     restore_clean_fat(); // in case we write into space for flash drive, it is required to remove old FAT info
     FIL file;
     UINT bytesRead;
-    char tmp[80];
-    uint32_t addr = (uint32_t)rom_filename;
-    sprintf(tmp, "Writing %s rom to flash %x", pathname, addr);
-    logMsg(tmp);
+    auto addr = (uint32_t)rom_filename;
+
     FRESULT result = built_in ? in_open((FILE_LZW *)&file, pathname) : f_open(&file, pathname, FA_READ);
     if (result == FR_OK) {
         flash_range_erase2(addr, 4096);
@@ -726,8 +721,6 @@ void filebrowser_loadfile(char* pathname, bool built_in) {
                 addr += bufsize;
             }
             else {
-                sprintf(tmp, "Error reading rom: %d", result);
-                logMsg(tmp);
                 break;
             }
         }
@@ -778,12 +771,11 @@ void filebrowser(
     char* path,
     char* executable
 ) {
-
-    // FIXME: graphics_set_mode(TEXTMODE_80x30);
+    graphics_set_mode(TEXTMODE_80x30);
     bool debounce = true;
-    // FIXME: clrScr(1);
+    clrScr(1);
     char basepath[256];
-    char tmp[256];
+    char tmp[TEXTMODE_COLS];
     strcpy(basepath, path);
     constexpr int per_page = 27;
     auto* fileItems = reinterpret_cast<FileItem *>(&SCREEN[0][0] + (1024 * 6));
@@ -805,16 +797,17 @@ void filebrowser(
     }
     FRESULT result1 = f_mount(&fs1, "F:", 0);
     if (FR_OK != result1) {
-        sprintf(tmp, "f_mount error: %s (%d)", FRESULT_str(result1), result1);
+        snprintf(tmp, TEXTMODE_COLS, "f_mount error: %s (%d)", FRESULT_str(result1), result1);
         logMsg(tmp);
         while (1) { sleep_ms(100); /*TODO: reboot? */ }
     }
     while (1) {
         int total_files = 0;
         memset(fileItems, 0, maxfiles * sizeof(FileItem));
-        sprintf(tmp, !built_in ? " SDCARD:\\%s " : " DEFAULT:\\%s ", basepath);
-        draw_window(tmp, 0, 0, 80, 29);
-        memset(tmp, ' ', 80);
+        snprintf(tmp, TEXTMODE_COLS, !built_in ? " SDCARD:\\%s " : " DEFAULT:\\%s ", basepath);
+        draw_window(tmp, 0, 0, TEXTMODE_COLS, TEXTMODE_ROWS-1);
+        memset(tmp, ' ', TEXTMODE_COLS);
+#ifndef TFT
         draw_text(tmp, 0, 29, 0, 0);
         auto off = 0;
         draw_text((char *)"START", off, 29, 7, 0);
@@ -832,6 +825,7 @@ void filebrowser(
         draw_text((char *)"A/Z", off, 29, 7, 0);
         off += 3;
         draw_text((char *)" USB DRV ", off, 29, 0, 3);
+#endif
         // Open the directory
         if ((built_in ? in_opendir(&dir) : f_opendir(&dir, basepath)) != FR_OK) {
             draw_text((char *)"Failed to open directory", 1, 1, 4, 0);
@@ -861,7 +855,7 @@ void filebrowser(
         // in_flash drive
         result1 = f_opendir(&dir1, "F:\\");
         if (result1 != FR_OK) {
-            sprintf(tmp, "f_opendir(F:\\) error: %s (%d)", FRESULT_str(result1), result1);
+            snprintf(tmp, TEXTMODE_COLS, "f_opendir(F:\\) error: %s (%d)", FRESULT_str(result1), result1);
             logMsg(tmp);
             while (1) { sleep_ms(100); }
         }
@@ -877,14 +871,14 @@ void filebrowser(
             if (extension != NULL && strncmp(executable, extension + 1, 3) == 0) {
                 fileItems[total_files].is_executable = 1;
             }
-            strncpy(fileItems[total_files].filename, fileInfo.fname, 80);
+            strncpy(fileItems[total_files].filename, fileInfo.fname, TEXTMODE_COLS);
             total_files++;
         }
         qsort(fileItems, total_files, sizeof(FileItem), compareFileItems);
         // Cleanup
         built_in ? in_closedir(&dir) : f_closedir(&dir);
         if (total_files > 500) {
-            draw_text((char *)" files > 500!!! ", 80 - 17, 0, 12, 3);
+            draw_text((char *)" files > 500!!! ", TEXTMODE_COLS - 17, 0, 12, 3);
         }
         uint8_t color, bg_color;
         uint32_t offset = 0;
@@ -902,7 +896,7 @@ void filebrowser(
                 return;
             }
             if (keyboard_bits.a || gamepad1_bits.a) {
-                // FIXME: clrScr(1);
+                clrScr(1);
                 draw_text((char *)"Mount me as USB drive...", 30, 15, 7, 1);
                 in_flash_drive();
                 watchdog_enable(100, true);
@@ -968,19 +962,19 @@ void filebrowser(
                 if (i == current_item) {
                     color = 0;
                     bg_color = 3;
-                    memset(tmp, 0xCD, 78);
-                    tmp[78] = '\0';
+                    memset(tmp, 0xCD, TEXTMODE_COLS-2);
+                    tmp[TEXTMODE_COLS-2] = '\0';
                     draw_text(tmp, 1, per_page + 1, 11, 1);
-                    sprintf(tmp, " Size: %iKb, File %lu of %i ", item.size / 1024, offset + i + 1, total_files);
-                    draw_text(tmp, (80 - strlen(tmp)) >> 1, per_page + 1, 14, 3);
+                    snprintf(tmp, TEXTMODE_COLS-2, " Size: %iKb, File %lu of %i ", item.size / 1024, offset + i + 1, total_files);
+                    draw_text(tmp, 2, per_page + 1, 14, 3);
                 }
                 auto len = strlen(item.filename);
                 color = item.is_directory ? 15 : color;
                 color = item.is_executable ? 10 : color;
                 color = strstr((char *)rom_filename, item.filename) != nullptr ? 13 : color;
-                memset(tmp, ' ', 78);
-                tmp[78] = '\0';
-                memcpy(&tmp, item.filename, len < 78 ? len : 78);
+                memset(tmp, ' ', TEXTMODE_COLS-2);
+                tmp[TEXTMODE_COLS-2] = '\0';
+                memcpy(&tmp, item.filename, len < TEXTMODE_COLS-2 ? len : TEXTMODE_COLS-2);
                 draw_text(tmp, 1, i + 1, color, bg_color);
             }
             sleep_ms(100);
@@ -991,8 +985,6 @@ void filebrowser(
 int menu();
 
 int InfoNES_Video() {
-    // FIXME: graphics_set_mode(TEXTMODE_80x30);
-    // FIXME: clrScr(1);
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
         logMsg((char *)"NES file parse error.");
         menu();
@@ -1003,13 +995,11 @@ int InfoNES_Video() {
         menu();
         return 1; // TODO: ?
     }
-    // FIXME: graphics_set_mode(VGA_320x200x256);
+    graphics_set_mode(VGA_320x200x256);
     return 0;
 }
 
 int InfoNES_Menu() {
-    // FIXME: graphics_set_mode(TEXTMODE_80x30);
-    // FIXME: clrScr(1);
     filebrowser(HOME_DIR, (char *)"nes");
     return 0;
 }
@@ -1051,8 +1041,6 @@ typedef struct __attribute__((__packed__)) {
     char value_list[5][10];
 } MenuItem;
 
-static menu_type_e last_menu_type = menu_type_e::ROM_SELECT;
-
 #define MENU_ITEMS_NUMBER 16
 const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
     { "Player 1: %s", ARRAY, &settings.player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" } },
@@ -1074,12 +1062,12 @@ const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
 };
 
 int menu() {
+    static menu_type_e last_menu_type = menu_type_e::ROM_SELECT;
     bool exit = false;
-    // FIXME: clrScr(0);
-    // FIXME: graphics_set_mode(TEXTMODE_80x30);
-    char footer[80];
-    sprintf(footer, ":: %s %s build %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__, __TIME__);
-    draw_text(footer, (sizeof(footer) - strlen(footer)) >> 1, 1, 11, 1);
+    graphics_set_mode(TEXTMODE_80x30);
+    char footer[TEXTMODE_COLS];
+    snprintf(footer, TEXTMODE_COLS, ":: %s %s %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__, __TIME__);
+    draw_text(footer, 0, 1, 11, 1);
     int current_item = 0;
     while (!exit) {
         ps2kbd.tick();
@@ -1097,8 +1085,8 @@ int menu() {
                 current_item--;
         }
         for (int i = 0; i < MENU_ITEMS_NUMBER; i++) {
-            uint8_t y = i + ((30 - MENU_ITEMS_NUMBER) >> 1);
-            uint8_t x = 30;
+            uint8_t y = i + ((TEXTMODE_ROWS - MENU_ITEMS_NUMBER) >> 1);
+            uint8_t x = TEXTMODE_COLS/2 - 10;
             uint8_t color = 0xFF;
             uint8_t bg_color = 0x00;
             if (current_item == i) {
@@ -1146,7 +1134,7 @@ int menu() {
                         }
                     case USB_DEVICE:
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
-                            // FIXME: clrScr(1);
+                            clrScr(1);
                             draw_text((char *)"Mount me as USB drive...", 30, 15, 7, 1);
                             in_flash_drive();
                             watchdog_enable(100, true);
@@ -1154,27 +1142,27 @@ int menu() {
                         }
                 }
             }
-            static char result[80];
+            static char result[TEXTMODE_COLS];
             switch (item->type) {
                 case INT:
-                    sprintf(result, item->text, *(uint8_t *)item->value);
+                    snprintf(result, TEXTMODE_COLS, item->text, *(uint8_t *)item->value);
                     break;
                 case ARRAY:
-                    sprintf(result, item->text, item->value_list[*(uint8_t *)item->value]);
+                    snprintf(result,  TEXTMODE_COLS, item->text, item->value_list[*(uint8_t *)item->value]);
                     break;
                 case TEXT:
-                    sprintf(result, item->text, item->value);
+                    snprintf(result, TEXTMODE_COLS,  item->text, item->value);
                     break;
                 default:
-                    sprintf(result, "%s", item->text);
+                    snprintf(result,  TEXTMODE_COLS, "%s", item->text);
             }
             draw_text(result, x, y, color, bg_color);
         }
         sleep_ms(100);
     }
-    // FIXME: graphics_set_flashmode(settings.flash_line, settings.flash_frame);
-    // FIXME: updatePalette(settings.palette);
-    // FIXME: graphics_set_mode(VGA_320x200x256);
+    graphics_set_flashmode(settings.flash_line, settings.flash_frame);
+    updatePalette(settings.palette);
+    graphics_set_mode(VGA_320x200x256);
     save_config();
     return 0;
 }
@@ -1197,17 +1185,7 @@ int InfoNES_LoadFrame() {
         //}
     }
     frames++;
-    if (settings.show_fps && frames >= 60) {
-        uint64_t end_time;
-        uint32_t diff;
-        uint8_t fps;
-        end_time = time_us_64();
-        diff = end_time - start_time;
-        fps = ((uint64_t)frames * 1000 * 1000) / diff;
-        sprintf(fps_text, "%i", fps);
-        frames = 0;
-        start_time = time_us_64();
-    }
+
     return 0;
 }
 
@@ -1233,7 +1211,11 @@ int main() {
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
     load_config();
-    sleep_ms(50);
+
+    // graphics_set_mode(TEXTMODE_80x30);
+    // draw_text("HELLO WORLD", 0,0,1,1);
+    // while(1);
+
 #ifndef BUILD_IN_GAMES
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom)) && f_mount(&fs, "", 1) == FR_OK) {
         InfoNES_Menu();
