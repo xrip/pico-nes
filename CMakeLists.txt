@@ -3,6 +3,9 @@ include(pico_sdk_import.cmake)
 
 project(dendy C CXX ASM)
 
+option(I2S_SOUND "Enable I2S sound" OFF)
+option(TFT "Enable TFT display" OFF)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
@@ -31,9 +34,7 @@ add_subdirectory(drivers/fatfs)
 add_subdirectory(drivers/sdcard)
 add_subdirectory(drivers/st7789)
 
-add_executable(dendy
-        main.cpp
-)
+add_executable(${PROJECT_NAME} main.cpp )
 
 pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
 target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
@@ -41,7 +42,7 @@ pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
 
 set(FAMILY rp2040)
 set(BOARD pico_sdk)
-family_configure_device_example(dendy noos)
+family_configure_device_example(${PROJECT_NAME} noos)
 
 target_sources(dendy PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb.c
@@ -54,22 +55,30 @@ pico_set_program_name(dendy "NES Emulator by xrip/DnCraptor")
 pico_set_program_version(dendy "test")
 
 
-target_include_directories(dendy PRIVATE
+target_include_directories(${PROJECT_NAME} PRIVATE
         infones
         ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb
 )
 
+IF(TFT)
+    target_link_libraries(${PROJECT_NAME} PRIVATE st7789)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE TFT)
+ELSE()
+    target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)
+ENDIF()
 
-target_link_libraries(dendy PRIVATE
+IF(NOT I2S_SOUND)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_PWM_PIN=26)
+ENDIF()
+
+target_link_libraries(${PROJECT_NAME} PRIVATE
         infones
 
-        #vga-nextgen
         audio
         ps2kbd
         nespad
         sdcard
         fatfs
-        st7789
 
         pico_runtime
         pico_stdlib
@@ -84,8 +93,10 @@ target_link_libraries(dendy PRIVATE
         hardware_flash
 )
 
+
+
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(dendy PUBLIC
+    target_compile_options(${PROJECT_NAME} PUBLIC
             -Wno-error=suggest-attribute=format
             -Wno-error=cast-qual
             -Wno-error=unused-parameter
@@ -101,7 +112,7 @@ if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     )
 endif ()
 
-target_compile_definitions(dendy PRIVATE
+target_compile_definitions(${PROJECT_NAME} PRIVATE
         SPEAKER_ENABLED
         # VGA
         VGA_GPIO_FIRST=6
@@ -126,7 +137,7 @@ target_compile_definitions(dendy PRIVATE
         NES_GPIO_LAT=15
 
         #AUDIO
-        AUDIO_PWM_PIN=26
+        #AUDIO_PWM_PIN=26
         #AUDIO_CS4334
 
         # Other
@@ -136,7 +147,7 @@ target_compile_definitions(dendy PRIVATE
         # internal games
         #BUILD_IN_GAMES
 
-        TFT
+        #TFT
 )
 
-pico_add_extra_outputs(dendy)
+pico_add_extra_outputs(${PROJECT_NAME})

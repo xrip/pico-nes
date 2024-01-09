@@ -7,6 +7,9 @@
 #define beginVGA_PIN (6)
 #define VGA_DMA_IRQ (DMA_IRQ_0)
 
+#define TEXTMODE_COLS 80
+#define TEXTMODE_ROWS 30
+
 enum graphics_mode_t {
     TEXTMODE_40x30,
     TEXTMODE_80x30,
