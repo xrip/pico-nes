@@ -31,7 +31,7 @@
 #define TEXTMODE_COLS 53
 #define TEXTMODE_ROWS 30
 
-#define RGB888(r, g, b) (((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)
+#define RGB888(r, g, b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3))
 
 enum graphics_mode_t {
     TEXTMODE_40x30,
