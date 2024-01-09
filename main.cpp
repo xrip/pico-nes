@@ -711,8 +711,8 @@ void filebrowser_loadfile(char* pathname, bool built_in) {
 #endif
         flash_range_erase2(addr, 4096);
         flash_range_program2(addr, reinterpret_cast<const uint8_t *>(pathname), 256);
-        size_t bufsize = 4096;
-        BYTE* buffer = (BYTE *)get_shared_ram()+4096;
+        size_t bufsize = 8192;
+        BYTE* buffer = (BYTE *)get_shared_ram()+8192;
         addr = (uint32_t)rom;
         while (true) {
             result = !built_in

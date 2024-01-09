@@ -217,13 +217,10 @@ enum graphics_mode_t graphics_set_mode(enum graphics_mode_t mode) {
 
     graphics_mode = mode;
 
-    if(TEXTMODE_80x30 == mode) {
-        memset(graphics_buffer, 0, graphics_buffer_height * graphics_buffer_width);
-    }
+    memset(graphics_buffer, 0, graphics_buffer_height * graphics_buffer_width);
 
     clrScr(0);
 
-    sleep_ms(100);
     return graphics_mode;
 }
 
@@ -243,9 +240,6 @@ void graphics_set_offset(int x, int y) {
 }
 
 void clrScr(uint8_t color) {
-    if (TEXTMODE_80x30 == graphics_mode) {
-        memset(text_buffer, 0, TEXTMODE_COLS * TEXTMODE_ROWS * 2);
-    }
     lcd_set_window(pio, sm, 0, 0,SCREEN_WIDTH,SCREEN_HEIGHT);
     st7789_start_pixels(pio, sm);
     uint32_t i = SCREEN_WIDTH * SCREEN_HEIGHT;
