@@ -226,34 +226,80 @@ const int __not_in_flash_func(NesPalette888)[] = {
     /**/
     /* Matthew Conte's Palette */
     /**/
-    0x808080, 0x0000bb, 0x3700bf, 0x8400a6,
-    0xbb006a, 0xb7001e, 0xb30000, 0x912600,
-    0x7b2b00, 0x003e00, 0x00480d, 0x003c22,
-    0x002f66, 0x000000, 0x050505, 0x050505,
-
-    0xc8c8c8, 0x0059ff, 0x443cff, 0xb733cc,
-    0xff33aa, 0xff375e, 0xff371a, 0xd54b00,
-    0xc46200, 0x3c7b00, 0x1e8415, 0x009566,
-    0x0084c4, 0x111111, 0x090909, 0x090909,
-
-    0xffffff, 0x0095ff, 0x6f84ff, 0xd56fff,
-    0xff77cc, 0xff6f99, 0xff7b59, 0xff915f,
-    0xffa233, 0xa6bf00, 0x51d96a, 0x4dd5ae,
-    0x00d9ff, 0x666666, 0x0d0d0d, 0x0d0d0d,
-
-    0xffffff, 0x84bfff, 0xbbbbff, 0xd0bbff,
-    0xffbfea, 0xffbfcc, 0xffc4b7, 0xffccae,
-    0xffd9a2, 0xcce199, 0xaeeeb7, 0xaaf7ee,
-    0xb3eeff, 0xdddddd, 0x111111, 0x111111,
+    RGB888(0x80, 0x80, 0x80),
+    RGB888(0x00, 0x00, 0xbb),
+    RGB888(0x37, 0x00, 0xbf),
+    RGB888(0x84, 0x00, 0xa6),
+    RGB888(0xbb, 0x00, 0x6a),
+    RGB888(0xb7, 0x00, 0x1e),
+    RGB888(0xb3, 0x00, 0x00),
+    RGB888(0x91, 0x26, 0x00),
+    RGB888(0x7b, 0x2b, 0x00),
+    RGB888(0x00, 0x3e, 0x00),
+    RGB888(0x00, 0x48, 0x0d),
+    RGB888(0x00, 0x3c, 0x22),
+    RGB888(0x00, 0x2f, 0x66),
+    RGB888(0x00, 0x00, 0x00),
+    RGB888(0x05, 0x05, 0x05),
+    RGB888(0x05, 0x05, 0x05),
+    RGB888(0xc8, 0xc8, 0xc8),
+    RGB888(0x00, 0x59, 0xff),
+    RGB888(0x44, 0x3c, 0xff),
+    RGB888(0xb7, 0x33, 0xcc),
+    RGB888(0xff, 0x33, 0xaa),
+    RGB888(0xff, 0x37, 0x5e),
+    RGB888(0xff, 0x37, 0x1a),
+    RGB888(0xd5, 0x4b, 0x00),
+    RGB888(0xc4, 0x62, 0x00),
+    RGB888(0x3c, 0x7b, 0x00),
+    RGB888(0x1e, 0x84, 0x15),
+    RGB888(0x00, 0x95, 0x66),
+    RGB888(0x00, 0x84, 0xc4),
+    RGB888(0x11, 0x11, 0x11),
+    RGB888(0x09, 0x09, 0x09),
+    RGB888(0x09, 0x09, 0x09),
+    RGB888(0xff, 0xff, 0xff),
+    RGB888(0x00, 0x95, 0xff),
+    RGB888(0x6f, 0x84, 0xff),
+    RGB888(0xd5, 0x6f, 0xff),
+    RGB888(0xff, 0x77, 0xcc),
+    RGB888(0xff, 0x6f, 0x99),
+    RGB888(0xff, 0x7b, 0x59),
+    RGB888(0xff, 0x91, 0x5f),
+    RGB888(0xff, 0xa2, 0x33),
+    RGB888(0xa6, 0xbf, 0x00),
+    RGB888(0x51, 0xd9, 0x6a),
+    RGB888(0x4d, 0xd5, 0xae),
+    RGB888(0x00, 0xd9, 0xff),
+    RGB888(0x66, 0x66, 0x66),
+    RGB888(0x0d, 0x0d, 0x0d),
+    RGB888(0x0d, 0x0d, 0x0d),
+    RGB888(0xff, 0xff, 0xff),
+    RGB888(0x84, 0xbf, 0xff),
+    RGB888(0xbb, 0xbb, 0xff),
+    RGB888(0xd0, 0xbb, 0xff),
+    RGB888(0xff, 0xbf, 0xea),
+    RGB888(0xff, 0xbf, 0xcc),
+    RGB888(0xff, 0xc4, 0xb7),
+    RGB888(0xff, 0xcc, 0xae),
+    RGB888(0xff, 0xd9, 0xa2),
+    RGB888(0xcc, 0xe1, 0x99),
+    RGB888(0xae, 0xee, 0xb7),
+    RGB888(0xaa, 0xf7, 0xee),
+    RGB888(0xb3, 0xee, 0xff),
+    RGB888(0xdd, 0xdd, 0xdd),
+    RGB888(0x11, 0x11, 0x11),
+    RGB888(0x11, 0x11, 0x11),
     /**/
 };
 
 void updatePalette(PALETTES palette) {
     for (uint8_t i = 0; i < 64; i++) {
         if (palette == RGB333) {
-            graphics_set_palette(i, NesPalette888[i+(64*settings.nes_palette)]);
-        } else {
-            uint32_t c = NesPalette888[i+(64*settings.nes_palette)];
+            graphics_set_palette(i, NesPalette888[i + (64 * settings.nes_palette)]);
+        }
+        else {
+            uint32_t c = NesPalette888[i + (64 * settings.nes_palette)];
             uint8_t r = (c >> (16 + 6)) & 0x3;
             uint8_t g = (c >> (8 + 6)) & 0x3;
             uint8_t b = (c >> (0 + 6)) & 0x3;
@@ -538,9 +584,9 @@ void __time_critical_func(render_core)() {
     multicore_lockout_victim_init();
 #endif
     graphics_init();
-    auto *buffer = &SCREEN[0][0];
+    auto* buffer = &SCREEN[0][0];
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
-    uint8_t *text_buf = buffer;
+    uint8_t* text_buf = buffer;
     graphics_set_textbuffer(text_buf);
     graphics_set_bgcolor(1);
     graphics_set_offset(32, 0);
@@ -551,7 +597,7 @@ void __time_critical_func(render_core)() {
     // 60 FPS loop
     uint64_t tick = time_us_64();
     uint64_t last_renderer_tick = tick;
-    while(true) {
+    while (true) {
         if (tick >= last_renderer_tick + 16666) {
             refresh_lcd();
             last_renderer_tick = tick;
@@ -680,7 +726,7 @@ char* get_rom_filename() {
 void filebrowser_loadfile(char* pathname, bool built_in) {
     graphics_set_mode(TEXTMODE_80x30);
     clrScr(0);
-    draw_text("LOADING...", 0,0, 15, 0);
+    draw_text("LOADING...", 0, 0, 15, 0);
     if (strcmp((char *)rom_filename, pathname) == 0) {
         logMsg((char *)"Launching last rom");
         return;
@@ -698,7 +744,7 @@ void filebrowser_loadfile(char* pathname, bool built_in) {
         flash_range_erase2(addr, 4096);
         flash_range_program2(addr, reinterpret_cast<const uint8_t *>(pathname), 256);
         size_t bufsize = 8192;
-        BYTE* buffer = (BYTE *)get_shared_ram()+8192;
+        BYTE* buffer = (BYTE *)get_shared_ram() + 8192;
         addr = (uint32_t)rom;
         while (true) {
             result = !built_in
@@ -803,7 +849,7 @@ void filebrowser(
         int total_files = 0;
         memset(fileItems, 0, maxfiles * sizeof(FileItem));
         snprintf(tmp, TEXTMODE_COLS, !built_in ? " SDCARD:\\%s " : " DEFAULT:\\%s ", basepath);
-        draw_window(tmp, 0, 0, TEXTMODE_COLS, TEXTMODE_ROWS-1);
+        draw_window(tmp, 0, 0, TEXTMODE_COLS, TEXTMODE_ROWS - 1);
         memset(tmp, ' ', TEXTMODE_COLS);
 #ifndef TFT
         draw_text(tmp, 0, 29, 0, 0);
@@ -960,19 +1006,20 @@ void filebrowser(
                 if (i == current_item) {
                     color = 0;
                     bg_color = 3;
-                    memset(tmp, 0xCD, TEXTMODE_COLS-2);
-                    tmp[TEXTMODE_COLS-2] = '\0';
+                    memset(tmp, 0xCD, TEXTMODE_COLS - 2);
+                    tmp[TEXTMODE_COLS - 2] = '\0';
                     draw_text(tmp, 1, per_page + 1, 11, 1);
-                    snprintf(tmp, TEXTMODE_COLS-2, " Size: %iKb, File %lu of %i ", item.size / 1024, offset + i + 1, total_files);
+                    snprintf(tmp, TEXTMODE_COLS - 2, " Size: %iKb, File %lu of %i ", item.size / 1024, offset + i + 1,
+                             total_files);
                     draw_text(tmp, 2, per_page + 1, 14, 3);
                 }
                 auto len = strlen(item.filename);
                 color = item.is_directory ? 15 : color;
                 color = item.is_executable ? 10 : color;
                 color = strstr((char *)rom_filename, item.filename) != nullptr ? 13 : color;
-                memset(tmp, ' ', TEXTMODE_COLS-2);
-                tmp[TEXTMODE_COLS-2] = '\0';
-                memcpy(&tmp, item.filename, len < TEXTMODE_COLS-2 ? len : TEXTMODE_COLS-2);
+                memset(tmp, ' ', TEXTMODE_COLS - 2);
+                tmp[TEXTMODE_COLS - 2] = '\0';
+                memcpy(&tmp, item.filename, len < TEXTMODE_COLS - 2 ? len : TEXTMODE_COLS - 2);
                 draw_text(tmp, 1, i + 1, color, bg_color);
             }
             sleep_ms(100);
@@ -1063,7 +1110,8 @@ int menu() {
     bool exit = false;
     graphics_set_mode(TEXTMODE_80x30);
     char footer[TEXTMODE_COLS];
-    snprintf(footer, TEXTMODE_COLS, ":: %s %s %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__, __TIME__);
+    snprintf(footer, TEXTMODE_COLS, ":: %s %s %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__,
+             __TIME__);
     draw_text(footer, 0, 1, 11, 1);
     int current_item = 0;
     while (!exit) {
@@ -1083,7 +1131,7 @@ int menu() {
         }
         for (int i = 0; i < MENU_ITEMS_NUMBER; i++) {
             uint8_t y = i + ((TEXTMODE_ROWS - MENU_ITEMS_NUMBER) >> 1);
-            uint8_t x = TEXTMODE_COLS/2 - 10;
+            uint8_t x = TEXTMODE_COLS / 2 - 10;
             uint8_t color = 0xFF;
             uint8_t bg_color = 0x00;
             if (current_item == i) {
@@ -1148,13 +1196,13 @@ int menu() {
                     snprintf(result, TEXTMODE_COLS, item->text, *(uint8_t *)item->value);
                     break;
                 case ARRAY:
-                    snprintf(result,  TEXTMODE_COLS, item->text, item->value_list[*(uint8_t *)item->value]);
+                    snprintf(result, TEXTMODE_COLS, item->text, item->value_list[*(uint8_t *)item->value]);
                     break;
                 case TEXT:
-                    snprintf(result, TEXTMODE_COLS,  item->text, item->value);
+                    snprintf(result, TEXTMODE_COLS, item->text, item->value);
                     break;
                 default:
-                    snprintf(result,  TEXTMODE_COLS, "%s", item->text);
+                    snprintf(result, TEXTMODE_COLS, "%s", item->text);
             }
             draw_text(result, x, y, color, bg_color);
         }
