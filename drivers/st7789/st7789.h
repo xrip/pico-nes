@@ -48,7 +48,7 @@ enum graphics_mode_t {
     VGA_320x200x256x4, // planar VGA
 };
 
-const uint16_t textmode_palette[16] = {
+const uint16_t __scratch_y("tft_textmode_palette") textmode_palette[16] = {
     //R, G, B
     RGB888(0x00,0x00, 0x00), //black
     RGB888(0x00,0x00, 0xC4), //blue
