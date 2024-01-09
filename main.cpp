@@ -534,7 +534,9 @@ void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
 
 /* Renderer loop on Pico's second core */
 void __time_critical_func(render_core)() {
-
+#ifdef TFT
+    multicore_lockout_victim_init();
+#endif
     graphics_init();
     auto *buffer = &SCREEN[0][0];
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
@@ -690,22 +692,27 @@ char* get_rom_filename() {
 }
 
 void filebrowser_loadfile(char* pathname, bool built_in) {
-    graphics_set_mode(VGA_320x200x256);
+    graphics_set_mode(TEXTMODE_80x30);
+    clrScr(0);
+    draw_text("LOADING...", 0,0, 15, 0);
     if (strcmp((char *)rom_filename, pathname) == 0) {
         logMsg((char *)"Launching last rom");
         return;
     }
-    restore_clean_fat(); // in case we write into space for flash drive, it is required to remove old FAT info
+    //restore_clean_fat(); // in case we write into space for flash drive, it is required to remove old FAT info
     FIL file;
     UINT bytesRead;
     auto addr = (uint32_t)rom_filename;
 
     FRESULT result = built_in ? in_open((FILE_LZW *)&file, pathname) : f_open(&file, pathname, FA_READ);
     if (result == FR_OK) {
+#ifdef TFT
+        multicore_lockout_start_blocking();
+#endif
         flash_range_erase2(addr, 4096);
         flash_range_program2(addr, reinterpret_cast<const uint8_t *>(pathname), 256);
-        size_t bufsize = get_shared_ram_size();
-        BYTE* buffer = (BYTE *)get_shared_ram();
+        size_t bufsize = 4096;
+        BYTE* buffer = (BYTE *)get_shared_ram()+4096;
         addr = (uint32_t)rom;
         while (true) {
             result = !built_in
@@ -728,6 +735,9 @@ void filebrowser_loadfile(char* pathname, bool built_in) {
         if (pIs) { delete pIs; pIs = 0; }
 #endif
         if (!built_in) f_close(&file);
+#ifdef TFT
+        multicore_lockout_end_blocking();
+#endif
     }
     // FIXME! Починить графический драйвер при загрузке
     watchdog_enable(100, true);
@@ -779,7 +789,7 @@ void filebrowser(
     strcpy(basepath, path);
     constexpr int per_page = 27;
     auto* fileItems = reinterpret_cast<FileItem *>(&SCREEN[0][0] + (1024 * 6));
-    constexpr int maxfiles = (sizeof(SCREEN) - (1024 * 6)) / sizeof(FileItem);
+    constexpr int maxfiles = (sizeof(SCREEN) - (1024 * 6)) / sizeof(FileItem) - 10;
     DIR dir, dir1;
     FILINFO fileInfo;
     FRESULT result = f_mount(&fs, "", 1);
@@ -893,7 +903,7 @@ void filebrowser(
             }
             if (keyboard_bits.select || gamepad1_bits.select) {
                 gpio_put(PICO_DEFAULT_LED_PIN, true);
-                return;
+                watchdog_enable(100, true);
             }
             if (keyboard_bits.a || gamepad1_bits.a) {
                 clrScr(1);
@@ -1062,7 +1072,6 @@ const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
 };
 
 int menu() {
-    static menu_type_e last_menu_type = menu_type_e::ROM_SELECT;
     bool exit = false;
     graphics_set_mode(TEXTMODE_80x30);
     char footer[TEXTMODE_COLS];
@@ -1095,7 +1104,6 @@ int menu() {
             }
             const MenuItem* item = &menu_items[i];
             if (i == current_item) {
-                last_menu_type = item->type;
                 switch (item->type) {
                     case INT:
                     case ARRAY:
@@ -1128,10 +1136,14 @@ int menu() {
                     case RESET:
                         if (nespad_state & DPAD_START || keyboard_bits.start)
                             watchdog_enable(100, true);
+                        break;
+
                     case ROM_SELECT:
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
-                            return ROM_SELECT;
+                            exit = true;
+                            return InfoNES_Menu();
                         }
+                        break;
                     case USB_DEVICE:
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
                             clrScr(1);
@@ -1176,8 +1188,7 @@ int InfoNES_LoadFrame() {
     nespad_tick();
 #endif
     if ((keyboard_bits.start || gamepad1_bits.start) && (keyboard_bits.select || gamepad1_bits.select)) {
-        auto selected = menu();
-        if (selected == ROM_SELECT) {
+        if (menu() == ROM_SELECT) {
             return -1;
         }
         //if(selected == USB_DEVICE) {
@@ -1211,10 +1222,6 @@ int main() {
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
     load_config();
-
-    // graphics_set_mode(TEXTMODE_80x30);
-    // draw_text("HELLO WORLD", 0,0,1,1);
-    // while(1);
 
 #ifndef BUILD_IN_GAMES
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom)) && f_mount(&fs, "", 1) == FR_OK) {
