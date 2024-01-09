@@ -21,6 +21,10 @@
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
 #define SERIAL_CLK_DIV 2.f
+#define MADCTL_BGR_PIXEL_ORDER (1<<3)
+#define MADCTL_ROW_COLUMN_EXCHANGE (1<<5)
+#define MADCTL_COLUMN_ADDRESS_ORDER_SWAP (1<<6)
+
 
 #define CHECK_BIT(var, pos) (((var)>>(pos)) & 1)
 
@@ -37,10 +41,6 @@ static int graphics_buffer_shift_x = 0;
 static int graphics_buffer_shift_y = 0;
 
 enum graphics_mode_t graphics_mode = VGA_320x200x256;
-
-#define MADCTL_BGR_PIXEL_ORDER (1<<3)
-#define MADCTL_ROW_COLUMN_EXCHANGE (1<<5)
-#define MADCTL_COLUMN_ADDRESS_ORDER_SWAP (1<<6)
 
 static const uint8_t init_seq[] = {
     1, 20, 0x01, // Software reset
