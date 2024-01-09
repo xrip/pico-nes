@@ -14,6 +14,7 @@
 #include "st7789.h"
 
 #include <string.h>
+#include <pico/multicore.h>
 
 #include "st7789.pio.h"
 #include "fnt6x8.h"
@@ -30,7 +31,7 @@
 
 static uint sm = 0;
 static PIO pio = pio0;
-uint16_t __scratch_y("tft_palette") palette[256] = { 0 };
+uint16_t __scratch_y("tft_palette") palette[256];
 
 static uint8_t* text_buffer = NULL;
 static uint8_t* graphics_buffer = NULL;
@@ -61,9 +62,9 @@ static const uint8_t init_seq[] = {
 // Note the delays have been shortened a little
 
 static inline void lcd_set_dc_cs(const bool dc, const bool cs) {
-    sleep_us(1);
+    sleep_us(5);
     gpio_put_masked((1u << PIN_DC) | (1u << PIN_CS), !!dc << PIN_DC | !!cs << PIN_CS);
-    sleep_us(1);
+    sleep_us(5);
 }
 
 static inline void lcd_write_cmd(const uint8_t* cmd, size_t count) {
@@ -128,19 +129,16 @@ void graphics_init() {
     gpio_put(PIN_RESET, 1);
     lcd_init(init_seq);
     gpio_put(PIN_BL, 1);
-    clrScr(0);
+    for (int i = 0; i < sizeof palette; i++ ) {
+        graphics_set_palette(i, 0x0000);
+    }
 }
 
-enum graphics_mode_t graphics_set_mode(const enum graphics_mode_t mode) {
-    if (mode == graphics_mode) return graphics_mode;
-
-    graphics_mode = mode;
-
-    memset(graphics_buffer, 0, graphics_buffer_height * graphics_buffer_width);
-
+void inline graphics_set_mode(const enum graphics_mode_t mode) {
+    graphics_mode = -1;
+    sleep_ms(16);
     clrScr(0);
-
-    return graphics_mode;
+    graphics_mode = mode;
 }
 
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
@@ -159,12 +157,14 @@ void graphics_set_offset(const int x, const int y) {
 }
 
 void clrScr(const uint8_t color) {
+    memset(&graphics_buffer[0], 0, graphics_buffer_height * graphics_buffer_width);
     lcd_set_window(0, 0,SCREEN_WIDTH,SCREEN_HEIGHT);
     start_pixels();
     uint32_t i = SCREEN_WIDTH * SCREEN_HEIGHT;
     while (i--) {
-        st7789_lcd_put16(pio, sm, color);
+        st7789_lcd_put16(pio, sm, 0x0000);
     }
+    st7789_lcd_wait_idle(pio, sm);
 }
 
 void draw_text(char* string, uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
@@ -202,8 +202,7 @@ void __inline __scratch_y("refresh_lcd") refresh_lcd() {
     switch (graphics_mode) {
         case TEXTMODE_80x30:
             lcd_set_window(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-            start_pixels(pio, sm);
-
+            start_pixels();
             for (int y = 0; y < SCREEN_HEIGHT; y++) {
                 // TODO add auto adjustable padding?
                 st7789_lcd_put16(pio, sm, 0x0000);
@@ -223,22 +222,19 @@ void __inline __scratch_y("refresh_lcd") refresh_lcd() {
                 st7789_lcd_put16(pio, sm, 0x0000);
             }
             break;
-        case VGA_320x200x256:
-        default: {
+        case VGA_320x200x256: {
             const uint8_t* bitmap = graphics_buffer;
-
             lcd_set_window(graphics_buffer_shift_x, graphics_buffer_shift_y, graphics_buffer_width,
-                           graphics_buffer_height);
-            start_pixels();
-
+                       graphics_buffer_height);
             uint32_t i = graphics_buffer_width * graphics_buffer_height;
-            while (i--) {
+            start_pixels();
+            while (--i) {
                 st7789_lcd_put16(pio, sm, palette[*bitmap++]);
             }
         }
     }
 
-    //st7789_lcd_wait_idle(pio, sm);
+    // st7789_lcd_wait_idle(pio, sm);
 }
 
 

@@ -572,17 +572,15 @@ void __not_in_flash_func(InfoNES_PreDrawLine)(int line) {
 #define X2(a) (a | (a << 8))
 
 void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
-    for (int x = 0; x < NES_DISP_WIDTH; x++) SCREEN[line][x] = linebuffer[x];
+    for (int x = 0; x < NES_DISP_WIDTH; x++) SCREEN[line][x] = (uint8_t)linebuffer[x];
     // if (settings.show_fps && line < 16) draw_fps(fps_text, line, 255);
 }
 
 #define CHECK_BIT(var, pos) (((var)>>(pos)) & 1)
 
 /* Renderer loop on Pico's second core */
-void __time_critical_func(render_core)() {
-#ifdef TFT
-    multicore_lockout_victim_init();
-#endif
+void __scratch_y("render") render_core() {
+
     graphics_init();
     auto* buffer = &SCREEN[0][0];
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
@@ -594,6 +592,7 @@ void __time_critical_func(render_core)() {
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
     sem_acquire_blocking(&vga_start_semaphore);
 #ifdef TFT
+    multicore_lockout_victim_init();
     // 60 FPS loop
     uint64_t tick = time_us_64();
     uint64_t last_renderer_tick = tick;
@@ -605,6 +604,8 @@ void __time_critical_func(render_core)() {
         tick = time_us_64();
         tight_loop_contents();
     }
+
+    __unreachable();
 #endif
 }
 
@@ -724,9 +725,8 @@ char* get_rom_filename() {
 }
 
 void filebrowser_loadfile(char* pathname, bool built_in) {
-    graphics_set_mode(TEXTMODE_80x30);
-    clrScr(0);
     draw_text("LOADING...", 0, 0, 15, 0);
+    sleep_ms(32);
     if (strcmp((char *)rom_filename, pathname) == 0) {
         logMsg((char *)"Launching last rom");
         return;
@@ -739,12 +739,13 @@ void filebrowser_loadfile(char* pathname, bool built_in) {
     FRESULT result = built_in ? in_open((FILE_LZW *)&file, pathname) : f_open(&file, pathname, FA_READ);
     if (result == FR_OK) {
 #ifdef TFT
+
         multicore_lockout_start_blocking();
 #endif
         flash_range_erase2(addr, 4096);
         flash_range_program2(addr, reinterpret_cast<const uint8_t *>(pathname), 256);
         size_t bufsize = 8192;
-        BYTE* buffer = (BYTE *)get_shared_ram() + 8192;
+        BYTE* buffer = (BYTE *)get_shared_ram();
         addr = (uint32_t)rom;
         while (true) {
             result = !built_in
@@ -813,17 +814,15 @@ void filebrowser(
     char* path,
     char* executable
 ) {
-    memset(SCREEN, 0, sizeof SCREEN);
     graphics_set_mode(TEXTMODE_80x30);
-
+    sleep_ms(250);
     bool debounce = true;
-    clrScr(1);
     char basepath[256];
     char tmp[TEXTMODE_COLS];
     strcpy(basepath, path);
     constexpr int per_page = 27;
-    auto* fileItems = reinterpret_cast<FileItem *>(&SCREEN[0][0] + (1024 * 6));
-    constexpr int maxfiles = (sizeof(SCREEN) - (1024 * 6)) / sizeof(FileItem) - 10;
+    auto* fileItems = reinterpret_cast<FileItem *>(&SCREEN[0][0] + (1024 * 8));
+    const int maxfiles = 500;
     DIR dir, dir1;
     FILINFO fileInfo;
     FRESULT result = f_mount(&fs, "", 1);
@@ -1248,6 +1247,8 @@ int main() {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
+
+    memset(&SCREEN[0][0],0, sizeof SCREEN);
 #if USE_PS2_KBD
     ps2kbd.init_gpio();
 #endif
