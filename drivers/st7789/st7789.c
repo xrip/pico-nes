@@ -198,8 +198,7 @@ void draw_window(char* title, uint32_t x, uint32_t y, uint32_t width, uint32_t h
     }
 }
 
-// TODO: Tick 60 times per second
-void __scratch_y("refresh_lcd") refresh_lcd() {
+void __inline __scratch_y("refresh_lcd") refresh_lcd() {
     switch (graphics_mode) {
         case TEXTMODE_80x30:
             lcd_set_window(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);

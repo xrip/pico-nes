@@ -548,8 +548,16 @@ void __time_critical_func(render_core)() {
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
     sem_acquire_blocking(&vga_start_semaphore);
 #ifdef TFT
-    while (true) {
-        refresh_lcd();
+    // 60 FPS loop
+    uint64_t tick = time_us_64();
+    uint64_t last_renderer_tick = tick;
+    while(true) {
+        if (tick >= last_renderer_tick + 16666) {
+            refresh_lcd();
+            last_renderer_tick = tick;
+        }
+        tick = time_us_64();
+        tight_loop_contents();
     }
 #endif
 }
