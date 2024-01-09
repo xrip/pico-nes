@@ -46,6 +46,11 @@ static inline void st7789_lcd_put(PIO pio, uint sm, uint8_t x) {
     *(volatile uint8_t*)&pio->txf[sm] = x;
 }
 
+
+static inline void st7789_lcd_put16(PIO pio, uint sm, uint16_t x) {
+    st7789_lcd_put(pio,sm, x >> 8);
+    st7789_lcd_put(pio,sm, x & 0xFF);
+}
 // SM is done when it stalls on an empty FIFO
 
 static inline void st7789_lcd_wait_idle(PIO pio, uint sm) {
