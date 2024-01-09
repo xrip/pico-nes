@@ -44,7 +44,8 @@ void graphics_set_bgcolor(uint32_t color888);
 
 void clrScr(uint8_t color);
 
-void draw_text(char *string, int x, int y, uint8_t color, uint8_t bgcolor);
+void draw_text(char *string, uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor);
+void draw_window(char* title, uint32_t x, uint32_t y, uint32_t width, uint32_t height);
 
 void logMsg(char * msg);
 

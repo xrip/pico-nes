@@ -501,26 +501,36 @@ void clrScr(uint8_t color) {
     current_line = start_debug_line;
 };
 
-void draw_text(char* string, int x, int y, uint8_t color, uint8_t bgcolor) {
-  /*if ((y < 0) | (y >= text_buffer_height)) return;
-    if (x >= text_buffer_width) return;
-    int len = strlen(string);
-    if (x < 0) {
-        if ((len + x) > 0) {
-            string += -x;
-            x = 0;
-        }
-        else {
-            return;
-        }
-    }*/
+void draw_text(char* string, uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
     uint8_t* t_buf = text_buffer + text_buffer_width * 2 * y + 2 * x;
     for (int xi = x; xi < text_buffer_width * 2; xi++) {
         if (!(*string)) break;
         *t_buf++ = *string++;
         *t_buf++ = (bgcolor << 4) | (color & 0xF);
     }
-};
+}
+
+void draw_window(char* title, uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+    char textline[TEXTMODE_COLS];
+    width--;
+    height--;
+    // Рисуем рамки
+    // ═══
+    memset(textline, 0xCD, width);
+    // ╔ ╗ 188 ╝ 200 ╚
+    textline[0] = 0xC9;
+    textline[width] = 0xBB;
+    draw_text(textline, x, y, 11, 1);
+    draw_text(title, (width - strlen(title)) >> 1, 0, 0, 3);
+    textline[0] = 0xC8;
+    textline[width] = 0xBC;
+    draw_text(textline, x, height - y, 11, 1);
+    memset(textline, ' ', width);
+    textline[0] = textline[width] = 0xBA;
+    for (int i = 1; i < height; i++) {
+        draw_text(textline, x, i, 11, 1);
+    }
+}
 
 char* get_free_vram_ptr() {
     return text_buffer + text_buffer_width * 2 * text_buffer_height;

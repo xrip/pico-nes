@@ -574,28 +574,6 @@ int compareFileItems(const void* a, const void* b) {
 }
 
 
-void __inline draw_window(char* title, int x, int y, int width, int height) {
-    char textline[TEXTMODE_COLS];
-    width--;
-    height--;
-    // Рисуем рамки
-    // ═══
-    memset(textline, 0xCD, width);
-    // ╔ ╗ 188 ╝ 200 ╚
-    textline[0] = 0xC9;
-    textline[width] = 0xBB;
-    draw_text(textline, x, y, 11, 1);
-    draw_text(title, (width - strlen(title)) >> 1, 0, 0, 3);
-    textline[0] = 0xC8;
-    textline[width] = 0xBC;
-    draw_text(textline, x, height - y, 11, 1);
-    memset(textline, ' ', width);
-    textline[0] = textline[width] = 0xBA;
-    for (int i = 1; i < height; i++) {
-        draw_text(textline, x, i, 11, 1);
-    }
-}
-
 typedef struct {
     DWORD compressed;
     int remainsDecompressed;
@@ -781,7 +759,9 @@ void filebrowser(
     char* path,
     char* executable
 ) {
+    memset(SCREEN, 0, sizeof SCREEN);
     graphics_set_mode(TEXTMODE_80x30);
+
     bool debounce = true;
     clrScr(1);
     char basepath[256];
