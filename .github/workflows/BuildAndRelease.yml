@@ -79,9 +79,9 @@ jobs:
                  export PICO_SDK_PATH=$HOME/pico-sdk && \
                  mkdir build && cd build && \
                  cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build . &&\
-                 cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DI2S_SOUND=ON.. && cmake --build . &&\
+                 cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DI2S_SOUND=ON .. && cmake --build . &&\
                  cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=ON .. && cmake --build . &&\
-                 cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=ON -DILI9341=ON.. && cmake --build . &&\
+                 cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=ON -DILI9341=ON .. && cmake --build . &&\
                  echo done
 
           - name: Create release
