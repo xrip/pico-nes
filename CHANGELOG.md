@@ -1,3 +1,8 @@
+# v2.1.0
+- I2S Audio support PCM5102 
+- TFT Displays support: ILI9341/ST7789
+- Fixes and optimiztions
+
 # v2.0.0
 
 **Release by @DnCraptor**
