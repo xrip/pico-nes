@@ -49,7 +49,7 @@ static const uint8_t init_seq[] = {
     2, 2, 0x3a, 0x55, // Set colour mode to 16 bit
 #ifdef ILI9341
     // ILI9341
-    //2, 0, 0x36, MADCTL_ROW_COLUMN_EXCHANGE | MADCTL_BGR_PIXEL_ORDER, // Set MADCTL
+    2, 0, 0x36, MADCTL_ROW_COLUMN_EXCHANGE | MADCTL_BGR_PIXEL_ORDER, // Set MADCTL
 #else
     // ST7789
     2, 0, 0x36, MADCTL_COLUMN_ADDRESS_ORDER_SWAP | MADCTL_ROW_COLUMN_EXCHANGE, // Set MADCTL
