@@ -29,7 +29,8 @@ jobs:
             run: |
                  sudo apt update && \
                  sudo apt install -y git python3 && \
-                 sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential libusb-1.0-0-dev
+                 sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi build-essential libusb-1.0-0-dev && \
+                 sudo apt install -y ninja-build
                  
           - name: Check out this repository
             uses: actions/checkout@v3
@@ -70,22 +71,25 @@ jobs:
                  cd picotool/ && \
                  mkdir build && \
                  cd build && \
-                 cmake .. && \
-                 make
+                 cmake -G Ninja .. && \
+                 cmake --build .
 
           - name: Build the project
             run: |
                  export PICO_SDK_PATH=$HOME/pico-sdk && \
                  mkdir build && cd build && \
-                 cmake -DCMAKE_BUILD_TYPE=MinSizeRel .. && \
-                 make
+                 cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build . &&\
+                 cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DI2S_SOUND=ON.. && cmake --build . &&\
+                 cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=ON .. && cmake --build . &&\
+                 cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=ON -DILI9341=ON.. && cmake --build . &&\
+                 echo done
 
           - name: Create release
             uses: softprops/action-gh-release@v1
             if: startsWith(github.ref, 'refs/tags/')
             with:
                 files: |
-                       bin/MinSizeRel/${{ env.APP_NAME }}.uf2
+                       bin/MinSizeRel/**.uf2
 
                 body_path: CHANGELOG.md
           

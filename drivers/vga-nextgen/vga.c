@@ -502,11 +502,11 @@ void clrScr(uint8_t color) {
 };
 
 void draw_text(char* string, uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
-    uint8_t* t_buf = text_buffer + text_buffer_width * 2 * y + 2 * x;
-    for (int xi = x; xi < text_buffer_width * 2; xi++) {
-        if (!(*string)) break;
+    uint8_t* t_buf = text_buffer + TEXTMODE_COLS * 2 * y + 2 * x;
+    for (int xi = TEXTMODE_COLS * 2; xi--;) {
+        if (!*string) break;
         *t_buf++ = *string++;
-        *t_buf++ = (bgcolor << 4) | (color & 0xF);
+        *t_buf++ = bgcolor << 4 | color & 0xF;
     }
 }
 

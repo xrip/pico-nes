@@ -2,9 +2,11 @@ cmake_minimum_required(VERSION 3.13)
 include(pico_sdk_import.cmake)
 
 project(dendy C CXX ASM)
+SET(BUILD_NAME "${PROJECT_NAME}")
 
 option(I2S_SOUND "Enable I2S sound" OFF)
 option(TFT "Enable TFT display" OFF)
+option(ILI9341 "Enable TFT ILI9341 display" OFF)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -63,13 +65,27 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 IF(TFT)
     target_link_libraries(${PROJECT_NAME} PRIVATE st7789)
     target_compile_definitions(${PROJECT_NAME} PRIVATE TFT)
+    SET(BUILD_NAME "${BUILD_NAME}-TFT")
+    IF(ILI9341)
+        SET(BUILD_NAME "${BUILD_NAME}-ILI9341")
+        target_compile_definitions(${PROJECT_NAME} PRIVATE ILI9341)
+    ELSE()
+        SET(BUILD_NAME "${BUILD_NAME}-ST7789")
+    ENDIF()
 ELSE()
     target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)
 ENDIF()
 
 IF(NOT I2S_SOUND)
     target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_PWM_PIN=26)
+ELSE()
+    SET(BUILD_NAME "${BUILD_NAME}-I2S-PCM5102")
 ENDIF()
+
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
+
+# Enable compiler and linker garbage collect unused code/data sections
+#add_link_options(-Wl,--gc-sections)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
         infones
