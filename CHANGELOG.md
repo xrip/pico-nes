@@ -1,3 +1,13 @@
+# v2.1.0b
+- TFT pins updated:
+```
+  TFT_CS_PIN (6)
+  TFT_RST_PIN (8)
+  TFT_DC_PIN (10)
+  TFT_DATA_PIN (12)
+  TFT_CLK_PIN (13)
+  TFT_LED_PIN (9)
+```
 # v2.1.0
 - I2S Audio support PCM5102 CS4334
 - TFT Displays support: ILI9341 ST7789
