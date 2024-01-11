@@ -66,7 +66,7 @@ static const uint8_t init_seq[] = {
 
 static inline void lcd_set_dc_cs(const bool dc, const bool cs) {
     sleep_us(5);
-    gpio_put_masked((1u << PIN_DC) | (1u << PIN_CS), !!dc << PIN_DC | !!cs << PIN_CS);
+    gpio_put_masked((1u << TFT_DC_PIN) | (1u << TFT_CS_PIN), !!dc << TFT_DC_PIN | !!cs << TFT_CS_PIN);
     sleep_us(5);
 }
 
@@ -117,21 +117,21 @@ static inline void start_pixels() {
 void graphics_init() {
     const uint offset = pio_add_program(pio, &st7789_lcd_program);
     sm = pio_claim_unused_sm(pio, true);
-    st7789_lcd_program_init(pio, sm, offset, PIN_DIN, PIN_CLK, SERIAL_CLK_DIV);
+    st7789_lcd_program_init(pio, sm, offset, TFT_DATA_PIN, TFT_CLK_PIN, SERIAL_CLK_DIV);
 
-    gpio_init(PIN_CS);
-    gpio_init(PIN_DC);
-    gpio_init(PIN_RESET);
-    gpio_init(PIN_BL);
-    gpio_set_dir(PIN_CS, GPIO_OUT);
-    gpio_set_dir(PIN_DC, GPIO_OUT);
-    gpio_set_dir(PIN_RESET, GPIO_OUT);
-    gpio_set_dir(PIN_BL, GPIO_OUT);
+    gpio_init(TFT_CS_PIN);
+    gpio_init(TFT_DC_PIN);
+    gpio_init(TFT_RST_PIN);
+    gpio_init(TFT_LED_PIN);
+    gpio_set_dir(TFT_CS_PIN, GPIO_OUT);
+    gpio_set_dir(TFT_DC_PIN, GPIO_OUT);
+    gpio_set_dir(TFT_RST_PIN, GPIO_OUT);
+    gpio_set_dir(TFT_LED_PIN, GPIO_OUT);
 
-    gpio_put(PIN_CS, 1);
-    gpio_put(PIN_RESET, 1);
+    gpio_put(TFT_CS_PIN, 1);
+    gpio_put(TFT_RST_PIN, 1);
     lcd_init(init_seq);
-    gpio_put(PIN_BL, 1);
+    gpio_put(TFT_LED_PIN, 1);
     for (int i = 0; i < sizeof palette; i++ ) {
         graphics_set_palette(i, 0x0000);
     }

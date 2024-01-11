@@ -164,6 +164,12 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         #BUILD_IN_GAMES
 
         #TFT
+        TFT_CS_PIN=6
+        TFT_RST_PIN=8
+        TFT_DC_PIN=10
+        TFT_DATA_PIN=12
+        TFT_CLK_PIN=13
+        TFT_LED_PIN=9
 )
 
 pico_add_extra_outputs(${PROJECT_NAME})

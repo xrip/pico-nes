@@ -1,31 +1,31 @@
 #ifndef _ST7789_LCD_H_
 #define _ST7789_LCD_H_
 
-#ifndef PIN_RESET
-#define PIN_RESET 6
+#ifndef TFT_RST_PIN
+#define TFT_RST_PIN 8
 #endif
 
 
-#ifndef PIN_CS
-#define PIN_CS 7
+#ifndef TFT_CS_PIN
+#define TFT_CS_PIN 6
 #endif
 
 
-#ifndef PIN_BL
-#define PIN_BL 8
+#ifndef TFT_LED_PIN
+#define TFT_LED_PIN 9
 #endif
 
 
-#ifndef PIN_CLK
-#define PIN_CLK 10
+#ifndef TFT_CLK_PIN
+#define TFT_CLK_PIN 13
 #endif 
 
-#ifndef PIN_DIN
-#define PIN_DIN 11
+#ifndef TFT_DATA_PIN
+#define TFT_DATA_PIN 12
 #endif
 
-#ifndef PIN_DC
-#define PIN_DC 13
+#ifndef TFT_DC_PIN
+#define TFT_DC_PIN 10
 #endif
 
 #define TEXTMODE_COLS 53
