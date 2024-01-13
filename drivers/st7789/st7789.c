@@ -162,9 +162,9 @@ void graphics_set_offset(const int x, const int y) {
 void clrScr(const uint8_t color) {
     memset(&graphics_buffer[0], 0, graphics_buffer_height * graphics_buffer_width);
     lcd_set_window(0, 0,SCREEN_WIDTH,SCREEN_HEIGHT);
-    start_pixels();
     uint32_t i = SCREEN_WIDTH * SCREEN_HEIGHT;
-    while (i--) {
+    start_pixels();
+    while (--i) {
         st7789_lcd_put16(pio, sm, 0x0000);
     }
     st7789_lcd_wait_idle(pio, sm);

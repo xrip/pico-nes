@@ -113,6 +113,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_compile_options(${PROJECT_NAME} PUBLIC
+            -mcpu=cortex-m0plus
             -Wno-error=suggest-attribute=format
             -Wno-error=cast-qual
             -Wno-error=unused-parameter
