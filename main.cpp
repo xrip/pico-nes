@@ -575,8 +575,6 @@ void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
     // if (settings.show_fps && line < 16) draw_fps(fps_text, line, 255);
 }
 
-#define CHECK_BIT(var, pos) (((var)>>(pos)) & 1)
-
 /* Renderer loop on Pico's second core */
 void __scratch_y("render") render_core() {
 #if TFT || HDMI
