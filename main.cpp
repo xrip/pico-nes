@@ -20,7 +20,7 @@ extern "C" {
 #include "st7789.h"
 #endif
 #ifdef HDMI
-#include "HDMI.h"
+#include "hdmi.h"
 #endif
 #ifdef VGA
 #include "vga.h"

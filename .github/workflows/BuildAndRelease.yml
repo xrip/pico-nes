@@ -63,17 +63,6 @@ jobs:
            cd lib/tinyusb &&
            git checkout 08f9ed67c92421cbd0bc09270d2f363886681866
 
-      - name: Install picotool
-        run: |
-          cd $HOME && \
-          export PICO_SDK_PATH=$HOME/pico-sdk && \
-          git clone https://github.com/raspberrypi/picotool.git --branch master && \
-          cd picotool/ && \
-          mkdir build && \
-          cd build && \
-          cmake -G Ninja .. && \
-          cmake --build .
-
       - name: Build the project
         run: |
           export PICO_SDK_PATH=$HOME/pico-sdk && \
