@@ -18,7 +18,11 @@
 extern "C" {
 #ifdef TFT
 #include "st7789.h"
-#else
+#endif
+#ifdef HDMI
+#include "HDMI.h"
+#endif
+#ifdef VGA
 #include "vga.h"
 #endif
 
@@ -575,19 +579,21 @@ void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
 
 /* Renderer loop on Pico's second core */
 void __scratch_y("render") render_core() {
-
+#if TFT || HDMI
+    multicore_lockout_victim_init();
+#endif
     graphics_init();
+
     auto* buffer = &SCREEN[0][0];
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
-    uint8_t* text_buf = buffer;
-    graphics_set_textbuffer(text_buf);
-    graphics_set_bgcolor(1);
+    graphics_set_textbuffer(buffer);
+    graphics_set_bgcolor(0x000000);
     graphics_set_offset(32, 0);
+
     updatePalette(settings.palette);
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
     sem_acquire_blocking(&vga_start_semaphore);
 #ifdef TFT
-    multicore_lockout_victim_init();
     // 60 FPS loop
     uint64_t tick = time_us_64();
     uint64_t last_renderer_tick = tick;
@@ -733,8 +739,7 @@ void filebrowser_loadfile(char* pathname, bool built_in) {
 
     FRESULT result = built_in ? in_open((FILE_LZW *)&file, pathname) : f_open(&file, pathname, FA_READ);
     if (result == FR_OK) {
-#ifdef TFT
-
+#if TFT || HDMI
         multicore_lockout_start_blocking();
 #endif
         flash_range_erase2(addr, 4096);
@@ -763,7 +768,7 @@ void filebrowser_loadfile(char* pathname, bool built_in) {
         if (pIs) { delete pIs; pIs = 0; }
 #endif
         if (!built_in) f_close(&file);
-#ifdef TFT
+#if TFT || HDMI
         multicore_lockout_end_blocking();
 #endif
     }
@@ -1203,6 +1208,7 @@ int menu() {
         sleep_ms(100);
     }
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
+
     updatePalette(settings.palette);
     graphics_set_mode(VGA_320x200x256);
     save_config();
@@ -1231,9 +1237,10 @@ int InfoNES_LoadFrame() {
 }
 
 int main() {
-    vreg_set_voltage(VREG_VOLTAGE_1_15);
+    hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(33);
-    set_sys_clock_khz(272000, true);
+    set_sys_clock_khz(378 * 1000, true);
+
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
     for (int i = 0; i < 6; i++) {

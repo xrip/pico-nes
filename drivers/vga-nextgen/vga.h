@@ -13,7 +13,7 @@
 #define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
 
 enum graphics_mode_t {
-    TEXTMODE_40x30,
+    TEXTMODE_53x30,
     TEXTMODE_80x30,
     TEXTMODE_160x100,
 

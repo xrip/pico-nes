@@ -131,7 +131,7 @@ void __scratch_y("vga_driver") dma_handler_VGA() {
             break;
 
         case TEXTMODE_160x100:
-        case TEXTMODE_40x30:
+        case TEXTMODE_53x30:
         case TEXTMODE_80x30: {
             uint16_t* output_buffer_16bit = (uint16_t *)*output_buffer;
             output_buffer_16bit += shift_picture / 2;
@@ -338,7 +338,7 @@ void __scratch_y("vga_driver") dma_handler_VGA() {
 
 enum graphics_mode_t graphics_set_mode(enum graphics_mode_t mode) {
     switch (mode) {
-        case TEXTMODE_40x30:
+        case TEXTMODE_53x30:
             text_buffer_width = 40;
             text_buffer_height = 30;
             break;
@@ -370,7 +370,7 @@ enum graphics_mode_t graphics_set_mode(enum graphics_mode_t mode) {
 
     switch (graphics_mode) {
         case TEXTMODE_160x100:
-        case TEXTMODE_40x30:
+        case TEXTMODE_53x30:
         case TEXTMODE_80x30:
             //текстовая палитра
             for (int i = 0; i < 16; i++) {
