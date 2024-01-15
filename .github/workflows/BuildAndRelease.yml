@@ -79,12 +79,15 @@ jobs:
           export PICO_SDK_PATH=$HOME/pico-sdk && \
           mkdir build && cd build && \
           cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel .. && cmake --build . &&\
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DI2S_SOUND=ON .. && cmake --build . &&\
+          cd .. && rm -rf build && mkdir build && cd build && \
           cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=ON .. && cmake --build . &&\
           cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=ON -DILI9341=ON .. && cmake --build . &&\
           cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=ON -DI2S_SOUND=ON .. && cmake --build . &&\
           cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=ON -DILI9341=ON -DI2S_SOUND=ON .. && cmake --build . &&\
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=OFF -DI2S_SOUND=ON .. && cmake --build . &&\
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DTFT=OFF -DHDMI=ON .. && cmake --build . &&\
+          cd .. && rm -rf build && mkdir build && cd build && \
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DHDMI=ON .. && cmake --build . &&\
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DHDMI=ON -DI2S_SOUND=ON .. && cmake --build . &&\
           
           echo done
 
