@@ -56,7 +56,7 @@ target_sources(dendy PUBLIC
 )
 
 
-pico_set_program_name(dendy "NES Emulator by xrip/DnCraptor")
+pico_set_program_name(dendy "NES Emulator by xrip & DnCraptor")
 pico_set_program_version(dendy "test")
 
 
@@ -78,6 +78,7 @@ IF(TFT)
 ELSEIF(HDMI)
     target_link_libraries(${PROJECT_NAME} PRIVATE hdmi)
     target_compile_definitions(${PROJECT_NAME} PRIVATE HDMI)
+    SET(BUILD_NAME "${BUILD_NAME}-HDMI")
 ELSE()
     target_compile_definitions(${PROJECT_NAME} PRIVATE VGA)
     target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)

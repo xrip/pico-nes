@@ -1083,33 +1083,41 @@ typedef struct __attribute__((__packed__)) {
     char value_list[5][10];
 } MenuItem;
 
-#define MENU_ITEMS_NUMBER 16
-const MenuItem menu_items[MENU_ITEMS_NUMBER] = {
+
+const MenuItem menu_items[] = {
     { "Player 1: %s", ARRAY, &settings.player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" } },
     { "Player 2: %s", ARRAY, &settings.player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" } },
     { "" },
     { "Volume: %d", INT, &settings.snd_vol, 8 },
+#if VGA
     { "Flash line: %s", ARRAY, &settings.flash_line, 1, { "NO ", "YES" } },
     { "Flash frame: %s", ARRAY, &settings.flash_frame, 1, { "NO ", "YES" } },
     { "VGA Mode: %s", ARRAY, &settings.palette, 1, { "RGB333", "RGB222" } },
-    { "NES Palette: %s", ARRAY, &settings.nes_palette, 1, { "default ", "palette1" } },
+#else
+{ "" },
+#endif
+    { "NES Palette: %s", ARRAY, &settings.nes_palette, 1, { "Default ", "Colorful" } },
     { "" },
-    { "Save state", SAVE },
-    { "Load state", LOAD },
+    { "Save gamestate", SAVE },
+    { "Load gamestate", LOAD },
     { "" },
+{ "Back to ROM select", ROM_SELECT },
+{ "Load from USB device", USB_DEVICE },
+{ "" },
     { "Reset game", RESET },
     { "Return to game", RETURN },
-    { "ROM select", ROM_SELECT },
-    { "From USB device", USB_DEVICE }
 };
+#define MENU_ITEMS_NUMBER (sizeof(menu_items) / sizeof (MenuItem))
 
 int menu() {
     bool exit = false;
     graphics_set_mode(TEXTMODE_80x30);
     char footer[TEXTMODE_COLS];
-    snprintf(footer, TEXTMODE_COLS, ":: %s %s %s %s ::", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, __DATE__,
-             __TIME__);
-    draw_text(footer, 0, 1, 11, 1);
+    snprintf(footer, TEXTMODE_COLS, ":: %s ::", PICO_PROGRAM_NAME);
+    draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, 0, 11, 1);
+    snprintf(footer, TEXTMODE_COLS, ":: %s build %s %s ::", PICO_PROGRAM_VERSION_STRING, __DATE__,
+         __TIME__);
+    draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, TEXTMODE_ROWS-1, 11, 1);
     int current_item = 0;
     while (!exit) {
         ps2kbd.tick();
@@ -1248,7 +1256,7 @@ int main() {
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
 
-    memset(&SCREEN[0][0],0, sizeof SCREEN);
+    memset(&SCREEN[0][0], 0, sizeof SCREEN);
 #if USE_PS2_KBD
     ps2kbd.init_gpio();
 #endif

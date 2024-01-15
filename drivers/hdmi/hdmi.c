@@ -66,15 +66,12 @@ static uint32_t irq_inx = 0;
 //программа конвертации адреса
 
 uint16_t pio_program_instructions_conv_HDMI[] = {
-
     //         //     .wrap_target
     0x80a0, //  0: pull   block
     0x40e8, //  1: in     osr, 8
     0x4034, //  2: in     x, 20
     0x8020, //  3: push   block
     //     .wrap
-
-
 };
 
 
@@ -86,8 +83,6 @@ const struct pio_program pio_program_conv_addr_HDMI = {
 
 //программа видеовывода
 static const uint16_t instructions_PIO_HDMI[] = {
-
-
     0x7006, //  0: out    pins, 6         side 2
     0x7006, //  1: out    pins, 6         side 2
     0x7006, //  2: out    pins, 6         side 2
@@ -98,8 +93,6 @@ static const uint16_t instructions_PIO_HDMI[] = {
     0x6806, //  7: out    pins, 6         side 1
     0x6806, //  8: out    pins, 6         side 1
     0x6806, //  9: out    pins, 6         side 1
-
-
 };
 
 static const struct pio_program program_PIO_HDMI = {
@@ -108,7 +101,7 @@ static const struct pio_program program_PIO_HDMI = {
     .origin = -1,
 };
 
-static uint64_t get_ser_diff_data(uint16_t dataR, uint16_t dataG, uint16_t dataB) {
+static uint64_t get_ser_diff_data(const uint16_t dataR, const uint16_t dataG, const uint16_t dataB) {
     uint64_t out64 = 0;
     for (int i = 0; i < 10; i++) {
         out64 <<= 6;
@@ -125,23 +118,23 @@ static uint64_t get_ser_diff_data(uint16_t dataR, uint16_t dataG, uint16_t dataB
             bR ^= 0b11;
             bG ^= 0b11;
             bB ^= 0b11;
-        };
+        }
         uint8_t d6;
         if (HDMI_PIN_RGB_notBGR) {
             d6 = (bR << 4) | (bG << 2) | (bB << 0);
         }
         else {
             d6 = (bB << 4) | (bG << 2) | (bR << 0);
-        };
+        }
 
 
         out64 |= d6;
     }
     return out64;
-};
+}
 
 //конвертор TMDS
-static uint tmds_encoder(uint8_t d8) {
+static uint tmds_encoder(const uint8_t d8) {
     int s1 = 0;
     for (int i = 0; i < 8; i++) s1 += (d8 & (1 << i)) ? 1 : 0;
     bool is_xnor = false;
@@ -159,7 +152,7 @@ static uint tmds_encoder(uint8_t d8) {
     return d_out;
 }
 
-static void pio_set_x(PIO pio, int sm, uint32_t v) {
+static void pio_set_x(PIO pio, const int sm, uint32_t v) {
     uint instr_shift = pio_encode_in(pio_x, 4);
     uint instr_mov = pio_encode_mov(pio_x, pio_isr);
     for (int i = 0; i < 8; i++) {
@@ -329,9 +322,6 @@ static inline void irq_set_exclusive_handler_DMA_core1() {
 
 //деинициализация - инициализация ресурсов
 static inline bool hdmi_init() {
-    static uint32_t irq_inx_old;
-    irq_inx_old = irq_inx;
-
     //выключение прерывания DMA
     if (VIDEO_DMA_IRQ == DMA_IRQ_0) {
         dma_channel_set_irq0_enabled(dma_chan_ctrl, false);
@@ -348,7 +338,6 @@ static inline bool hdmi_init() {
                         1 << dma_chan_pal_conv_ctrl);
     while (dma_hw->abort) tight_loop_contents();
 
-    sleep_ms(1);
     //выключение SM основной и конвертора
 
     //pio_sm_restart(PIO_VIDEO, SM_video);
@@ -357,16 +346,11 @@ static inline bool hdmi_init() {
     //pio_sm_restart(PIO_VIDEO_ADDR, SM_conv);
     pio_sm_set_enabled(PIO_VIDEO_ADDR, SM_conv, false);
 
-    sleep_ms(1);
 
     //удаление программ из соответствующих PIO
     pio_remove_program(PIO_VIDEO_ADDR, &pio_program_conv_addr_HDMI, offs_prg1);
     pio_remove_program(PIO_VIDEO, &program_PIO_HDMI, offs_prg0);
 
-    sleep_ms(1);
-
-
-    irq_inx_old = irq_inx;
 
     offs_prg1 = pio_add_program(PIO_VIDEO_ADDR, &pio_program_conv_addr_HDMI);
     offs_prg0 = pio_add_program(PIO_VIDEO, &program_PIO_HDMI);
@@ -381,10 +365,10 @@ static inline bool hdmi_init() {
 
     //240-243 служебные данные(синхра) напрямую вносим в массив -конвертер
     uint64_t* conv_color64 = (uint64_t *)conv_color;
-    uint16_t b0 = 0b1101010100;
-    uint16_t b1 = 0b0010101011;
-    uint16_t b2 = 0b0101010100;
-    uint16_t b3 = 0b1010101011;
+    const uint16_t b0 = 0b1101010100;
+    const uint16_t b1 = 0b0010101011;
+    const uint16_t b2 = 0b0101010100;
+    const uint16_t b3 = 0b1010101011;
     const int base_inx = BASE_HDMI_CTRL_INX;
 
     conv_color64[2 * base_inx + 0] = get_ser_diff_data(b0, b0, b3);
@@ -442,7 +426,7 @@ static inline bool hdmi_init() {
     pio_sm_init(PIO_VIDEO, SM_video, offs_prg0, &c_c);
     pio_sm_set_enabled(PIO_VIDEO, SM_video, true);
 
-    float fdiv = clock_get_hz(clk_sys) / (252000000.0); //частота пиксельклока
+    float fdiv = clock_get_hz(clk_sys) / 252000000.0; //частота пиксельклока
     fdiv = (fdiv < 1) ? 1 : fdiv;
     // fdiv=1.0;
     uint32_t div32 = (uint32_t)(fdiv * (1 << 16) + 0.0);
@@ -557,9 +541,6 @@ static inline bool hdmi_init() {
 
     dma_start_channel_mask((1u << dma_chan_ctrl));
 
-    //sleep_ms(10);
-    //if (irq_inx - irq_inx_old < 5) hdmi_init();
-
     return true;
 };
 //выбор видеорежима
@@ -572,13 +553,13 @@ enum graphics_mode_t graphics_set_mode(enum graphics_mode_t mode) {
 void graphics_set_palette(uint8_t i, uint32_t color888) {
     palette[i] = color888 & 0x00ffffff;
 
-    uint64_t* conv_color64;
+
     if ((i >= BASE_HDMI_CTRL_INX) && (i != 255)) return; //не записываем "служебные" цвета
 
-    conv_color64 = (uint64_t *)conv_color;
-    uint8_t R = (color888 >> 16) & 0xff;
-    uint8_t G = (color888 >> 8) & 0xff;
-    uint8_t B = (color888 >> 0) & 0xff;
+    uint64_t* conv_color64 = (uint64_t *)conv_color;
+    const uint8_t R = (color888 >> 16) & 0xff;
+    const uint8_t G = (color888 >> 8) & 0xff;
+    const uint8_t B = (color888 >> 0) & 0xff;
     conv_color64[i * 2] = get_ser_diff_data(tmds_encoder(R), tmds_encoder(G), tmds_encoder(B));
     conv_color64[i * 2 + 1] = conv_color64[i * 2] ^ 0x0003ffffffffffffl;
 };
@@ -621,7 +602,7 @@ void graphics_init() {
     graphics_set_palette(215, RGB888(0xFF, 0xFF, 0xFF)); //white
 
     hdmi_init();
-};
+}
 
 void draw_text(char* string, uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
     uint8_t* t_buf = text_buffer + TEXTMODE_COLS * 2 * y + 2 * x;
@@ -673,5 +654,4 @@ void graphics_set_textbuffer(uint8_t* buffer) {
 };
 
 void logMsg(char* msg) {
-    return;
 }
