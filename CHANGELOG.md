@@ -1,3 +1,9 @@
+# v2.2.0
+- HDMI output support
+```
+HDMI_BASEPIN 6 6
+```
+
 # v2.1.0b
 - TFT pins updated:
 ```
