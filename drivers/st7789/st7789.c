@@ -21,7 +21,7 @@
 
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 240
-#define SERIAL_CLK_DIV 2.f
+#define SERIAL_CLK_DIV 2.5f
 #define MADCTL_BGR_PIXEL_ORDER (1<<3)
 #define MADCTL_ROW_COLUMN_EXCHANGE (1<<5)
 #define MADCTL_COLUMN_ADDRESS_ORDER_SWAP (1<<6)
@@ -135,6 +135,7 @@ void graphics_init() {
     for (int i = 0; i < sizeof palette; i++ ) {
         graphics_set_palette(i, 0x0000);
     }
+    clrScr(0);
 }
 
 void inline graphics_set_mode(const enum graphics_mode_t mode) {
