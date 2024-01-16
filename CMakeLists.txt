@@ -4,7 +4,8 @@ include(pico_sdk_import.cmake)
 project(dendy C CXX ASM)
 SET(BUILD_NAME "${PROJECT_NAME}")
 
-option(I2S_SOUND "Enable I2S sound" OFF)
+option(I2S "Enable I2S sound" OFF)
+option(I2S_CS4334 "Enable I2S CS4334 sound" OFF)
 option(VGA "Enable VGA" OFF)
 option(TFT "Enable TFT display" OFF)
 option(ILI9341 "Enable TFT ILI9341 display" OFF)
@@ -84,8 +85,11 @@ ELSE()
     target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)
 ENDIF()
 
-IF(NOT I2S_SOUND)
+IF(NOT I2S)
     target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_PWM_PIN=26)
+ELSEIF(I2S_CS4334)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE I2S_CS4334)
+    SET(BUILD_NAME "${BUILD_NAME}-I2S-CS4334")
 ELSE()
     SET(BUILD_NAME "${BUILD_NAME}-I2S-PCM5102")
 ENDIF()
@@ -163,7 +167,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
         #AUDIO
         #AUDIO_PWM_PIN=26
-        #AUDIO_CS4334
+        #I2S_CS4334
 
         # Other
         FF_USE_FIND
