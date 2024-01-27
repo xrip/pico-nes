@@ -576,7 +576,7 @@ void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
 }
 
 /* Renderer loop on Pico's second core */
-void __scratch_y("render") render_core() {
+void __scratch_x("render") render_core() {
 #if TFT || HDMI
     multicore_lockout_victim_init();
 #endif

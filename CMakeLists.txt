@@ -184,5 +184,5 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         TFT_CLK_PIN=13
         TFT_LED_PIN=9
 )
-
+target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage)
 pico_add_extra_outputs(${PROJECT_NAME})

@@ -26,7 +26,7 @@ const struct pio_program pio_program_VGA = {
 };
 
 
-static uint32_t*  __scratch_y("lines_pattern")  lines_pattern[4];
+static uint32_t*   lines_pattern[4];
 static uint32_t* lines_pattern_data = NULL;
 static int _SM_VGA = -1;
 
@@ -75,7 +75,7 @@ enum graphics_mode_t graphics_mode;
 extern volatile bool manager_started;
 
 
-void __scratch_y("vga_driver") dma_handler_VGA() {
+void __scratch_x("vga_driver") dma_handler_VGA() {
     dma_hw->ints0 = 1u << dma_chan_ctrl;
     static uint32_t frame_number = 0;
     static uint32_t screen_line = 0;
@@ -501,7 +501,7 @@ void clrScr(uint8_t color) {
     current_line = start_debug_line;
 };
 
-void draw_text(char* string, uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
+void draw_text(const char string[TEXTMODE_COLS], uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
     uint8_t* t_buf = text_buffer + TEXTMODE_COLS * 2 * y + 2 * x;
     for (int xi = TEXTMODE_COLS * 2; xi--;) {
         if (!*string) break;
@@ -510,27 +510,35 @@ void draw_text(char* string, uint32_t x, uint32_t y, uint8_t color, uint8_t bgco
     }
 }
 
-void draw_window(char* title, uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
-    char textline[TEXTMODE_COLS];
+void draw_window(const char title[TEXTMODE_COLS], uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+    char line[width + 1];
+    memset(line, 0, sizeof line);
     width--;
     height--;
     // Рисуем рамки
-    // ═══
-    memset(textline, 0xCD, width);
-    // ╔ ╗ 188 ╝ 200 ╚
-    textline[0] = 0xC9;
-    textline[width] = 0xBB;
-    draw_text(textline, x, y, 11, 1);
-    draw_text(title, (width - strlen(title)) >> 1, 0, 0, 3);
-    textline[0] = 0xC8;
-    textline[width] = 0xBC;
-    draw_text(textline, x, height - y, 11, 1);
-    memset(textline, ' ', width);
-    textline[0] = textline[width] = 0xBA;
+
+    memset(line, 0xCD, width); // ═══
+
+
+    line[0] = 0xC9; // ╔
+    line[width] = 0xBB; // ╗
+    draw_text(line, x, y, 11, 1);
+
+    line[0] = 0xC8; // ╚
+    line[width] = 0xBC; //  ╝
+    draw_text(line, x, height + y, 11, 1);
+
+    memset(line, ' ', width);
+    line[0] = line[width] = 0xBA;
+
     for (int i = 1; i < height; i++) {
-        draw_text(textline, x, i, 11, 1);
+        draw_text(line, x, y + i, 11, 1);
     }
+
+    snprintf(line, width - 1, " %s ", title);
+    draw_text(line, x + (width - strlen(line)) / 2, y, 0, 3);
 }
+
 
 char* get_free_vram_ptr() {
     return text_buffer + text_buffer_width * 2 * text_buffer_height;
