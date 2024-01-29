@@ -12,6 +12,9 @@
 #include "pico/stdlib.h"
 #include "stdlib.h"
 #include "fnt8x16.h"
+#include "psram_spi.h"
+
+extern psram_spi_inst_t psram_spi;
 
 uint16_t pio_program_VGA_instructions[] = {
     //     .wrap_target
@@ -312,13 +315,23 @@ void __scratch_x("vga_driver") dma_handler_VGA() {
             }
             break;
         }
-        case VGA_320x200x256:
-            input_buffer_8bit = input_buffer + y * width;
-            for (int i = width; i--;) {
-                //*output_buffer_16bit++=current_palette[*input_buffer_8bit++];
-                *output_buffer_16bit++ = current_palette[*input_buffer_8bit++];
+        case VGA_320x200x256: {
+            static uint8_t __scratch_y("psram_cache") psram_input_buffer_8bit[16];
+            const uint32_t addr = y * 256;
+            for (int i = 0; i < 256; i+=16) {
+                psram_read(&psram_spi, addr + i, psram_input_buffer_8bit, 16);
+                for (int ii = 0; ii < 16; ii++) {
+                    *output_buffer_16bit++ = current_palette[psram_input_buffer_8bit[ii]];
+                }
             }
+
+            //input_buffer_8bit = input_buffer + y * width;
+            // for (int x = 0; x < width; x++) {
+                // *output_buffer_16bit++=current_palette[*input_buffer_8bit++];
+                // *output_buffer_16bit++ = current_palette[psram_input_buffer_8bit[x]];
+            // }
             break;
+        }
         case VGA_320x200x256x4:
             input_buffer_8bit = input_buffer + y * (width / 4);
             for (int x = width / 2; x--;) {
