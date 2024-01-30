@@ -316,7 +316,7 @@ void __scratch_x("vga_driver") dma_handler_VGA() {
             break;
         }
         case VGA_320x200x256: {
-            static uint8_t __scratch_y("psram_cache") psram_input_buffer_8bit[16];
+            static uint8_t __scratch_x("psram_cache") psram_input_buffer_8bit[16];
             const uint32_t addr = y * 256;
             for (int i = 0; i < 256; i+=16) {
                 psram_read(&psram_spi, addr + i, psram_input_buffer_8bit, 16);

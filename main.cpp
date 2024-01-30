@@ -574,7 +574,7 @@ void __not_in_flash_func(InfoNES_PreDrawLine)(int line) {
 
 #define X2(a) (a | (a << 8))
 #define MERGE_UINT32(a, b, c, d) (((uint32_t)(a & 0xFF) << 24) | ((uint32_t)(b & 0xFF) << 16) | ((uint32_t)(c & 0xFF) << 8) | (uint32_t)(d & 0xFF))
-void __scratch_y("line") (InfoNES_PostDrawLine)(int line) {
+void __scratch_x("line") (InfoNES_PostDrawLine)(int line) {
     for (int x = 0; x < NES_DISP_WIDTH; x+=4) {
         psram_write32(&psram_spi, x + line * NES_DISP_WIDTH, MERGE_UINT32(linebuffer[x+3], linebuffer[x+2], linebuffer[x+1], linebuffer[x]));
     }
@@ -588,7 +588,7 @@ void __scratch_y("line") (InfoNES_PostDrawLine)(int line) {
 
 
 inline bool init_psram() {
-    psram_spi = psram_spi_init_clkdiv(pio0, -1, 2.0, true);
+    psram_spi = psram_spi_init_clkdiv(pio0, -1, 1.6, true);
     psram_write32(&psram_spi, 0x313373, 0xDEADBEEF);
     return 0xDEADBEEF == psram_read32(&psram_spi, 0x313373);
 }
