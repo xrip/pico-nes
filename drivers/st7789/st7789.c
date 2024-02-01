@@ -20,14 +20,6 @@
 #include "fnt6x8.h"
 #include "hardware/dma.h"
 
-#ifndef SCREEN_WIDTH
-#define SCREEN_WIDTH 320
-#endif
-
-#ifndef SCREEN_HEIGHT
-#define SCREEN_HEIGHT 240
-#endif
-
 // 126MHz SPI
 #define SERIAL_CLK_DIV 3.0f
 #define MADCTL_BGR_PIXEL_ORDER (1<<3)

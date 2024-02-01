@@ -4,28 +4,28 @@
 #ifndef TFT_RST_PIN
 #define TFT_RST_PIN 8
 #endif
-
-
 #ifndef TFT_CS_PIN
 #define TFT_CS_PIN 6
 #endif
-
-
 #ifndef TFT_LED_PIN
 #define TFT_LED_PIN 9
 #endif
-
-
 #ifndef TFT_CLK_PIN
 #define TFT_CLK_PIN 13
 #endif 
-
 #ifndef TFT_DATA_PIN
 #define TFT_DATA_PIN 12
 #endif
-
 #ifndef TFT_DC_PIN
 #define TFT_DC_PIN 10
+#endif
+
+#ifndef SCREEN_WIDTH
+#define SCREEN_WIDTH 320
+#endif
+
+#ifndef SCREEN_HEIGHT
+#define SCREEN_HEIGHT 240
 #endif
 
 #define TEXTMODE_COLS 53
