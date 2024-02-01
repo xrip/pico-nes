@@ -419,21 +419,12 @@ static inline bool hdmi_init() {
     //конфигурация пинов на выход
     sm_config_set_out_pins(&c_c, beginHDMI_PIN_data, 6);
 
-    //
     sm_config_set_out_shift(&c_c, true, true, 30);
     sm_config_set_fifo_join(&c_c, PIO_FIFO_JOIN_TX);
 
+    sm_config_set_clkdiv(&c_c, clock_get_hz(clk_sys) / 252000000.0f);
     pio_sm_init(PIO_VIDEO, SM_video, offs_prg0, &c_c);
     pio_sm_set_enabled(PIO_VIDEO, SM_video, true);
-
-    float fdiv = clock_get_hz(clk_sys) / 252000000.0; //частота пиксельклока
-    fdiv = (fdiv < 1) ? 1 : fdiv;
-    // fdiv=1.0;
-    uint32_t div32 = (uint32_t)(fdiv * (1 << 16) + 0.0);
-
-    // sm_config_set_clkdiv_int_frac (pio_sm_config *c, uint16_t div_int, uint8_t div_frac)
-    PIO_VIDEO->sm[SM_video].clkdiv = div32 & 0xffff8000; //делитель для конкретной sm
-
     //настройки DMA
     dma_lines[0] = &conv_color[1024];
     dma_lines[1] = &conv_color[1124];
