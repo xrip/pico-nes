@@ -46,13 +46,20 @@ static inline void st7789_lcd_put(PIO pio, uint sm, uint8_t x) {
     *(volatile uint8_t*)&pio->txf[sm] = x;
 }
 
-
-static inline void st7789_lcd_put16(PIO pio, uint sm, uint16_t x) {
-    st7789_lcd_put(pio,sm, x >> 8);
-    st7789_lcd_put(pio,sm, x & 0xFF);
+static inline void st7789_set_pixel_mode(PIO pio, uint sm, bool pixel_mode) {
+    uint32_t shiftctrl = pio->sm[sm].shiftctrl;
+    shiftctrl &= ~PIO_SM0_SHIFTCTRL_PULL_THRESH_BITS;
+    shiftctrl |= (pixel_mode ? 16u : 8u) << PIO_SM0_SHIFTCTRL_PULL_THRESH_LSB;
+    pio->sm[sm].shiftctrl = shiftctrl;
 }
-// SM is done when it stalls on an empty FIFO
 
+static inline void st7789_lcd_put_pixel(PIO pio, uint sm, uint16_t x) {
+    while (pio_sm_is_tx_fifo_full(pio, sm))
+        ;
+    *(volatile uint16_t*)&pio->txf[sm] = x;
+}
+
+// SM is done when it stalls on an empty FIFO
 static inline void st7789_lcd_wait_idle(PIO pio, uint sm) {
     uint32_t sm_stall_mask = 1u << (sm + PIO_FDEBUG_TXSTALL_LSB);
     pio->fdebug = sm_stall_mask;
