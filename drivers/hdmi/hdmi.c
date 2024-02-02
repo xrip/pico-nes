@@ -224,11 +224,7 @@ static void __scratch_y("hdmi_driver") dma_handler_HDMI() {
 
             case TEXTMODE_80x30:
             case TEXTMODE_53x30: {
-                // Заполняем первый и последний пиксель для выравнивания
-                {
-                    *output_buffer++ = 255;
-                    output_buffer[319] = 255;
-                }
+                *output_buffer++ = 255;
 
                 for (int x = 0; x < TEXTMODE_COLS; x++) {
                     const uint16_t offset = (y / 8) * (TEXTMODE_COLS * 2) + x * 2;
@@ -244,6 +240,9 @@ static void __scratch_y("hdmi_driver") dma_handler_HDMI() {
                         glyph_row >>= 1;
                     }
                 }
+
+                *output_buffer = 255;
+
                 break;
             }
             default:
