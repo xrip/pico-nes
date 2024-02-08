@@ -22,14 +22,19 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
 add_subdirectory(infones)
-add_subdirectory(drivers/vga-nextgen)
+
 add_subdirectory(drivers/audio)
+
 add_subdirectory(drivers/ps2kbd)
 add_subdirectory(drivers/nespad)
 add_subdirectory(drivers/fatfs)
 add_subdirectory(drivers/sdcard)
+
+add_subdirectory(drivers/vga-nextgen)
 add_subdirectory(drivers/st7789)
 add_subdirectory(drivers/hdmi)
+
+add_subdirectory(drivers/graphics)
 
 # INCLUDE FILES THAT SHOULD BE COMPILED:
 file(GLOB_RECURSE SRC "src/*.cpp" "src/*.c")
@@ -94,6 +99,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         infones
 
         audio
+        graphics
+
         ps2kbd
         nespad
         sdcard

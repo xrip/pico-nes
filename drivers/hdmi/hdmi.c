@@ -1,4 +1,4 @@
-#include "hdmi.h"
+#include "graphics.h"
 #include <stdio.h>
 #include <string.h>
 #include "malloc.h"
@@ -19,7 +19,7 @@ static int SM_video = -1;
 static int SM_conv = -1;
 
 //активный видеорежим
-static enum graphics_mode_t graphics_mode = VGA_320x200x256;
+static enum graphics_mode_t graphics_mode = GRAPHICSMODE_DEFAULT;
 
 //буфер  палитры 256 цветов в формате R8G8B8
 static uint32_t palette[256];
@@ -35,7 +35,7 @@ static int graphics_buffer_shift_x = 0;
 static int graphics_buffer_shift_y = 0;
 
 //текстовый буфер
-static uint8_t* __scratch_y("hdmi_ptr_2") text_buffer = NULL;
+uint8_t* text_buffer = NULL;
 
 
 //DMA каналы
@@ -187,7 +187,7 @@ static void __scratch_y("hdmi_driver") dma_handler_HDMI() {
         uint8_t* output_buffer = activ_buf + 72; //для выравнивания синхры;
         int y = line / 2;
         switch (graphics_mode) {
-            case VGA_320x200x256:
+            case GRAPHICSMODE_DEFAULT:
             case VGA_320x240x256:
                 //заполняем пространство сверху и снизу графического буфера
                 if (false || (graphics_buffer_shift_y > y) || (y >= (graphics_buffer_shift_y + graphics_buffer_height))
@@ -222,7 +222,7 @@ static void __scratch_y("hdmi_driver") dma_handler_HDMI() {
 
                 break;
 
-            case TEXTMODE_80x30:
+            case TEXTMODE_DEFAULT:
             case TEXTMODE_53x30: {
                 *output_buffer++ = 255;
 
@@ -240,9 +240,7 @@ static void __scratch_y("hdmi_driver") dma_handler_HDMI() {
                         glyph_row >>= 1;
                     }
                 }
-
                 *output_buffer = 255;
-
                 break;
             }
             default:
@@ -418,12 +416,14 @@ static inline bool hdmi_init() {
     //конфигурация пинов на выход
     sm_config_set_out_pins(&c_c, beginHDMI_PIN_data, 6);
 
+    //
     sm_config_set_out_shift(&c_c, true, true, 30);
     sm_config_set_fifo_join(&c_c, PIO_FIFO_JOIN_TX);
 
     sm_config_set_clkdiv(&c_c, clock_get_hz(clk_sys) / 252000000.0f);
     pio_sm_init(PIO_VIDEO, SM_video, offs_prg0, &c_c);
     pio_sm_set_enabled(PIO_VIDEO, SM_video, true);
+
     //настройки DMA
     dma_lines[0] = &conv_color[1024];
     dma_lines[1] = &conv_color[1124];
@@ -534,10 +534,9 @@ static inline bool hdmi_init() {
     return true;
 };
 //выбор видеорежима
-enum graphics_mode_t graphics_set_mode(enum graphics_mode_t mode) {
+void graphics_set_mode(enum graphics_mode_t mode) {
     graphics_mode = mode;
     clrScr(0);
-    return graphics_mode;
 };
 
 void graphics_set_palette(uint8_t i, uint32_t color888) {
@@ -594,41 +593,6 @@ void graphics_init() {
     hdmi_init();
 }
 
-void draw_text(char* string, uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
-    uint8_t* t_buf = text_buffer + TEXTMODE_COLS * 2 * y + 2 * x;
-    for (int xi = TEXTMODE_COLS * 2; xi--;) {
-        if (!*string) break;
-        *t_buf++ = *string++;
-        *t_buf++ = bgcolor << 4 | color & 0xF;
-    }
-}
-
-void draw_window(char* title, uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
-    char textline[TEXTMODE_COLS];
-    width--;
-    height--;
-    // Рисуем рамки
-    // ═══
-    memset(textline, 0xCD, width);
-    // ╔ ╗ 188 ╝ 200 ╚
-    textline[0] = 0xC9;
-    textline[width] = 0xBB;
-    draw_text(textline, x, y, 11, 1);
-    draw_text(title, (width - strlen(title)) >> 1, 0, 0, 3);
-    textline[0] = 0xC8;
-    textline[width] = 0xBC;
-    draw_text(textline, x, height - y, 11, 1);
-    memset(textline, ' ', width);
-    textline[0] = textline[width] = 0xBA;
-    for (int i = 1; i < height; i++) {
-        draw_text(textline, x, i, 11, 1);
-    }
-}
-
-void clrScr(uint8_t color) {
-    memset(text_buffer, color, graphics_buffer_height * graphics_buffer_width);
-};
-
 void graphics_set_bgcolor(uint32_t color888) //определяем зарезервированный цвет в палитре
 {
     graphics_set_palette(255, color888);
@@ -643,5 +607,10 @@ void graphics_set_textbuffer(uint8_t* buffer) {
     text_buffer = buffer;
 };
 
-void logMsg(char* msg) {
+
+void clrScr(const uint8_t color) {
+    uint16_t* t_buf = (uint16_t *)text_buffer;
+    int size = TEXTMODE_COLS * TEXTMODE_ROWS;
+
+    while (size--) *t_buf++ = color << 4 | ' ';
 }

@@ -11,7 +11,7 @@
 #include "hardware/pio.h"
 #include "hardware/gpio.h"
 
-#include "st7789.h"
+#include "graphics.h"
 
 #include <string.h>
 #include <pico/multicore.h>
@@ -19,6 +19,14 @@
 #include "st7789.pio.h"
 #include "fnt6x8.h"
 #include "hardware/dma.h"
+
+#ifndef SCREEN_WIDTH
+#define SCREEN_WIDTH 320
+#endif
+
+#ifndef SCREEN_HEIGHT
+#define SCREEN_HEIGHT 240
+#endif
 
 // 126MHz SPI
 #define SERIAL_CLK_DIV 3.0f
@@ -43,7 +51,7 @@ static uint graphics_buffer_height = 0;
 static int graphics_buffer_shift_x = 0;
 static int graphics_buffer_shift_y = 0;
 
-enum graphics_mode_t graphics_mode = VGA_320x200x256;
+enum graphics_mode_t graphics_mode = GRAPHICSMODE_DEFAULT;
 
 static const uint8_t init_seq[] = {
     1, 20, 0x01, // Software reset
@@ -216,7 +224,7 @@ void st7789_dma_pixels(const uint16_t* pixels, const uint num_pixels) {
 
 void __inline __scratch_y("refresh_lcd") refresh_lcd() {
     switch (graphics_mode) {
-        case TEXTMODE_80x30:
+        case TEXTMODE_DEFAULT:
             lcd_set_window(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
             start_pixels();
             for (int y = 0; y < SCREEN_HEIGHT; y++) {
@@ -239,7 +247,7 @@ void __inline __scratch_y("refresh_lcd") refresh_lcd() {
             }
             stop_pixels();
             break;
-        case VGA_320x200x256: {
+        case GRAPHICSMODE_DEFAULT: {
             const uint8_t* bitmap = graphics_buffer;
             lcd_set_window(graphics_buffer_shift_x, graphics_buffer_shift_y, graphics_buffer_width,
                            graphics_buffer_height);
@@ -261,44 +269,3 @@ void graphics_set_palette(const uint8_t i, const uint32_t color) {
     palette[i] = (uint16_t)color;
 }
 
-void logMsg(char* msg) {
-    // dummy
-}
-
-void draw_text(const char string[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, uint8_t color, uint8_t bgcolor) {
-    uint8_t* t_buf = text_buffer + TEXTMODE_COLS * 2 * y + 2 * x;
-    for (int xi = TEXTMODE_COLS * 2; xi--;) {
-        if (!*string) break;
-        *t_buf++ = *string++;
-        *t_buf++ = bgcolor << 4 | color & 0xF;
-    }
-}
-
-void draw_window(const char title[TEXTMODE_COLS + 1], uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
-    char line[width + 1];
-    memset(line, 0, sizeof line);
-    width--;
-    height--;
-    // Рисуем рамки
-
-    memset(line, 0xCD, width); // ═══
-
-
-    line[0] = 0xC9; // ╔
-    line[width] = 0xBB; // ╗
-    draw_text(line, x, y, 11, 1);
-
-    line[0] = 0xC8; // ╚
-    line[width] = 0xBC; //  ╝
-    draw_text(line, x, height + y, 11, 1);
-
-    memset(line, ' ', width);
-    line[0] = line[width] = 0xBA;
-
-    for (int i = 1; i < height; i++) {
-        draw_text(line, x, y + i, 11, 1);
-    }
-
-    snprintf(line, width - 1, " %s ", title);
-    draw_text(line, x + (width - strlen(line)) / 2, y, 14, 3);
-}

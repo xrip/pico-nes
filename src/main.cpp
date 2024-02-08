@@ -15,18 +15,7 @@
 #include <InfoNES_System.h>
 #include "InfoNES_Mapper.h"
 
-extern "C" {
-#ifdef TFT
-#include "st7789.h"
-#endif
-#ifdef HDMI
-#include "hdmi.h"
-#endif
-#ifdef VGA
-#include "vga.h"
-#endif
-
-}
+#include "graphics.h"
 
 #include "audio.h"
 #include "f_util.h"
@@ -726,7 +715,6 @@ void filebrowser_loadfile(char* pathname, bool built_in) {
     draw_text("LOADING...", 0, 0, 15, 0);
     sleep_ms(32);
     if (strcmp((char *)rom_filename, pathname) == 0) {
-        logMsg((char *)"Launching last rom");
         return;
     }
     //restore_clean_fat(); // in case we write into space for flash drive, it is required to remove old FAT info
@@ -750,7 +738,6 @@ void filebrowser_loadfile(char* pathname, bool built_in) {
                          : in_read((FILE_LZW *)&file, (char *)buffer, bufsize, &bytesRead);
             if (result == FR_OK) {
                 if (bytesRead == 0) {
-                    logMsg((char *)"Done");
                     break;
                 }
                 flash_range_erase2(addr, bufsize);
@@ -811,7 +798,7 @@ void filebrowser(
     char* path,
     char* executable
 ) {
-    graphics_set_mode(TEXTMODE_80x30);
+    graphics_set_mode(TEXTMODE_DEFAULT);
     sleep_ms(250);
     bool debounce = true;
     char basepath[256];
@@ -838,7 +825,6 @@ void filebrowser(
     FRESULT result1 = f_mount(&fs1, "F:", 0);
     if (FR_OK != result1) {
         snprintf(tmp, TEXTMODE_COLS, "f_mount error: %s (%d)", FRESULT_str(result1), result1);
-        logMsg(tmp);
         while (1) { sleep_ms(100); /*TODO: reboot? */ }
     }
     while (1) {
@@ -896,7 +882,6 @@ void filebrowser(
         result1 = f_opendir(&dir1, "F:\\");
         if (result1 != FR_OK) {
             snprintf(tmp, TEXTMODE_COLS, "f_opendir(F:\\) error: %s (%d)", FRESULT_str(result1), result1);
-            logMsg(tmp);
             while (1) { sleep_ms(100); }
         }
         while (f_readdir(&dir1, &fileInfo) == FR_OK &&
@@ -1027,16 +1012,14 @@ int menu();
 
 int InfoNES_Video() {
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
-        logMsg((char *)"NES file parse error.");
         menu();
         return 0; // TODO: 1?
     }
     if (InfoNES_Reset() < 0) {
-        logMsg((char *)"NES reset error.");
         menu();
         return 1; // TODO: ?
     }
-    graphics_set_mode(VGA_320x200x256);
+    graphics_set_mode(GRAPHICSMODE_DEFAULT);
     return 0;
 }
 
@@ -1110,7 +1093,7 @@ const MenuItem menu_items[] = {
 
 int menu() {
     bool exit = false;
-    graphics_set_mode(TEXTMODE_80x30);
+    graphics_set_mode(TEXTMODE_DEFAULT);
     char footer[TEXTMODE_COLS];
     snprintf(footer, TEXTMODE_COLS, ":: %s ::", PICO_PROGRAM_NAME);
     draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, 0, 11, 1);
@@ -1215,7 +1198,7 @@ int menu() {
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
 
     updatePalette(settings.palette);
-    graphics_set_mode(VGA_320x200x256);
+    graphics_set_mode(GRAPHICSMODE_DEFAULT);
     save_config();
     return 0;
 }
