@@ -26,7 +26,6 @@ extern "C" {
 #include "vga.h"
 #endif
 
-#include "usb.h"
 }
 
 #include "audio.h"
@@ -939,7 +938,7 @@ void filebrowser(
             if (keyboard_bits.a || gamepad1_bits.a) {
                 clrScr(1);
                 draw_text((char *)"Mount me as USB drive...", 30, 15, 7, 1);
-                in_flash_drive();
+                // in_flash_drive();
                 watchdog_enable(100, true);
             }
             if (keyboard_bits.down || gamepad1_bits.down) {
@@ -1189,7 +1188,7 @@ int menu() {
                         if (nespad_state & DPAD_START || keyboard_bits.start) {
                             clrScr(1);
                             draw_text((char *)"Mount me as USB drive...", 30, 15, 7, 1);
-                            in_flash_drive();
+                            // in_flash_drive();
                             watchdog_enable(100, true);
                             exit = true;
                         }

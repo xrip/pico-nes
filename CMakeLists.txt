@@ -21,15 +21,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 
-
-#set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-set(FAMILY rp2040)
-set(BOARD pico_sdk)
-#[[include(${PICO_SDK_PATH}/lib/tinyusb/hw/bsp/family_support.cmake)
-
-# Checks this example is valid for the family and initializes the project
-family_initialize_project(dendy ${CMAKE_CURRENT_LIST_DIR})]]
-
 add_subdirectory(infones)
 add_subdirectory(drivers/vga-nextgen)
 add_subdirectory(drivers/audio)
@@ -40,7 +31,16 @@ add_subdirectory(drivers/sdcard)
 add_subdirectory(drivers/st7789)
 add_subdirectory(drivers/hdmi)
 
-add_executable(${PROJECT_NAME} main.cpp )
+# INCLUDE FILES THAT SHOULD BE COMPILED:
+file(GLOB_RECURSE SRC "src/*.cpp" "src/*.c")
+
+message(STATUS "Add source files:")
+foreach (SRC_FILE IN LISTS SRC)
+    message(STATUS "${SRC_FILE}")
+endforeach ()
+message(STATUS "")
+
+add_executable(${PROJECT_NAME} ${SRC})
 
 pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
 target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
@@ -48,22 +48,13 @@ pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
 
 set(FAMILY rp2040)
 set(BOARD pico_sdk)
-family_configure_device_example(${PROJECT_NAME} noos)
-
-target_sources(dendy PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/msc_disk.c
-        ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb/usb_descriptors.c
-)
-
 
 pico_set_program_name(dendy "NES Emulator by xrip & DnCraptor")
 pico_set_program_version(dendy "test")
 
-
 target_include_directories(${PROJECT_NAME} PRIVATE
         infones
-        ${CMAKE_CURRENT_SOURCE_DIR}/drivers/usb
+        src
 )
 
 IF(TFT)
@@ -119,11 +110,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         hardware_clocks
         hardware_pwm
         hardware_flash
+
+        tinyusb_host tinyusb_board
 )
 
 
 
-if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+#[[if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_compile_options(${PROJECT_NAME} PUBLIC
             -mcpu=cortex-m0plus
             -Wno-error=suggest-attribute=format
@@ -139,7 +132,7 @@ if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
             -Wno-error=restrict
             -w
     )
-endif ()
+endif ()]]
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
         SPEAKER_ENABLED

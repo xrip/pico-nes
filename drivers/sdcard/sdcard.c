@@ -11,7 +11,6 @@
 #include "hardware/gpio.h"
 //#include "hardware/gpio_ex.h"
 
-#include "usb.h"
 #include "ff.h"
 #include "diskio.h"
 
@@ -419,16 +418,6 @@ DRESULT disk_read (
 	UINT count		/* Number of sectors to read (1..128) */
 )
 {
-	if (drv == 1) { // in_flash drive support
-		BYTE* buffer = buff;
-		uint32_t offset = 0;
-		for (LBA_t lba = sector; lba < sector + count; ++lba, buffer += DISK_BLOCK_SIZE, offset += DISK_BLOCK_SIZE) {
-            if (tud_msc_read10_cb(0, lba, offset, buffer, DISK_BLOCK_SIZE) != DISK_BLOCK_SIZE) {
-				return RES_ERROR;
-			}
-		}
-		return RES_OK;
-	}
 	if (drv || !count) return RES_PARERR;		/* Check parameter */
 	if (Stat & STA_NOINIT) return RES_NOTRDY;	/* Check if drive is ready */
 
@@ -553,30 +542,6 @@ DRESULT disk_ioctl (
 	BYTE cmd,		/* Control command code */
 	void *buff		/* Pointer to the conrtol data */
 ) {
-	if (drv == 1) { // in_flash drive support
-	    switch (cmd) {
-			case GET_SECTOR_COUNT: {
-				uint32_t block_count;
-				uint16_t block_size;
-				tud_msc_capacity_cb(0, &block_count, &block_size);
-			    *(DWORD*)buff = block_count;
-				break;
-			}
-			case GET_BLOCK_SIZE: {
-				uint32_t block_count;
-				uint16_t block_size;
-				tud_msc_capacity_cb(0, &block_count, &block_size);
-			    *(DWORD*)buff = block_size;
-				break;
-			}
-			case CTRL_TRIM: // TODO: ??
-			case CTRL_SYNC:
-			    break;
-			default:
-			    return RES_PARERR;
-	    }
-		return RES_OK;
-	}
 	//char tmp[80]; sprintf(tmp, "disk_ioctl(%d, %d)", drv, cmd); logMsg(tmp);
 	DRESULT res;
 	BYTE n, csd[16];
