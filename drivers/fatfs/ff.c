@@ -1016,14 +1016,19 @@ static void clear_lock (	/* Clear lock entries of the volume */
 
 #endif	/* FF_FS_LOCK != 0 */
 
+
+
 /*-----------------------------------------------------------------------*/
 /* Move/Flush disk access window in the filesystem object                */
 /*-----------------------------------------------------------------------*/
 #if !FF_FS_READONLY
 static FRESULT sync_window (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs			/* Filesystem object */
-) {
+)
+{
 	FRESULT res = FR_OK;
+
+
 	if (fs->wflag) {	/* Is the disk access window dirty? */
 		if (disk_write(fs->pdrv, fs->win, fs->winsect, 1) == RES_OK) {	/* Write it back into the volume */
 			fs->wflag = 0;	/* Clear window dirty flag */
@@ -1038,11 +1043,15 @@ static FRESULT sync_window (	/* Returns FR_OK or FR_DISK_ERR */
 }
 #endif
 
+
 static FRESULT move_window (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs,		/* Filesystem object */
 	LBA_t sect		/* Sector LBA to make appearance in the fs->win[] */
-) {
+)
+{
 	FRESULT res = FR_OK;
+
+
 	if (sect != fs->winsect) {	/* Window offset changed? */
 #if !FF_FS_READONLY
 		res = sync_window(fs);		/* Flush the window */
@@ -1058,14 +1067,21 @@ static FRESULT move_window (	/* Returns FR_OK or FR_DISK_ERR */
 	return res;
 }
 
+
+
+
 #if !FF_FS_READONLY
 /*-----------------------------------------------------------------------*/
 /* Synchronize filesystem and data on the storage                        */
 /*-----------------------------------------------------------------------*/
+
 static FRESULT sync_fs (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs		/* Filesystem object */
-) {
+)
+{
 	FRESULT res;
+
+
 	res = sync_window(fs);
 	if (res == FR_OK) {
 		if (fs->fs_type == FS_FAT32 && fs->fsi_flag == 1) {	/* FAT32: Update FSInfo sector if needed */
@@ -1083,13 +1099,18 @@ static FRESULT sync_fs (	/* Returns FR_OK or FR_DISK_ERR */
 		/* Make sure that no pending write process in the lower layer */
 		if (disk_ioctl(fs->pdrv, CTRL_SYNC, 0) != RES_OK) res = FR_DISK_ERR;
 	}
+
 	return res;
 }
+
 #endif
+
+
 
 /*-----------------------------------------------------------------------*/
 /* Get physical sector number from cluster number                        */
 /*-----------------------------------------------------------------------*/
+
 static LBA_t clst2sect (	/* !=0:Sector number, 0:Failed (invalid cluster#) */
 	FATFS* fs,		/* Filesystem object */
 	DWORD clst		/* Cluster# to be converted */
@@ -2320,20 +2341,26 @@ static FRESULT dir_read (
 	if (res != FR_OK) dp->sect = 0;		/* Terminate the read operation on error or EOT */
 	return res;
 }
+
 #endif	/* FF_FS_MINIMIZE <= 1 || FF_USE_LABEL || FF_FS_RPATH >= 2 */
+
+
 
 /*-----------------------------------------------------------------------*/
 /* Directory handling - Find an object in the directory                  */
 /*-----------------------------------------------------------------------*/
+
 static FRESULT dir_find (	/* FR_OK(0):succeeded, !=0:error */
 	DIR* dp					/* Pointer to the directory object with the file name */
-) {
+)
+{
 	FRESULT res;
 	FATFS *fs = dp->obj.fs;
 	BYTE c;
 #if FF_USE_LFN
 	BYTE a, ord, sum;
 #endif
+
 	res = dir_sdi(dp, 0);			/* Rewind directory object */
 	if (res != FR_OK) return res;
 #if FF_FS_EXFAT
@@ -2341,6 +2368,7 @@ static FRESULT dir_find (	/* FR_OK(0):succeeded, !=0:error */
 		BYTE nc;
 		UINT di, ni;
 		WORD hash = xname_sum(fs->lfnbuf);		/* Hash value of the name to find */
+
 		while ((res = DIR_READ_FILE(dp)) == FR_OK) {	/* Read an item */
 #if FF_MAX_LFN < 255
 			if (fs->dirbuf[XDIR_NumName] > FF_MAX_LFN) continue;		/* Skip comparison if inaccessible object name */
@@ -2761,52 +2789,49 @@ static int pattern_match (	/* 0:mismatched, 1:matched */
 
 	return 0;
 }
+
 #endif /* FF_USE_FIND && FF_FS_MINIMIZE <= 1 */
+
+
 
 /*-----------------------------------------------------------------------*/
 /* Pick a top segment and create the object name in directory form       */
 /*-----------------------------------------------------------------------*/
+
 static FRESULT create_name (	/* FR_OK: successful, FR_INVALID_NAME: could not create */
 	DIR* dp,					/* Pointer to the directory object */
 	const TCHAR** path			/* Pointer to pointer to the segment in the path string */
-) {
+)
+{
 #if FF_USE_LFN		/* LFN configuration */
 	BYTE b, cf;
 	WCHAR wc, *lfn;
 	DWORD uc;
 	UINT i, ni, si, di;
 	const TCHAR *p;
+
+
 	/* Create LFN into LFN working buffer */
 	p = *path; lfn = dp->obj.fs->lfnbuf; di = 0;
 	for (;;) {
 		uc = tchar2uni(&p);			/* Get a character */
-		if (uc == 0xFFFFFFFF)
-		    return FR_INVALID_NAME;		/* Invalid code or UTF decode error */
-		if (uc >= 0x10000)
-		    lfn[di++] = (WCHAR)(uc >> 16);	/* Store high surrogate if needed */
+		if (uc == 0xFFFFFFFF) return FR_INVALID_NAME;		/* Invalid code or UTF decode error */
+		if (uc >= 0x10000) lfn[di++] = (WCHAR)(uc >> 16);	/* Store high surrogate if needed */
 		wc = (WCHAR)uc;
-		if (wc < ' ' || IsSeparator(wc))
-		    break;	/* Break if end of the path or a separator is found */
-		if (wc < 0x80 && strchr("*<>|\"\?\x7F", (int)wc)) { // :
-		    return FR_INVALID_NAME;	/* Reject illegal characters for LFN */
-		}
-		if (di >= FF_MAX_LFN) {
-		    return FR_INVALID_NAME;	/* Reject too long name */
-		}
+		if (wc < ' ' || IsSeparator(wc)) break;	/* Break if end of the path or a separator is found */
+		if (wc < 0x80 && strchr("*:<>|\"\?\x7F", (int)wc)) return FR_INVALID_NAME;	/* Reject illegal characters for LFN */
+		if (di >= FF_MAX_LFN) return FR_INVALID_NAME;	/* Reject too long name */
 		lfn[di++] = wc;				/* Store the Unicode character */
 	}
 	if (wc < ' ') {				/* Stopped at end of the path? */
 		cf = NS_LAST;			/* Last segment */
 	} else {					/* Stopped at a separator */
-		while (IsSeparator(*p)) {
-		    p++;	/* Skip duplicated separators if exist */
-		}
+		while (IsSeparator(*p)) p++;	/* Skip duplicated separators if exist */
 		cf = 0;					/* Next segment may follow */
-		if (IsTerminator(*p)) {
-		    cf = NS_LAST;	/* Ignore terminating separator */
-		}
+		if (IsTerminator(*p)) cf = NS_LAST;	/* Ignore terminating separator */
 	}
 	*path = p;					/* Return pointer to the next segment */
+
 #if FF_FS_RPATH != 0
 	if ((di == 1 && lfn[di - 1] == '.') ||
 		(di == 2 && lfn[di - 1] == '.' && lfn[di - 2] == '.')) {	/* Is this segment a dot name? */
@@ -2898,8 +2923,12 @@ static FRESULT create_name (	/* FR_OK: successful, FR_INVALID_NAME: could not cr
 		if (b & 0x01) cf |= NS_EXT;		/* NT flag (Extension has small capital letters only) */
 		if (b & 0x04) cf |= NS_BODY;	/* NT flag (Body has small capital letters only) */
 	}
+
 	dp->fn[NSFLAG] = cf;	/* SFN is created into dp->fn[] */
+
 	return FR_OK;
+
+
 #else	/* FF_USE_LFN : Non-LFN configuration */
 	BYTE c, d, *sfn;
 	UINT ni, si, i;
@@ -2964,16 +2993,23 @@ static FRESULT create_name (	/* FR_OK: successful, FR_INVALID_NAME: could not cr
 #endif /* FF_USE_LFN */
 }
 
+
+
+
 /*-----------------------------------------------------------------------*/
 /* Follow a file path                                                    */
 /*-----------------------------------------------------------------------*/
+
 static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 	DIR* dp,					/* Directory object to return last directory and found object */
 	const TCHAR* path			/* Full-path string to find a file or directory */
-) {
+)
+{
 	FRESULT res;
 	BYTE ns;
 	FATFS *fs = dp->obj.fs;
+
+
 #if FF_FS_RPATH != 0
 	if (!IsSeparator(*path) && (FF_STR_VOLUME_ID != 2 || !IsTerminator(*path))) {	/* Without heading separator */
 		dp->obj.sclust = fs->cdir;			/* Start at the current directory */
@@ -2988,6 +3024,7 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 #if FF_FS_RPATH != 0
 	if (fs->fs_type == FS_EXFAT && dp->obj.sclust) {	/* exFAT: Retrieve the sub-directory's status */
 		DIR dj;
+
 		dp->obj.c_scl = fs->cdc_scl;
 		dp->obj.c_size = fs->cdc_size;
 		dp->obj.c_ofs = fs->cdc_ofs;
@@ -2998,15 +3035,15 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 	}
 #endif
 #endif
-    char tmp[80]; 
+
 	if ((UINT)*path < ' ') {				/* Null path name is the origin directory itself */
 		dp->fn[NSFLAG] = NS_NONAME;
 		res = dir_sdi(dp, 0);
+
 	} else {								/* Follow path */
 		for (;;) {
 			res = create_name(dp, &path);	/* Get a segment name of the path */
-			if (res != FR_OK)
-			    break;
+			if (res != FR_OK) break;
 			res = dir_find(dp);				/* Find an object with the segment name */
 			ns = dp->fn[NSFLAG];
 			if (res != FR_OK) {				/* Failed to find the object */
@@ -3052,7 +3089,8 @@ static FRESULT follow_path (	/* FR_OK(0): successful, !=0: error code */
 
 static int get_ldnumber (	/* Returns logical drive number (-1:invalid drive number or null pointer) */
 	const TCHAR** path		/* Pointer to pointer to the path name */
-) {
+)
+{
 	const TCHAR *tp, *tt;
 	TCHAR tc;
 	int i;
@@ -3061,9 +3099,9 @@ static int get_ldnumber (	/* Returns logical drive number (-1:invalid drive numb
 	const char *sp;
 	char c;
 #endif
+
 	tt = tp = *path;
 	if (!tp) return vol;	/* Invalid path name? */
-	if (tp[0] == 'F') return 1; // in_flash drive support path = "F:\"
 	do tc = *tt++; while (!IsTerminator(tc) && tc != ':');	/* Find a colon in the path */
 
 	if (tc == ':') {	/* DOS/Windows style volume ID? */
@@ -3233,20 +3271,24 @@ static UINT check_fs (	/* 0:FAT/FAT32 VBR, 1:exFAT VBR, 2:Not FAT and valid BS, 
 	return sign == 0xAA55 ? 2 : 3;	/* Not an FAT VBR (valid or invalid BS) */
 }
 
+
 /* Find an FAT volume */
 /* (It supports only generic partitioning rules, MBR, GPT and SFD) */
 
 static UINT find_volume (	/* Returns BS status found in the hosting drive */
 	FATFS* fs,		/* Filesystem object */
 	UINT part		/* Partition to fined = 0:auto, 1..:forced */
-) {
+)
+{
 	UINT fmt, i;
 	DWORD mbr_pt[4];
+
 
 	fmt = check_fs(fs, 0);				/* Load sector 0 and check if it is an FAT VBR as SFD format */
 	if (fmt != 2 && (fmt >= 3 || part == 0)) return fmt;	/* Returns if it is an FAT VBR as auto scan, not a BS or disk error */
 
 	/* Sector 0 is not an FAT VBR or forced partition number wants a partition */
+
 #if FF_LBA64
 	if (fs->win[MBR_Table + PTE_System] == 0xEE) {	/* GPT protective MBR? */
 		DWORD n_ent, v_ent, ofs;
@@ -3280,14 +3322,19 @@ static UINT find_volume (	/* Returns BS status found in the hosting drive */
 	return fmt;
 }
 
+
+
+
 /*-----------------------------------------------------------------------*/
 /* Determine logical drive number and mount the volume if needed         */
 /*-----------------------------------------------------------------------*/
+
 static FRESULT mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
 	const TCHAR** path,			/* Pointer to pointer to the path name (drive number) */
 	FATFS** rfs,				/* Pointer to pointer to the found filesystem object */
 	BYTE mode					/* !=0: Check write protection for write access */
-) {
+)
+{
 	int vol;
 	DSTATUS stat;
 	LBA_t bsect;
@@ -3295,6 +3342,7 @@ static FRESULT mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
 	WORD nrsv;
 	FATFS *fs;
 	UINT fmt;
+
 
 	/* Get logical drive number */
 	*rfs = 0;
@@ -3503,14 +3551,21 @@ static FRESULT mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
 	return FR_OK;
 }
 
+
+
+
 /*-----------------------------------------------------------------------*/
 /* Check if the file/directory object is valid or not                    */
 /*-----------------------------------------------------------------------*/
+
 static FRESULT validate (	/* Returns FR_OK or FR_INVALID_OBJECT */
 	FFOBJID* obj,			/* Pointer to the FFOBJID, the 1st member in the FIL/DIR object, to check validity */
 	FATFS** rfs				/* Pointer to pointer to the owner filesystem object to return */
-) {
+)
+{
 	FRESULT res = FR_INVALID_OBJECT;
+
+
 	if (obj && obj->fs && obj->fs->fs_type && obj->id == obj->fs->id) {	/* Test if the object is valid */
 #if FF_FS_REENTRANT
 		if (lock_fs(obj->fs)) {	/* Obtain the filesystem object */
@@ -3532,29 +3587,38 @@ static FRESULT validate (	/* Returns FR_OK or FR_INVALID_OBJECT */
 	return res;
 }
 
+
+
+
 /*---------------------------------------------------------------------------
 
    Public Functions (FatFs API)
 
 ----------------------------------------------------------------------------*/
 
+
+
 /*-----------------------------------------------------------------------*/
 /* Mount/Unmount a Logical Drive                                         */
 /*-----------------------------------------------------------------------*/
+
 FRESULT f_mount (
 	FATFS* fs,			/* Pointer to the filesystem object to be registered (NULL:unmount)*/
 	const TCHAR* path,	/* Logical drive number to be mounted/unmounted */
 	BYTE opt			/* Mount option: 0=Do not mount (delayed mount), 1=Mount immediately */
-) {
+)
+{
 	FATFS *cfs;
 	int vol;
 	FRESULT res;
 	const TCHAR *rp = path;
+
+
 	/* Get logical drive number */
 	vol = get_ldnumber(&rp);
-	if (vol < 0)
-	    return FR_INVALID_DRIVE;
+	if (vol < 0) return FR_INVALID_DRIVE;
 	cfs = FatFs[vol];					/* Pointer to fs object */
+
 	if (cfs) {
 #if FF_FS_LOCK != 0
 		clear_lock(cfs);
@@ -4467,19 +4531,21 @@ FRESULT f_lseek (
 FRESULT f_opendir (
 	DIR* dp,			/* Pointer to directory object to create */
 	const TCHAR* path	/* Pointer to the directory path */
-) {
+)
+{
 	FRESULT res;
 	FATFS *fs;
 	DEF_NAMBUF
+
+
 	if (!dp) return FR_INVALID_OBJECT;
+
 	/* Get logical drive */
 	res = mount_volume(&path, &fs, 0);
-	//char tmp[80]; sprintf(tmp, "mount_volume(%s): %s (%d) pdrv: %d", path, FRESULT_str(res), res, fs->pdrv); logMsg(tmp);
 	if (res == FR_OK) {
 		dp->obj.fs = fs;
 		INIT_NAMBUF(fs);
-		res = follow_path(dp, fs->pdrv == 1 ? path + 2 : path);			/* Follow the path to the directory */
-		//sprintf(tmp, "follow_path(%s): %s (%d)", path, FRESULT_str(res), res); logMsg(tmp);
+		res = follow_path(dp, path);			/* Follow the path to the directory */
 		if (res == FR_OK) {						/* Follow completed */
 			if (!(dp->fn[NSFLAG] & NS_NONAME)) {	/* It is not the origin directory itself */
 				if (dp->obj.attr & AM_DIR) {		/* This object is a sub-directory */
@@ -4551,16 +4617,23 @@ FRESULT f_closedir (
 	return res;
 }
 
+
+
+
 /*-----------------------------------------------------------------------*/
 /* Read Directory Entries in Sequence                                    */
 /*-----------------------------------------------------------------------*/
+
 FRESULT f_readdir (
 	DIR* dp,			/* Pointer to the open directory object */
 	FILINFO* fno		/* Pointer to file information to return */
-) {
+)
+{
 	FRESULT res;
 	FATFS *fs;
 	DEF_NAMBUF
+
+
 	res = validate(&dp->obj, &fs);	/* Check validity of the directory object */
 	if (res == FR_OK) {
 		if (!fno) {

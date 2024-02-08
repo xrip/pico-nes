@@ -14,11 +14,13 @@
 #include "ff.h"
 #include "diskio.h"
 
+
 /*--------------------------------------------------------------------------
 
    Module Private Functions
 
 ---------------------------------------------------------------------------*/
+
 /* MMC/SD command */
 #define CMD0	(0)			/* GO_IDLE_STATE */
 #define CMD1	(1)			/* SEND_OP_COND (MMC) */
@@ -345,13 +347,14 @@ BYTE send_cmd (		/* Return value: R1 resp (bit7==1:Failed to send) */
 
 DSTATUS disk_initialize (
 	BYTE drv		/* Physical drive number (0) */
-) {
-	if (drv == 1) { return STA_PROTECT; } // Read-only support for in_flash drive
+)
+{
 	BYTE n, cmd, ty, ocr[4];
 	const uint32_t timeout = 1000; /* Initialization timeout = 1 sec */
 	uint32_t t;
 
-	if (drv) return STA_NOINIT;			/* Supports only drive 0 for sd-card */
+
+	if (drv) return STA_NOINIT;			/* Supports only drive 0 */
 	init_spi();							/* Initialize SPI */
     sleep_ms(10);
 
@@ -397,20 +400,27 @@ DSTATUS disk_initialize (
 	return Stat;
 }
 
+
+
 /*-----------------------------------------------------------------------*/
 /* Get disk status                                                       */
 /*-----------------------------------------------------------------------*/
+
 DSTATUS disk_status (
 	BYTE drv		/* Physical drive number (0) */
-) {
-	if (drv == 1) return STA_PROTECT; // RO-support for in_flash drive 
-	if (drv) return STA_NOINIT;		/* Supports only drives 0 & 1 */
+)
+{
+	if (drv) return STA_NOINIT;		/* Supports only drive 0 */
+
 	return Stat;	/* Return disk status */
 }
+
+
 
 /*-----------------------------------------------------------------------*/
 /* Read sector(s)                                                        */
 /*-----------------------------------------------------------------------*/
+
 DRESULT disk_read (
 	BYTE drv,		/* Physical drive number (0) */
 	BYTE *buff,		/* Pointer to the data buffer to store read data */
@@ -534,18 +544,21 @@ DRESULT disk_write (
 }
 #endif
 
+
 /*-----------------------------------------------------------------------*/
 /* Miscellaneous drive controls other than data read/write               */
 /*-----------------------------------------------------------------------*/
+
 DRESULT disk_ioctl (
 	BYTE drv,		/* Physical drive number (0) */
 	BYTE cmd,		/* Control command code */
 	void *buff		/* Pointer to the conrtol data */
-) {
-	//char tmp[80]; sprintf(tmp, "disk_ioctl(%d, %d)", drv, cmd); logMsg(tmp);
+)
+{
 	DRESULT res;
 	BYTE n, csd[16];
 	DWORD *dp, st, ed, csize;
+
 
 	if (drv) return RES_PARERR;					/* Check parameter */
 	if (Stat & STA_NOINIT) return RES_NOTRDY;	/* Check if drive is ready */
@@ -593,7 +606,7 @@ DRESULT disk_ioctl (
 		}
 		break;
 
-	case CTRL_TRIM :                                    /* Erase a block of sectors (used when _USE_ERASE == 1) */
+	case CTRL_TRIM :	/* Erase a block of sectors (used when _USE_ERASE == 1) */
 		if (!(CardType & CT_SDC)) break;				/* Check if the card is SDC */
 		if (disk_ioctl(drv, MMC_GET_CSD, csd)) break;	/* Get CSD */
 		if (!(csd[0] >> 6) && !(csd[10] & 0x40)) break;	/* Check if sector erase can be applied to the card */
