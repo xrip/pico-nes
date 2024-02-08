@@ -312,7 +312,7 @@ struct input_bits_t {
 };
 
 input_bits_t keyboard_bits = { false, false, false, false, false, false, false, false };
-static input_bits_t gamepad1_bits = { false, false, false, false, false, false, false, false };
+input_bits_t gamepad1_bits = { false, false, false, false, false, false, false, false };
 static input_bits_t gamepad2_bits = { false, false, false, false, false, false, false, false };
 
 #if USE_NESPAD
