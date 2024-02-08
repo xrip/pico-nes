@@ -13,6 +13,8 @@
 
 #include <InfoNES.h>
 #include <InfoNES_System.h>
+#include <bsp/board_api.h>
+
 #include "InfoNES_Mapper.h"
 
 #include "graphics.h"
@@ -309,7 +311,7 @@ struct input_bits_t {
     bool down: true;
 };
 
-static input_bits_t keyboard_bits = { false, false, false, false, false, false, false, false };
+input_bits_t keyboard_bits = { false, false, false, false, false, false, false, false };
 static input_bits_t gamepad1_bits = { false, false, false, false, false, false, false, false };
 static input_bits_t gamepad2_bits = { false, false, false, false, false, false, false, false };
 
@@ -326,6 +328,7 @@ void nespad_tick() {
     gamepad1_bits.down = (nespad_state & DPAD_DOWN) != 0;
     gamepad1_bits.left = (nespad_state & DPAD_LEFT) != 0;
     gamepad1_bits.right = (nespad_state & DPAD_RIGHT) != 0;
+
     // second
     gamepad2_bits.a = (nespad_state2 & DPAD_A) != 0;
     gamepad2_bits.b = (nespad_state2 & DPAD_B) != 0;
@@ -358,7 +361,6 @@ void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const* report
     keyboard_bits.down = isInReport(report, HID_KEY_ARROW_DOWN);
     keyboard_bits.left = isInReport(report, HID_KEY_ARROW_LEFT);
     keyboard_bits.right = isInReport(report, HID_KEY_ARROW_RIGHT);
-    prev_report = prev_report;
 }
 
 Ps2Kbd_Mrmltr ps2kbd(
@@ -563,7 +565,7 @@ void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
     for (int x = 0; x < NES_DISP_WIDTH; x++) SCREEN[line][x] = (uint8_t)linebuffer[x];
     // if (settings.show_fps && line < 16) draw_fps(fps_text, line, 255);
 }
-
+extern void hid_app_task(void);
 /* Renderer loop on Pico's second core */
 void __scratch_x("render") render_core() {
 #if TFT || HDMI
@@ -602,6 +604,9 @@ void __scratch_x("render") render_core() {
         }
         tick = time_us_64();
 
+
+        tuh_task();
+        //hid_app_task();
         tight_loop_contents();
     }
 
@@ -1223,6 +1228,9 @@ int main() {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
+
+    board_init();
+    tuh_init(BOARD_TUH_RHPORT);
 
     memset(&SCREEN[0][0], 0, sizeof SCREEN);
 #if USE_PS2_KBD
