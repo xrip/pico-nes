@@ -1,0 +1,403 @@
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2021, Ha Thach (tinyusb.org)
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ *
+ */
+
+
+#include "tusb.h"
+#include "xinput_host.h"
+
+//--------------------------------------------------------------------+
+// MACRO TYPEDEF CONSTANT ENUM DECLARATION
+//--------------------------------------------------------------------+
+
+// If your host terminal support ansi escape code such as TeraTerm
+// it can be use to simulate mouse cursor movement within terminal
+#define USE_ANSI_ESCAPE   0
+
+#define MAX_REPORT  4
+
+//Since https://github.com/hathach/tinyusb/pull/2222, we can add in custom vendor drivers easily
+usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count){
+    *driver_count = 1;
+    return &usbh_xinput_driver;
+}
+static uint8_t const keycode2ascii[128][2] = { HID_KEYCODE_TO_ASCII };
+
+
+
+
+
+static void process_kbd_report(hid_keyboard_report_t const* report);
+
+static void process_mouse_report(hid_mouse_report_t const* report);
+
+static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
+
+void hid_app_task(void) {
+    // nothing to do
+}
+
+//--------------------------------------------------------------------+
+// TinyUSB Callbacks
+//--------------------------------------------------------------------+
+#if CFG_TUH_HID
+
+// Each HID instance can has multiple reports
+static struct {
+    uint8_t report_count;
+    tuh_hid_report_info_t report_info[MAX_REPORT];
+} hid_info[CFG_TUH_HID];
+// Invoked when device with hid interface is mounted
+// Report descriptor is also available for use. tuh_hid_parse_report_descriptor()
+// can be used to parse common/simple enough descriptor.
+// Note: if report descriptor length > CFG_TUH_ENUMERATION_BUFSIZE, it will be skipped
+// therefore report_desc = NULL, desc_len = 0
+void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
+    printf("HID device address = %d, instance = %d is mounted\r\n", dev_addr, instance);
+
+    // Interface protocol (hid_interface_protocol_enum_t)
+    const char* protocol_str[] = { "None", "Keyboard", "Mouse" };
+    uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+
+    printf("HID Interface Protocol = %s\r\n", protocol_str[itf_protocol]);
+
+    // By default host stack will use activate boot protocol on supported interface.
+    // Therefore for this simple example, we only need to parse generic report descriptor (with built-in parser)
+    if (itf_protocol == HID_ITF_PROTOCOL_NONE) {
+        hid_info[instance].report_count = tuh_hid_parse_report_descriptor(
+            hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
+        printf("HID has %u reports \r\n", hid_info[instance].report_count);
+    }
+
+    // request to receive report
+    // tuh_hid_report_received_cb() will be invoked when report is available
+    if (!tuh_hid_receive_report(dev_addr, instance)) {
+        printf("Error: cannot request to receive report\r\n");
+    }
+}
+
+// Invoked when device with hid interface is un-mounted
+void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
+    printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+}
+
+// Invoked when received report from device via interrupt endpoint
+void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
+    uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+
+    switch (itf_protocol) {
+        case HID_ITF_PROTOCOL_KEYBOARD:
+            TU_LOG2("HID receive boot keyboard report\r\n");
+            process_kbd_report((hid_keyboard_report_t const *)report);
+            break;
+
+        case HID_ITF_PROTOCOL_MOUSE:
+            TU_LOG2("HID receive boot mouse report\r\n");
+            process_mouse_report((hid_mouse_report_t const *)report);
+            break;
+
+        default:
+            // Generic report requires matching ReportID and contents with previous parsed report info
+            process_generic_report(dev_addr, instance, report, len);
+            break;
+    }
+
+    // continue to request to receive report
+    if (!tuh_hid_receive_report(dev_addr, instance)) {
+        printf("Error: cannot request to receive report\r\n");
+    }
+}
+
+//--------------------------------------------------------------------+
+// Keyboard
+//--------------------------------------------------------------------+
+
+// look up new key in previous keys
+static inline bool find_key_in_report(hid_keyboard_report_t const* report, uint8_t keycode) {
+    for (uint8_t i = 0; i < 6; i++) {
+        if (report->keycode[i] == keycode) return true;
+    }
+
+    return false;
+}
+extern bool isInReport(hid_keyboard_report_t const* report, const unsigned char keycode);
+
+static void process_kbd_report(hid_keyboard_report_t const* report) {
+    static hid_keyboard_report_t prev_report = { 0, 0, { 0 } }; // previous report to check key released
+    keyboard_bits.start = find_key_in_report(report, HID_KEY_ENTER);
+    keyboard_bits.select = find_key_in_report(report, HID_KEY_BACKSPACE);
+    keyboard_bits.a = find_key_in_report(report, HID_KEY_Z);
+    keyboard_bits.b = find_key_in_report(report, HID_KEY_X);
+    keyboard_bits.up = find_key_in_report(report, HID_KEY_ARROW_UP);
+    keyboard_bits.down = find_key_in_report(report, HID_KEY_ARROW_DOWN);
+    keyboard_bits.left = find_key_in_report(report, HID_KEY_ARROW_LEFT);
+    keyboard_bits.right = find_key_in_report(report, HID_KEY_ARROW_RIGHT);
+}
+
+//--------------------------------------------------------------------+
+// Mouse
+//--------------------------------------------------------------------+
+
+void cursor_movement(int8_t x, int8_t y, int8_t wheel) {
+#if USE_ANSI_ESCAPE
+  // Move X using ansi escape
+  if ( x < 0)
+  {
+    printf(ANSI_CURSOR_BACKWARD(%d), (-x)); // move left
+  }else if ( x > 0)
+  {
+    printf(ANSI_CURSOR_FORWARD(%d), x); // move right
+  }
+
+  // Move Y using ansi escape
+  if ( y < 0)
+  {
+    printf(ANSI_CURSOR_UP(%d), (-y)); // move up
+  }else if ( y > 0)
+  {
+    printf(ANSI_CURSOR_DOWN(%d), y); // move down
+  }
+
+  // Scroll using ansi escape
+  if (wheel < 0)
+  {
+    printf(ANSI_SCROLL_UP(%d), (-wheel)); // scroll up
+  }else if (wheel > 0)
+  {
+    printf(ANSI_SCROLL_DOWN(%d), wheel); // scroll down
+  }
+
+  printf("\r\n");
+#else
+    printf("(%d %d %d)\r\n", x, y, wheel);
+#endif
+}
+
+static void process_mouse_report(hid_mouse_report_t const* report) {
+    static hid_mouse_report_t prev_report = { 0 };
+
+    //------------- button state  -------------//
+    uint8_t button_changed_mask = report->buttons ^ prev_report.buttons;
+    if (button_changed_mask & report->buttons) {
+        printf(" %c%c%c ",
+               report->buttons & MOUSE_BUTTON_LEFT ? 'L' : '-',
+               report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-',
+               report->buttons & MOUSE_BUTTON_RIGHT ? 'R' : '-');
+    }
+
+    //------------- cursor movement -------------//
+    cursor_movement(report->x, report->y, report->wheel);
+}
+
+static void process_gamepad_report(hid_gamepad_report_t const* report) {
+
+    struct GamePadReport
+    {
+        uint8_t buttons[3];
+        uint8_t axis[4];
+        uint8_t DirPad[4];
+        uint8_t ActPad[4];
+        uint8_t Triger1[2];
+        uint8_t Triger2[2];
+        uint8_t last[8];
+    };
+
+    auto gamepad = reinterpret_cast<const GamePadReport *>(report);
+
+    memset(&gamepad1_bits, 0, sizeof gamepad1_bits);
+
+    gamepad1_bits.a = gamepad->buttons[0] & 0x04;
+    gamepad1_bits.b = gamepad->buttons[0] & 0x02;
+    gamepad1_bits.select = gamepad->buttons[0] & 0x50;
+    gamepad1_bits.start = gamepad->buttons[0] & 0xA0;
+
+    int x = gamepad->axis[0];
+    int y = gamepad->axis[1];
+
+    if (x < 64)
+    {
+        gamepad1_bits.left = true;
+    }
+    else if (x > 192)
+    {
+        gamepad1_bits.right = true;
+    }
+
+    if (y < 64)
+    {
+        gamepad1_bits.up = true;
+    }
+    else if (y > 192)
+    {
+        gamepad1_bits.down = true;
+    }
+}
+
+//--------------------------------------------------------------------+
+// Generic Report
+//--------------------------------------------------------------------+
+static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
+    (void)dev_addr;
+
+    uint8_t const rpt_count = hid_info[instance].report_count;
+    tuh_hid_report_info_t* rpt_info_arr = hid_info[instance].report_info;
+    tuh_hid_report_info_t* rpt_info = NULL;
+
+    if (rpt_count == 1 && rpt_info_arr[0].report_id == 0) {
+        // Simple report without report ID as 1st byte
+        rpt_info = &rpt_info_arr[0];
+    }
+    else {
+        // Composite report, 1st byte is report ID, data starts from 2nd byte
+        uint8_t const rpt_id = report[0];
+
+        // Find report id in the array
+        for (uint8_t i = 0; i < rpt_count; i++) {
+            if (rpt_id == rpt_info_arr[i].report_id) {
+                rpt_info = &rpt_info_arr[i];
+                break;
+            }
+        }
+
+        report++;
+        len--;
+    }
+
+    if (!rpt_info) {
+        printf("Couldn't find the report info for this report !\r\n");
+        return;
+    }
+
+    // For complete list of Usage Page & Usage checkout src/class/hid/hid.h. For examples:
+    // - Keyboard                     : Desktop, Keyboard
+    // - Mouse                        : Desktop, Mouse
+    // - Gamepad                      : Desktop, Gamepad
+    // - Consumer Control (Media Key) : Consumer, Consumer Control
+    // - System Control (Power key)   : Desktop, System Control
+    // - Generic (vendor)             : 0xFFxx, xx
+    if (rpt_info->usage_page == HID_USAGE_PAGE_DESKTOP) {
+        switch (rpt_info->usage) {
+            case HID_USAGE_DESKTOP_KEYBOARD:
+                TU_LOG1("HID receive keyboard report\r\n");
+            // Assume keyboard follow boot report layout
+                process_kbd_report((hid_keyboard_report_t const *)report);
+                break;
+
+            case HID_USAGE_DESKTOP_MOUSE:
+                TU_LOG1("HID receive mouse report\r\n");
+            // Assume mouse follow boot report layout
+                process_mouse_report((hid_mouse_report_t const *)report);
+                break;
+            default: break;
+        }
+    }
+}
+#endif
+
+void tuh_xinput_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len)
+{
+    auto *xid_itf = (xinputh_interface_t *)report;
+    xinput_gamepad_t *p = &xid_itf->pad;
+    const char* type_str;
+    switch (xid_itf->type)
+    {
+        case 1: type_str = "Xbox One";          break;
+        case 2: type_str = "Xbox 360 Wireless"; break;
+        case 3: type_str = "Xbox 360 Wired";    break;
+        case 4: type_str = "Xbox OG";           break;
+        default: type_str = "Unknown";
+    }
+
+    if (xid_itf->connected && xid_itf->new_pad_data)
+    {
+        TU_LOG1("[%02x, %02x], Type: %s, Buttons %04x, LT: %02x RT: %02x, LX: %d, LY: %d, RX: %d, RY: %d\n",
+             dev_addr, instance, type_str, p->wButtons, p->bLeftTrigger, p->bRightTrigger, p->sThumbLX, p->sThumbLY, p->sThumbRX, p->sThumbRY);
+
+        //How to check specific buttons
+        if (p->wButtons & XINPUT_GAMEPAD_A) TU_LOG1("You are pressing A\n");
+
+        gamepad1_bits.a = p->wButtons & XINPUT_GAMEPAD_A;
+        gamepad1_bits.b = p->wButtons & XINPUT_GAMEPAD_B;
+        gamepad1_bits.start = p->wButtons & XINPUT_GAMEPAD_START;
+        gamepad1_bits.select = p->wButtons & XINPUT_GAMEPAD_BACK;
+
+        gamepad1_bits.up = p->wButtons & XINPUT_GAMEPAD_DPAD_UP;
+        gamepad1_bits.down = p->wButtons & XINPUT_GAMEPAD_DPAD_DOWN;
+        gamepad1_bits.left = p->wButtons & XINPUT_GAMEPAD_DPAD_LEFT;
+        gamepad1_bits.right = p->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT;
+
+
+    }
+    tuh_xinput_receive_report(dev_addr, instance);
+}
+
+void tuh_xinput_mount_cb(uint8_t dev_addr, uint8_t instance, const xinputh_interface_t *xinput_itf)
+{
+    TU_LOG1("XINPUT MOUNTED %02x %d\n", dev_addr, instance);
+    // If this is a Xbox 360 Wireless controller we need to wait for a connection packet
+    // on the in pipe before setting LEDs etc. So just start getting data until a controller is connected.
+    if (xinput_itf->type == XBOX360_WIRELESS && xinput_itf->connected == false)
+    {
+        tuh_xinput_receive_report(dev_addr, instance);
+        return;
+    } else if (xinput_itf->type == XBOX360_WIRED) {
+        /*
+         * Some third-party Xbox 360-style controllers require this message to finish initialization.
+         * Idea taken from Linux drivers/input/joystick/xpad.c
+         */
+        uint8_t dummy[20];
+        tusb_control_request_t const request =
+        {
+            .bmRequestType_bit =
+            {
+                .recipient = TUSB_REQ_RCPT_INTERFACE,
+                .type      = TUSB_REQ_TYPE_VENDOR,
+                .direction = TUSB_DIR_IN
+            },
+            .bRequest = tu_htole16(0x01),
+            .wValue   = tu_htole16(0x100),
+            .wIndex   = tu_htole16(0x00),
+            .wLength  = 20
+        };
+        tuh_xfer_t xfer =
+        {
+            .daddr       = dev_addr,
+            .ep_addr     = 0,
+            .setup       = &request,
+            .buffer      = dummy,
+            .complete_cb = NULL,
+            .user_data   = 0
+        };
+        tuh_control_xfer(&xfer);
+    }
+    tuh_xinput_set_led(dev_addr, instance, 0, true);
+    tuh_xinput_set_led(dev_addr, instance, 1, true);
+    tuh_xinput_set_rumble(dev_addr, instance, 0, 0, true);
+    tuh_xinput_receive_report(dev_addr, instance);
+}
+
+void tuh_xinput_umount_cb(uint8_t dev_addr, uint8_t instance)
+{
+    TU_LOG1("XINPUT UNMOUNTED %02x %d\n", dev_addr, instance);
+}

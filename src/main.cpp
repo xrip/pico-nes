@@ -320,6 +320,7 @@ static input_bits_t gamepad2_bits = { false, false, false, false, false, false, 
 void nespad_tick() {
 
     nespad_read();
+
     gamepad1_bits.a = (nespad_state & DPAD_A) != 0;
     gamepad1_bits.b = (nespad_state & DPAD_B) != 0;
     gamepad1_bits.select = (nespad_state & DPAD_SELECT) != 0;
@@ -521,7 +522,7 @@ int InfoNES_SoundOpen(int samples_per_sync, int sample_rate) {
 void InfoNES_SoundClose() {
 }
 
-#define buffermax (44100 / 60)*2
+#define buffermax ((44100 / 60)*2)
 int __not_in_flash_func(InfoNES_GetSoundBufferSize)() { return buffermax; }
 
 
@@ -565,7 +566,7 @@ void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
     for (int x = 0; x < NES_DISP_WIDTH; x++) SCREEN[line][x] = (uint8_t)linebuffer[x];
     // if (settings.show_fps && line < 16) draw_fps(fps_text, line, 255);
 }
-extern void hid_app_task(void);
+
 /* Renderer loop on Pico's second core */
 void __scratch_x("render") render_core() {
 #if TFT || HDMI
@@ -880,11 +881,11 @@ void __not_in_flash_func(filebrowser)(const char pathname[256], const char* exec
             sleep_ms(100);
 
             if (!debounce) {
-                debounce = !(nespad_state & DPAD_START) && !keyboard_bits.start;
+                debounce = !gamepad1_bits.start && !keyboard_bits.start;
             }
 
             // ESCAPE
-            if (nespad_state & DPAD_SELECT || keyboard_bits.select) {
+            if (gamepad1_bits.select || keyboard_bits.select) {
                 return;
             }
 
@@ -913,7 +914,7 @@ void __not_in_flash_func(filebrowser)(const char pathname[256], const char* exec
             }
             */
 
-            if (nespad_state & DPAD_DOWN || keyboard_bits.down) {
+            if (gamepad1_bits.down || keyboard_bits.down) {
                 if (offset + (current_item + 1) < total_files) {
                     if (current_item + 1 < per_page) {
                         current_item++;
@@ -924,7 +925,7 @@ void __not_in_flash_func(filebrowser)(const char pathname[256], const char* exec
                 }
             }
 
-            if (nespad_state & DPAD_UP || keyboard_bits.up) {
+            if (gamepad1_bits.up || keyboard_bits.up) {
                 if (current_item > 0) {
                     current_item--;
                 }
@@ -933,14 +934,14 @@ void __not_in_flash_func(filebrowser)(const char pathname[256], const char* exec
                 }
             }
 
-            if (nespad_state & DPAD_RIGHT || keyboard_bits.right) {
+            if (gamepad1_bits.right || keyboard_bits.right) {
                 offset += per_page;
                 if (offset + (current_item + 1) > total_files) {
                     offset = total_files - (current_item + 1);
                 }
             }
 
-            if (nespad_state & DPAD_LEFT || keyboard_bits.left) {
+            if (gamepad1_bits.left || keyboard_bits.left) {
                 if (offset > per_page) {
                     offset -= per_page;
                 }
@@ -950,7 +951,7 @@ void __not_in_flash_func(filebrowser)(const char pathname[256], const char* exec
                 }
             }
 
-            if (debounce && ((nespad_state & DPAD_START) != 0 || keyboard_bits.start)) {
+            if (debounce && (gamepad1_bits.start || keyboard_bits.start)) {
                 auto file_at_cursor = fileItems[offset + current_item];
 
                 if (file_at_cursor.is_directory) {
@@ -1102,12 +1103,12 @@ int menu() {
     int current_item = 0;
     while (!exit) {
         sleep_ms(25);
-        if ((nespad_state & DPAD_DOWN || keyboard_bits.down) != 0) {
+        if ((gamepad1_bits.down || keyboard_bits.down) != 0) {
             current_item = (current_item + 1) % MENU_ITEMS_NUMBER;
             if (menu_items[current_item].type == NONE)
                 current_item++;
         }
-        if ((nespad_state & DPAD_UP || keyboard_bits.up) != 0) {
+        if ((gamepad1_bits.up || keyboard_bits.up) != 0) {
             current_item = (current_item - 1 + MENU_ITEMS_NUMBER) % MENU_ITEMS_NUMBER;
             if (menu_items[current_item].type == NONE)
                 current_item--;
@@ -1128,43 +1129,43 @@ int menu() {
                     case ARRAY:
                         if (item->max_value != 0) {
                             auto* value = (uint8_t *)item->value;
-                            if ((nespad_state & DPAD_RIGHT || keyboard_bits.right) && *value < item->max_value) {
+                            if ((gamepad1_bits.right || keyboard_bits.right) && *value < item->max_value) {
                                 (*value)++;
                             }
-                            if ((nespad_state & DPAD_LEFT || keyboard_bits.left) && *value > 0) {
+                            if ((gamepad1_bits.left || keyboard_bits.left) && *value > 0) {
                                 (*value)--;
                             }
                         }
                         break;
                     case SAVE:
-                        if (nespad_state & DPAD_START || keyboard_bits.start) {
+                        if (gamepad1_bits.start || keyboard_bits.start) {
                             save_state((char *)rom_filename);
                             exit = true;
                         }
                         break;
                     case LOAD:
-                        if (nespad_state & DPAD_START || keyboard_bits.start) {
+                        if (gamepad1_bits.start || keyboard_bits.start) {
                             load_state((char *)rom_filename);
                             exit = true;
                         }
                         break;
                     case RETURN:
-                        if (nespad_state & DPAD_START || keyboard_bits.start)
+                        if (gamepad1_bits.start || keyboard_bits.start)
                             exit = true;
                         break;
                     case RESET:
-                        if (nespad_state & DPAD_START || keyboard_bits.start)
+                        if (gamepad1_bits.start || keyboard_bits.start)
                             watchdog_enable(100, true);
                         break;
 
                     case ROM_SELECT:
-                        if (nespad_state & DPAD_START || keyboard_bits.start) {
+                        if (gamepad1_bits.start || keyboard_bits.start) {
                             exit = true;
                             return InfoNES_Menu();
                         }
                         break;
                     case USB_DEVICE:
-                        if (nespad_state & DPAD_START || keyboard_bits.start) {
+                        if (gamepad1_bits.start || keyboard_bits.start) {
                             clrScr(1);
                             draw_text((char *)"Mount me as USB drive...", 30, 15, 7, 1);
                             // in_flash_drive();
