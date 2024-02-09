@@ -974,6 +974,7 @@ void __not_in_flash_func(filebrowser)(const char pathname[256], const char* exec
 
                     if (filebrowser_loadfile(tmp, false)) {
                         watchdog_enable(0, true);
+                        // FIXME!!!
                         return;
                     }
                 }
@@ -1024,8 +1025,10 @@ int InfoNES_Video() {
 }
 
 int InfoNES_Menu() {
+    graphics_set_mode(TEXTMODE_DEFAULT);
     filebrowser(HOME_DIR, (char *)"nes");
-    return 0;
+    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    return 1;
 }
 
 void load_config() {
@@ -1218,7 +1221,7 @@ int InfoNES_LoadFrame() {
 
 int main() {
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
-    sleep_ms(33);
+    sleep_ms(10);
     set_sys_clock_khz(378 * KHZ, true);
 
     gpio_init(PICO_DEFAULT_LED_PIN);
@@ -1230,7 +1233,7 @@ int main() {
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
 
-    board_init();
+    // board_init();
     tuh_init(BOARD_TUH_RHPORT);
 
     memset(&SCREEN[0][0], 0, sizeof SCREEN);
