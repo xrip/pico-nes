@@ -77,7 +77,8 @@ typedef struct
 
     uint8_t epin_buf[CFG_TUH_XINPUT_EPIN_BUFSIZE];
     uint8_t epout_buf[CFG_TUH_XINPUT_EPOUT_BUFSIZE];
-} xinputh_interface_t;
+}
+xinputh_interface_t;
 
 extern usbh_class_driver_t const usbh_xinput_driver;
 

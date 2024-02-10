@@ -56,6 +56,7 @@ struct input_bits_t {
   bool down: true;
 };
 extern struct input_bits_t keyboard_bits;
+extern struct input_bits_t gamepad1_bits;
 
 static void process_kbd_report(hid_keyboard_report_t const *report);
 static void process_mouse_report(hid_mouse_report_t const * report);

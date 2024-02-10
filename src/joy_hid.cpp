@@ -21,29 +21,9 @@ usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count){
 
 void tuh_xinput_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len)
 {
-    xinputh_interface_t *xid_itf = (xinputh_interface_t *)report;
-    xinput_gamepad_t *p = &xid_itf->pad;
-    const char* type_str;
-    switch (xid_itf->type)
-    {
-        case 1: type_str = "Xbox One";          break;
-        case 2: type_str = "Xbox 360 Wireless"; break;
-        case 3: type_str = "Xbox 360 Wired";    break;
-        case 4: type_str = "Xbox OG";           break;
-        default: type_str = "Unknown";
-    }
+    auto xid_itf = (xinputh_interface_t *)report;
+    const xinput_gamepad_t *p = &xid_itf->pad;
 
-    if (xid_itf->connected && xid_itf->new_pad_data)
-    {
-        TU_LOG1("[%02x, %02x], Type: %s, Buttons %04x, LT: %02x RT: %02x, LX: %d, LY: %d, RX: %d, RY: %d\n",
-             dev_addr, instance, type_str, p->wButtons, p->bLeftTrigger, p->bRightTrigger, p->sThumbLX, p->sThumbLY, p->sThumbRX, p->sThumbRY);
-    }
-
-
-    //How to check specific buttons
-    if (p->wButtons & XINPUT_GAMEPAD_A) {
-        TU_LOG1("You are pressing A\n");
-    }
     gamepad1_bits.a= p->wButtons & XINPUT_GAMEPAD_A;
     gamepad1_bits.b= p->wButtons & XINPUT_GAMEPAD_B;
 
