@@ -569,9 +569,7 @@ void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
 
 /* Renderer loop on Pico's second core */
 void __scratch_x("render") render_core() {
-#if TFT || HDMI
     multicore_lockout_victim_init();
-#endif
     graphics_init();
 
     auto* buffer = &SCREEN[0][0];
@@ -711,7 +709,6 @@ char* get_rom_filename() {
 
 bool filebrowser_loadfile(char* pathname, bool built_in) {
     draw_text("LOADING...", 0, 0, 15, 0);
-    sleep_ms(32);
     if (strcmp((char *)rom_filename, pathname) == 0) {
         return false;
     }
@@ -722,9 +719,7 @@ bool filebrowser_loadfile(char* pathname, bool built_in) {
 
     FRESULT result = built_in ? in_open((FILE_LZW *)&file, pathname) : f_open(&file, pathname, FA_READ);
     if (result == FR_OK) {
-#if TFT || HDMI
         multicore_lockout_start_blocking();
-#endif
         flash_range_erase2(addr, 4096);
         flash_range_program2(addr, reinterpret_cast<const uint8_t *>(pathname), 256);
         size_t bufsize = 8192;
@@ -750,9 +745,7 @@ bool filebrowser_loadfile(char* pathname, bool built_in) {
         if (pIs) { delete pIs; pIs = 0; }
 #endif
         if (!built_in) f_close(&file);
-#if TFT || HDMI
         multicore_lockout_end_blocking();
-#endif
     }
     // FIXME! Починить графический драйвер при загрузке
     //watchdog_enable(100, true);
