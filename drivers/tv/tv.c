@@ -149,9 +149,6 @@ static void pio_set_x(PIO pio, int sm, uint32_t v) {
 }
 
 
-void graphics_set_mode(enum graphics_mode_t mode) {
-    graphics_mode = mode;
-};
 
 //определение палитры
 void graphics_set_palette(uint8_t i, uint32_t color888) {
@@ -184,7 +181,7 @@ static void __not_in_flash_func(main_video_loopTV)() {
     //uint n_loop=(N_LINE_BUF_DMA+dma_inx-dma_inx_out)%N_LINE_BUF_DMA;
 
     static uint32_t line_active = 0;
-    static uint8_t* vbuf = NULL;
+    static uint8_t* input_buffer = NULL;
     static uint32_t frame_i = 0;
 
     //while(n_loop--)
@@ -194,7 +191,7 @@ static void __not_in_flash_func(main_video_loopTV)() {
         if (line_active == v_mode.N_lines) {
             line_active = 0;
             frame_i++;
-            vbuf = g_buf.data;
+            input_buffer = g_buf.data;
         }
 
         lines_buf_inx = (lines_buf_inx + 1) % N_LINE_BUF;
@@ -464,7 +461,7 @@ static void __not_in_flash_func(main_video_loopTV)() {
                     break;
             }
 
-            if ((y >= 240) || (y < 0) || (vbuf == NULL)) {
+            if ((y >= 240) || (y < 0) || (input_buffer == NULL)) {
                 //вне изображения
                 memset(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.H_len - v_mode.begin_img_shx);
             }
@@ -500,55 +497,55 @@ static void __not_in_flash_func(main_video_loopTV)() {
                     switch (graphics_mode) {
                         case GRAPHICSMODE_DEFAULT: {
                             //для 8-битного буфера
-                            uint8_t* vbuf8 = vbuf + (y) * g_buf.width;
-                            if (vbuf != NULL) {
+                            uint8_t* input_buffer8 = input_buffer + y * g_buf.width;
+                            if (input_buffer != NULL) {
                                 for (uint i = g_buf.shift_x; i--;) {
-                                    *output_buffer++ = 0;
+                                    *output_buffer++ = 239;
                                 }
                                 for (int i = g_buf.width / 16; i--;) {
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
 
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
-                                    *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
-                                    vbuf8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
+                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
+                                    input_buffer8++;
                                 }
                                 for (uint i = g_buf.shift_x; i--;) {
-                                    *output_buffer++ = 0;
+                                    *output_buffer++ = 239;
                                 }
 
                             }
                             break;
                         }
-                        case TEXTMODE_53x30: {
-                            *output_buffer++ = 0;
+                        case TEXTMODE_DEFAULT: {
+                            *output_buffer++ = 239;
 
                             for (int x = 0; x < TEXTMODE_COLS; x++) {
                                 const uint16_t offset = (y / 8) * (TEXTMODE_COLS * 2) + x * 2;
@@ -564,7 +561,7 @@ static void __not_in_flash_func(main_video_loopTV)() {
                                     glyph_row >>= 1;
                                 }
                             }
-                            *output_buffer = 0;
+                            *output_buffer = 239;
                             break;
                         }
                     }
@@ -910,6 +907,9 @@ void tv_init(g_out_TV g_out) {
 
 
 void graphics_init() {
+
+    tv_init(TV_OUT_NTSC);
+
     // FIXME сделать конфигурацию пользователем
     graphics_set_palette(200, RGB888(0x00, 0x00, 0x00)); //black
     graphics_set_palette(201, RGB888(0x00, 0x00, 0xC4)); //blue
@@ -928,7 +928,6 @@ void graphics_init() {
     graphics_set_palette(214, RGB888(0xF3, 0xF3, 0x4E)); //yellow
     graphics_set_palette(215, RGB888(0xFF, 0xFF, 0xFF)); //white
 
-    tv_init(TV_OUT_NTSC);
 }
 
 void clrScr(const uint8_t color) {
@@ -936,4 +935,10 @@ void clrScr(const uint8_t color) {
     int size = TEXTMODE_COLS * TEXTMODE_ROWS;
 
     while (size--) *t_buf++ = color << 4 | ' ';
+}
+
+
+void graphics_set_mode(enum graphics_mode_t mode) {
+    graphics_mode = mode;
+    clrScr(0);
 }
