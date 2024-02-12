@@ -501,14 +501,10 @@ static void __not_in_flash_func(main_video_loopTV)() {
                         case GRAPHICSMODE_DEFAULT: {
                             //для 8-битного буфера
                             uint8_t* vbuf8 = vbuf + (y) * g_buf.width;
-                            uint32_t* output_buffer32 = (uint32_t *)lines_buf[lines_buf_inx];
                             if (vbuf != NULL) {
-                                /*for (uint i = g_buf.shift_x / 4; i--;) {
-                                    *output_buffer32++ = 0;
-                                    *output_buffer32++ = 0;
-                                    *output_buffer32++ = 0;
-                                    *output_buffer32++ = 0;
-                                }*/
+                                for (uint i = g_buf.shift_x; i--;) {
+                                    *output_buffer++ = 0;
+                                }
                                 for (int i = g_buf.width / 16; i--;) {
                                     *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
                                     vbuf8++;
@@ -544,18 +540,15 @@ static void __not_in_flash_func(main_video_loopTV)() {
                                     *output_buffer++ = (*vbuf8 < 240) ? *vbuf8 : 0;
                                     vbuf8++;
                                 }
-                                /*for (uint i = g_buf.shift_x / 4; i--;) {
-                                    *output_buffer32++ = 0;
-                                    *output_buffer32++ = 0;
-                                    *output_buffer32++ = 0;
-                                    *output_buffer32++ = 0;
-                                }*/
+                                for (uint i = g_buf.shift_x; i--;) {
+                                    *output_buffer++ = 0;
+                                }
+
                             }
                             break;
                         }
                         case TEXTMODE_53x30: {
-                            uint8_t* vbuf8 = vbuf + (y) * g_buf.width;
-                            *vbuf8++ = 0;
+                            *output_buffer++ = 0;
 
                             for (int x = 0; x < TEXTMODE_COLS; x++) {
                                 const uint16_t offset = (y / 8) * (TEXTMODE_COLS * 2) + x * 2;
@@ -564,14 +557,14 @@ static void __not_in_flash_func(main_video_loopTV)() {
                                 uint8_t glyph_row = fnt6x8[c * 8 + y % 8];
 
                                 for (int bit = 6; bit--;) {
-                                    *vbuf8++ = glyph_row & 1
+                                    *output_buffer++ = glyph_row & 1
                                                            ? textmode_palette[colorIndex & 0xf] //цвет шрифта
                                                            : textmode_palette[colorIndex >> 4]; //цвет фона
 
                                     glyph_row >>= 1;
                                 }
                             }
-                            *vbuf8 = 0;
+                            *output_buffer = 0;
                             break;
                         }
                     }
