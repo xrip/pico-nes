@@ -60,8 +60,9 @@ jobs:
           git clone https://github.com/raspberrypi/pico-sdk.git --branch master && \
           cd pico-sdk/ && \
            git submodule update --init && \
-           cd lib/tinyusb &&
-           git checkout 08f9ed67c92421cbd0bc09270d2f363886681866
+           git fetch origin master &&  git checkout master && git pull
+#           cd lib/tinyusb &&
+#           git checkout 08f9ed67c92421cbd0bc09270d2f363886681866
 
       - name: Build the project
         run: |
