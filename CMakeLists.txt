@@ -121,13 +121,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
-        SPEAKER_ENABLED
-        # VGA
-        VGA_GPIO_FIRST=6
-        VGA_GPIO_OUTNUM=6
-        VGA_GPIO_SYNC=12
-        VGA_VSYNC=13
-
         # SDCARD
         SDCARD_PIN_SPI0_CS=5
         SDCARD_PIN_SPI0_SCK=2
@@ -144,28 +137,20 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         NES_GPIO_DATA=16
         NES_GPIO_LAT=15
 
-        #AUDIO
-        #AUDIO_PWM_PIN=26
-        #I2S_CS4334
+        # VGA 8 pins starts from pin:
+        VGA_BASE_PIN=6
 
-        # Other
-        # FF_USE_FIND
-        # usb
-        PICO_DEFAULT_LED_PIN=25
-        # internal games
-        #BUILD_IN_GAMES
+        # HDMI 8 pins starts from pin:
+        HDMI_BASE_PIN=6
 
-        #TFT
+        # TFT
         TFT_CS_PIN=6
         TFT_RST_PIN=8
+        TFT_LED_PIN=9
         TFT_DC_PIN=10
         TFT_DATA_PIN=12
         TFT_CLK_PIN=13
-        TFT_LED_PIN=9
 )
-# Enable compiler and linker garbage collect unused code/data sections
-#target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage)
-
 
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
 pico_add_extra_outputs(${PROJECT_NAME})
