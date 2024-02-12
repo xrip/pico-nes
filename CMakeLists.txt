@@ -13,6 +13,8 @@ option(HDMI "Enable HDMI display" OFF)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
 
 pico_sdk_init()
 
@@ -92,9 +94,6 @@ ENDIF()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 
-# Enable compiler and linker garbage collect unused code/data sections
-#add_link_options(-Wl,--gc-sections)
-
 target_link_libraries(${PROJECT_NAME} PRIVATE
         infones
 
@@ -120,26 +119,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
         tinyusb_host tinyusb_board
 )
-
-
-
-#[[if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_compile_options(${PROJECT_NAME} PUBLIC
-            -mcpu=cortex-m0plus
-            -Wno-error=suggest-attribute=format
-            -Wno-error=cast-qual
-            -Wno-error=unused-parameter
-            -Wno-error=conversion
-            -Wno-error=format=
-            -Wno-error=sign-compare
-            -Wno-error=missing-field-initializers
-            -Wno-error=switch
-            -Wno-error=implicit-fallthrough=
-            -Wno-error=stringop-truncation
-            -Wno-error=restrict
-            -w
-    )
-endif ()]]
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
         SPEAKER_ENABLED
@@ -184,5 +163,9 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         TFT_CLK_PIN=13
         TFT_LED_PIN=9
 )
-target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage)
+# Enable compiler and linker garbage collect unused code/data sections
+#target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage)
+
+
+target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
 pico_add_extra_outputs(${PROJECT_NAME})
