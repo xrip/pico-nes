@@ -149,7 +149,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         #I2S_CS4334
 
         # Other
-        FF_USE_FIND
+        # FF_USE_FIND
         # usb
         PICO_DEFAULT_LED_PIN=25
         # internal games

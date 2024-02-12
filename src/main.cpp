@@ -20,7 +20,6 @@
 #include "graphics.h"
 
 #include "audio.h"
-#include "f_util.h"
 #include "ff.h"
 
 #if USE_PS2_KBD

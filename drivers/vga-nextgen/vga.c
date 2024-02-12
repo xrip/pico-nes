@@ -37,7 +37,6 @@ static int line_VS_begin = 490;
 static int line_VS_end = 491;
 static int shift_picture = 0;
 
-static int begin_line_index = 0;
 static int visible_line_size = 320;
 
 
@@ -87,10 +86,10 @@ void __time_critical_func() dma_handler_VGA() {
 
     if (screen_line >= N_lines_visible) {
         //заполнение цветом фона
-        if ((screen_line == N_lines_visible) | (screen_line == (N_lines_visible + 3))) {
-            uint32_t* output_buffer_32bit = lines_pattern[2 + ((screen_line) & 1)];
+        if (screen_line == N_lines_visible | screen_line == N_lines_visible + 3) {
+            uint32_t* output_buffer_32bit = lines_pattern[2 + (screen_line & 1)];
             output_buffer_32bit += shift_picture / 4;
-            uint32_t p_i = ((screen_line & is_flash_line) + (frame_number & is_flash_frame)) & 1;
+            uint32_t p_i = (screen_line & is_flash_line) + (frame_number & is_flash_frame) & 1;
             uint32_t color32 = bg_color[p_i];
             for (int i = visible_line_size / 2; i--;) {
                 *output_buffer_32bit++ = color32;
@@ -98,14 +97,14 @@ void __time_critical_func() dma_handler_VGA() {
         }
 
         //синхросигналы
-        if ((screen_line >= line_VS_begin) && (screen_line <= line_VS_end))
+        if (screen_line >= line_VS_begin && screen_line <= line_VS_end)
             dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[1], false); //VS SYNC
         else
             dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false);
         return;
     }
 
-    if (!(input_buffer)) {
+    if (!input_buffer) {
         dma_channel_set_read_addr(dma_chan_ctrl, &lines_pattern[0], false);
         return;
     } //если нет видеобуфера - рисуем пустую строку
@@ -113,7 +112,6 @@ void __time_critical_func() dma_handler_VGA() {
     int y, line_number;
 
     uint32_t* * output_buffer = &lines_pattern[2 + (screen_line & 1)];
-    uint div_factor = 2;
     switch (graphics_mode) {
         case CGA_160x200x16:
         case CGA_320x200x4:
@@ -132,7 +130,6 @@ void __time_critical_func() dma_handler_VGA() {
         case TEXTMODE_DEFAULT: {
             uint16_t* output_buffer_16bit = (uint16_t *)*output_buffer;
             output_buffer_16bit += shift_picture / 2;
-            const uint font_weight = 8;
             const uint font_height = 16;
 
             // "слой" символа
@@ -143,9 +140,9 @@ void __time_critical_func() dma_handler_VGA() {
 
             for (int x = 0; x < text_buffer_width; x++) {
                 //из таблицы символов получаем "срез" текущего символа
-                uint8_t glyph_pixels = font_8x16[(*text_buffer_line++) * font_height + glyph_line];
+                uint8_t glyph_pixels = font_8x16[*text_buffer_line++ * font_height + glyph_line];
                 //считываем из быстрой палитры начало таблицы быстрого преобразования 2-битных комбинаций цветов пикселей
-                uint16_t* color = &txt_palette_fast[4 * (*text_buffer_line++)];
+                uint16_t* color = &txt_palette_fast[*text_buffer_line++ * 4];
 #if 0
                 if (cursor_blink_state && !manager_started &&
                     (screen_line / 16 == CURSOR_Y && x == CURSOR_X && glyph_line >= 11 && glyph_line <= 13)) {
@@ -162,7 +159,7 @@ void __time_critical_func() dma_handler_VGA() {
                 }
                 else
 #endif
-                    {
+                {
                     *output_buffer_16bit++ = color[glyph_pixels & 3];
                     if (text_buffer_width == 40) *output_buffer_16bit++ = color[glyph_pixels & 3];
                     glyph_pixels >>= 2;
@@ -191,9 +188,9 @@ void __time_critical_func() dma_handler_VGA() {
     }
     if (y >= graphics_buffer_height) {
         // заполнение линии цветом фона
-        if ((y == graphics_buffer_height) | (y == (graphics_buffer_height + 1)) |
-            (y == (graphics_buffer_height + 2))) {
-            uint32_t* output_buffer_32bit = (uint32_t *)*output_buffer;
+        if (y == graphics_buffer_height | y == graphics_buffer_height + 1 |
+            y == graphics_buffer_height + 2) {
+            uint32_t* output_buffer_32bit = *output_buffer;
             uint32_t p_i = ((line_number & is_flash_line) + (frame_number & is_flash_frame)) & 1;
             uint32_t color32 = bg_color[p_i];
 
@@ -212,7 +209,7 @@ void __time_critical_func() dma_handler_VGA() {
     // uint8_t* vbuf8=vbuf+(line*g_buf_width/2); //4bit buf
     //uint8_t* vbuf8=vbuf+(line*g_buf_width/4); //2bit buf
     //uint8_t* vbuf8=vbuf+((line&1)*8192+(line>>1)*g_buf_width/4);
-    uint8_t* input_buffer_8bit = input_buffer + ((y / 2) * 80) + ((y & 1) * 8192);
+    uint8_t* input_buffer_8bit = input_buffer + y / 2 * 80 + (y & 1) * 8192;
 
 
     //output_buffer = &lines_pattern[2 + ((line_number) & 1)];
@@ -241,6 +238,7 @@ void __time_critical_func() dma_handler_VGA() {
         max_width += graphics_buffer_shift_x;
     }
     else {
+#define div_factor (2)
         output_buffer_16bit += graphics_buffer_shift_x * 2 / div_factor;
     }
 
@@ -249,7 +247,7 @@ void __time_critical_func() dma_handler_VGA() {
     if (width < 0) return; // TODO: detect a case
 
     // Индекс палитры в зависимости от настроек чередования строк и кадров
-    uint16_t* current_palette = palette[((y & is_flash_line) + (frame_number & is_flash_frame)) & 1];
+    uint16_t* current_palette = palette[(y & is_flash_line) + (frame_number & is_flash_frame) & 1];
 
     uint8_t* output_buffer_8bit;
     switch (graphics_mode) {
@@ -257,43 +255,43 @@ void __time_critical_func() dma_handler_VGA() {
             output_buffer_8bit = (uint8_t *)output_buffer_16bit;
         //1bit buf
             for (int x = width / 4; x--;) {
-                *output_buffer_8bit++ = current_palette[(*input_buffer_8bit >> 7) & 1];
-                *output_buffer_8bit++ = current_palette[(*input_buffer_8bit >> 6) & 1];
-                *output_buffer_8bit++ = current_palette[(*input_buffer_8bit >> 5) & 1];
-                *output_buffer_8bit++ = current_palette[(*input_buffer_8bit >> 4) & 1];
-                *output_buffer_8bit++ = current_palette[(*input_buffer_8bit >> 3) & 1];
-                *output_buffer_8bit++ = current_palette[(*input_buffer_8bit >> 2) & 1];
-                *output_buffer_8bit++ = current_palette[(*input_buffer_8bit >> 1) & 1];
-                *output_buffer_8bit++ = current_palette[(*input_buffer_8bit >> 0) & 1];
+                *output_buffer_8bit++ = current_palette[*input_buffer_8bit >> 7 & 1];
+                *output_buffer_8bit++ = current_palette[*input_buffer_8bit >> 6 & 1];
+                *output_buffer_8bit++ = current_palette[*input_buffer_8bit >> 5 & 1];
+                *output_buffer_8bit++ = current_palette[*input_buffer_8bit >> 4 & 1];
+                *output_buffer_8bit++ = current_palette[*input_buffer_8bit >> 3 & 1];
+                *output_buffer_8bit++ = current_palette[*input_buffer_8bit >> 2 & 1];
+                *output_buffer_8bit++ = current_palette[*input_buffer_8bit >> 1 & 1];
+                *output_buffer_8bit++ = current_palette[*input_buffer_8bit >> 0 & 1];
                 input_buffer_8bit++;
             }
             break;
         case CGA_320x200x4:
             //2bit buf
             for (int x = width / 4; x--;) {
-                *output_buffer_16bit++ = current_palette[(*input_buffer_8bit >> 6) & 3];
-                *output_buffer_16bit++ = current_palette[(*input_buffer_8bit >> 4) & 3];
-                *output_buffer_16bit++ = current_palette[(*input_buffer_8bit >> 2) & 3];
-                *output_buffer_16bit++ = current_palette[(*input_buffer_8bit >> 0) & 3];
+                *output_buffer_16bit++ = current_palette[*input_buffer_8bit >> 6 & 3];
+                *output_buffer_16bit++ = current_palette[*input_buffer_8bit >> 4 & 3];
+                *output_buffer_16bit++ = current_palette[*input_buffer_8bit >> 2 & 3];
+                *output_buffer_16bit++ = current_palette[*input_buffer_8bit >> 0 & 3];
                 input_buffer_8bit++;
             }
             break;
         case CGA_160x200x16:
             //4bit buf
             for (int x = width / 4; x--;) {
-                *output_buffer_16bit++ = current_palette[(*input_buffer_8bit >> 4) & 15];
-                *output_buffer_16bit++ = current_palette[(*input_buffer_8bit >> 4) & 15];
-                *output_buffer_16bit++ = current_palette[(*input_buffer_8bit) & 15];
-                *output_buffer_16bit++ = current_palette[(*input_buffer_8bit) & 15];
+                *output_buffer_16bit++ = current_palette[*input_buffer_8bit >> 4 & 15];
+                *output_buffer_16bit++ = current_palette[*input_buffer_8bit >> 4 & 15];
+                *output_buffer_16bit++ = current_palette[*input_buffer_8bit & 15];
+                *output_buffer_16bit++ = current_palette[*input_buffer_8bit & 15];
                 input_buffer_8bit++;
             }
             break;
         case TGA_320x200x16:
             //4bit buf
-            input_buffer_8bit = input_buffer + ((y & 3) * 8192) + ((y / 4) * 160);
+            input_buffer_8bit = input_buffer + (y & 3) * 8192 + y / 4 * 160;
             for (int x = width / 2; x--;) {
-                *output_buffer_16bit++ = current_palette[(*input_buffer_8bit >> 4) & 15];
-                *output_buffer_16bit++ = current_palette[(*input_buffer_8bit) & 15];
+                *output_buffer_16bit++ = current_palette[*input_buffer_8bit >> 4 & 15];
+                *output_buffer_16bit++ = current_palette[*input_buffer_8bit & 15];
                 input_buffer_8bit++;
             }
             break;
@@ -301,10 +299,10 @@ void __time_critical_func() dma_handler_VGA() {
             input_buffer_8bit = input_buffer + y * 40;
             for (int x = 0; x < 40; x++) {
                 for (int bit = 7; bit--;) {
-                    uint8_t color = (*(input_buffer_8bit) >> bit) & 1;
-                    color |= ((*(input_buffer_8bit + 16000) >> bit) & 1) << 1;
-                    color |= ((*(input_buffer_8bit + 32000) >> bit) & 1) << 2;
-                    color |= ((*(input_buffer_8bit + 48000) >> bit) & 1) << 3;
+                    uint8_t color = *input_buffer_8bit >> bit & 1;
+                    color |= (*(input_buffer_8bit + 16000) >> bit & 1) << 1;
+                    color |= (*(input_buffer_8bit + 32000) >> bit & 1) << 2;
+                    color |= (*(input_buffer_8bit + 48000) >> bit & 1) << 3;
                     *output_buffer_16bit++ = current_palette[color];
                 }
                 input_buffer_8bit++;
@@ -350,11 +348,10 @@ void graphics_set_mode(enum graphics_mode_t mode) {
     memset(graphics_buffer, 0, graphics_buffer_height * graphics_buffer_width);
     if (_SM_VGA < 0) return; // если  VGA не инициализирована -
 
-    enum graphics_mode_t res = graphics_mode;
     graphics_mode = mode;
 
     // Если мы уже проиницилизированы - выходим
-    if ((txt_palette_fast) && (lines_pattern_data)) {
+    if (txt_palette_fast && lines_pattern_data) {
         return;
     };
     uint8_t TMPL_VHS8 = 0;
@@ -373,19 +370,19 @@ void graphics_set_mode(enum graphics_mode_t mode) {
         case TEXTMODE_DEFAULT:
             //текстовая палитра
             for (int i = 0; i < 16; i++) {
-                txt_palette[i] = (txt_palette[i] & 0x3f) | (palette16_mask >> 8);
+                txt_palette[i] = txt_palette[i] & 0x3f | palette16_mask >> 8;
             }
 
-            if (!(txt_palette_fast)) {
+            if (!txt_palette_fast) {
                 txt_palette_fast = (uint16_t *)calloc(256 * 4, sizeof(uint16_t));
                 for (int i = 0; i < 256; i++) {
-                    uint8_t c1 = txt_palette[i & 0xf];
-                    uint8_t c0 = txt_palette[i >> 4];
+                    const uint8_t c1 = txt_palette[i & 0xf];
+                    const uint8_t c0 = txt_palette[i >> 4];
 
-                    txt_palette_fast[i * 4 + 0] = (c0) | (c0 << 8);
-                    txt_palette_fast[i * 4 + 1] = (c1) | (c0 << 8);
-                    txt_palette_fast[i * 4 + 2] = (c0) | (c1 << 8);
-                    txt_palette_fast[i * 4 + 3] = (c1) | (c1 << 8);
+                    txt_palette_fast[i * 4 + 0] = c0 | c0 << 8;
+                    txt_palette_fast[i * 4 + 1] = c1 | c0 << 8;
+                    txt_palette_fast[i * 4 + 2] = c0 | c1 << 8;
+                    txt_palette_fast[i * 4 + 3] = c1 | c1 << 8;
                 }
             }
         case CGA_640x200x2:
@@ -413,28 +410,28 @@ void graphics_set_mode(enum graphics_mode_t mode) {
             line_VS_begin = 490;
             line_VS_end = 491;
 
-            fdiv = clock_get_hz(clk_sys) / (25175000.0); //частота пиксельклока
+            fdiv = clock_get_hz(clk_sys) / 25175000.0; //частота пиксельклока
             break;
         default:
             return;
     }
 
     //корректировка  палитры по маске бит синхры
-    bg_color[0] = (bg_color[0] & 0x3f3f3f3f) | palette16_mask | (palette16_mask << 16);
-    bg_color[1] = (bg_color[1] & 0x3f3f3f3f) | palette16_mask | (palette16_mask << 16);
+    bg_color[0] = bg_color[0] & 0x3f3f3f3f | palette16_mask | palette16_mask << 16;
+    bg_color[1] = bg_color[1] & 0x3f3f3f3f | palette16_mask | palette16_mask << 16;
     for (int i = 0; i < 256; i++) {
-        palette[0][i] = (palette[0][i] & 0x3f3f) | palette16_mask;
-        palette[1][i] = (palette[1][i] & 0x3f3f) | palette16_mask;
+        palette[0][i] = palette[0][i] & 0x3f3f | palette16_mask;
+        palette[1][i] = palette[1][i] & 0x3f3f | palette16_mask;
     }
 
     //инициализация шаблонов строк и синхросигнала
-    if (!(lines_pattern_data)) //выделение памяти, если не выделено
+    if (!lines_pattern_data) //выделение памяти, если не выделено
     {
-        uint32_t div32 = (uint32_t)(fdiv * (1 << 16) + 0.0);
+        const uint32_t div32 = (uint32_t)(fdiv * (1 << 16) + 0.0);
         PIO_VGA->sm[_SM_VGA].clkdiv = div32 & 0xfffff000; //делитель для конкретной sm
         dma_channel_set_trans_count(dma_chan, line_size / 4, false);
 
-        lines_pattern_data = (uint32_t *)calloc(line_size * 4 / 4, sizeof(uint32_t));;
+        lines_pattern_data = (uint32_t *)calloc(line_size * 4 / 4, sizeof(uint32_t));
 
         for (int i = 0; i < 4; i++) {
             lines_pattern[i] = &lines_pattern_data[i * (line_size / 4)];
@@ -464,97 +461,94 @@ void graphics_set_mode(enum graphics_mode_t mode) {
         base_ptr = (uint8_t *)lines_pattern[3];
         memcpy(base_ptr, lines_pattern[0], line_size);
     }
-    return ;
-};
+}
 
-void graphics_set_buffer(uint8_t* buffer, uint16_t width, uint16_t height) {
+void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
     graphics_buffer = buffer;
     graphics_buffer_width = width;
     graphics_buffer_height = height;
-};
+}
 
 
-void graphics_set_offset(int x, int y) {
+void graphics_set_offset(const int x, const int y) {
     graphics_buffer_shift_x = x;
     graphics_buffer_shift_y = y;
-};
+}
 
-void graphics_set_flashmode(bool flash_line, bool flash_frame) {
+void graphics_set_flashmode(const bool flash_line, const bool flash_frame) {
     is_flash_frame = flash_frame;
     is_flash_line = flash_line;
-};
+}
 
 void graphics_set_textbuffer(uint8_t* buffer) {
     text_buffer = buffer;
-};
+}
 
-void graphics_set_bgcolor(uint32_t color888) {
-    uint8_t conv0[] = { 0b00, 0b00, 0b01, 0b10, 0b10, 0b10, 0b11, 0b11 };
-    uint8_t conv1[] = { 0b00, 0b01, 0b01, 0b01, 0b10, 0b11, 0b11, 0b11 };
+void graphics_set_bgcolor(const uint32_t color888) {
+    const uint8_t conv0[] = { 0b00, 0b00, 0b01, 0b10, 0b10, 0b10, 0b11, 0b11 };
+    const uint8_t conv1[] = { 0b00, 0b01, 0b01, 0b01, 0b10, 0b11, 0b11, 0b11 };
 
-    uint8_t b = ((color888 & 0xff) / 42);
+    const uint8_t b = (color888 & 0xff) / 42;
 
-    uint8_t r = (((color888 >> 16) & 0xff) / 42);
-    uint8_t g = (((color888 >> 8) & 0xff) / 42);
+    const uint8_t r = (color888 >> 16 & 0xff) / 42;
+    const uint8_t g = (color888 >> 8 & 0xff) / 42;
 
-    uint8_t c_hi = (conv0[r] << 4) | (conv0[g] << 2) | conv0[b];
-    uint8_t c_lo = (conv1[r] << 4) | (conv1[g] << 2) | conv1[b];
-    bg_color[0] = (((((c_hi << 8) | c_lo) & 0x3f3f) | palette16_mask) << 16) |
-                  ((((c_hi << 8) | c_lo) & 0x3f3f) | palette16_mask);
-    bg_color[1] = (((((c_lo << 8) | c_hi) & 0x3f3f) | palette16_mask) << 16) |
-                  ((((c_lo << 8) | c_hi) & 0x3f3f) | palette16_mask);
-};
+    const uint8_t c_hi = conv0[r] << 4 | conv0[g] << 2 | conv0[b];
+    const uint8_t c_lo = conv1[r] << 4 | conv1[g] << 2 | conv1[b];
+    bg_color[0] = ((c_hi << 8 | c_lo) & 0x3f3f | palette16_mask) << 16 |
+                  ((c_hi << 8 | c_lo) & 0x3f3f | palette16_mask);
+    bg_color[1] = ((c_lo << 8 | c_hi) & 0x3f3f | palette16_mask) << 16 |
+                  ((c_lo << 8 | c_hi) & 0x3f3f | palette16_mask);
+}
 
-void graphics_set_palette(uint8_t i, uint32_t color888) {
-    uint8_t conv0[] = { 0b00, 0b00, 0b01, 0b10, 0b10, 0b10, 0b11, 0b11 };
-    uint8_t conv1[] = { 0b00, 0b01, 0b01, 0b01, 0b10, 0b11, 0b11, 0b11 };
+void graphics_set_palette(const uint8_t i, const uint32_t color888) {
+    const uint8_t conv0[] = { 0b00, 0b00, 0b01, 0b10, 0b10, 0b10, 0b11, 0b11 };
+    const uint8_t conv1[] = { 0b00, 0b01, 0b01, 0b01, 0b10, 0b11, 0b11, 0b11 };
 
-    uint8_t b = ((color888 & 0xff) / 42);
+    const uint8_t b = (color888 & 0xff) / 42;
 
-    uint8_t r = (((color888 >> 16) & 0xff) / 42);
-    uint8_t g = (((color888 >> 8) & 0xff) / 42);
+    const uint8_t r = (color888 >> 16 & 0xff) / 42;
+    const uint8_t g = (color888 >> 8 & 0xff) / 42;
 
-    uint8_t c_hi = (conv0[r] << 4) | (conv0[g] << 2) | conv0[b];
-    uint8_t c_lo = (conv1[r] << 4) | (conv1[g] << 2) | conv1[b];
+    const uint8_t c_hi = conv0[r] << 4 | conv0[g] << 2 | conv0[b];
+    const uint8_t c_lo = conv1[r] << 4 | conv1[g] << 2 | conv1[b];
 
-    palette[0][i] = (((c_hi << 8) | c_lo) & 0x3f3f) | palette16_mask;
-    palette[1][i] = (((c_lo << 8) | c_hi) & 0x3f3f) | palette16_mask;
-};
+    palette[0][i] = (c_hi << 8 | c_lo) & 0x3f3f | palette16_mask;
+    palette[1][i] = (c_lo << 8 | c_hi) & 0x3f3f | palette16_mask;
+}
 
 void graphics_init() {
     //инициализация палитры по умолчанию
 #if 1
-    uint8_t conv0[] = { 0b00, 0b00, 0b01, 0b10, 0b10, 0b10, 0b11, 0b11 };
-    uint8_t conv1[] = { 0b00, 0b01, 0b01, 0b01, 0b10, 0b11, 0b11, 0b11 };
+    const uint8_t conv0[] = { 0b00, 0b00, 0b01, 0b10, 0b10, 0b10, 0b11, 0b11 };
+    const uint8_t conv1[] = { 0b00, 0b01, 0b01, 0b01, 0b10, 0b11, 0b11, 0b11 };
     for (int i = 0; i < 256; i++) {
-        uint8_t b = (i & 0b11);
+        const uint8_t b = i & 0b11;
+        const uint8_t r = i >> 5 & 0b111;
+        const uint8_t g = i >> 2 & 0b111;
 
-        uint8_t r = ((i >> 5) & 0b111);
-        uint8_t g = ((i >> 2) & 0b111);
+        const uint8_t c_hi = 0xc0 | conv0[r] << 4 | conv0[g] << 2 | b;
+        const uint8_t c_lo = 0xc0 | conv1[r] << 4 | conv1[g] << 2 | b;
 
-        uint8_t c_hi = 0xc0 | (conv0[r] << 4) | (conv0[g] << 2) | b;
-        uint8_t c_lo = 0xc0 | (conv1[r] << 4) | (conv1[g] << 2) | b;
-
-
-        palette[0][i] = (c_hi << 8) | c_lo;
-        palette[1][i] = (c_lo << 8) | c_hi;
+        palette[0][i] = c_hi << 8 | c_lo;
+        palette[1][i] = c_lo << 8 | c_hi;
     }
 #endif
     //текстовая палитра
     for (int i = 0; i < 16; i++) {
-        uint8_t b = (i & 1) ? ((i >> 3) ? 3 : 2) : 0;
-        uint8_t r = (i & 4) ? ((i >> 3) ? 3 : 2) : 0;
-        uint8_t g = (i & 2) ? ((i >> 3) ? 3 : 2) : 0;
+        const uint8_t b = i & 1 ? (i >> 3 ? 3 : 2) : 0;
+        const uint8_t r = i & 4 ? (i >> 3 ? 3 : 2) : 0;
+        const uint8_t g = i & 2 ? (i >> 3 ? 3 : 2) : 0;
 
-        uint8_t c = (r << 4) | (g << 2) | b;
+        const uint8_t c = r << 4 | g << 2 | b;
 
-        txt_palette[i] = (c & 0x3f) | 0xc0;
+        txt_palette[i] = c & 0x3f | 0xc0;
     }
     //инициализация PIO
     //загрузка программы в один из PIO
-    uint offset = pio_add_program(PIO_VGA, &pio_program_VGA);
+    const uint offset = pio_add_program(PIO_VGA, &pio_program_VGA);
     _SM_VGA = pio_claim_unused_sm(PIO_VGA, true);
-    uint sm = _SM_VGA;
+    const uint sm = _SM_VGA;
 
     for (int i = 0; i < 8; i++) {
         gpio_init(VGA_BASE_PIN + i);
@@ -626,7 +620,7 @@ void graphics_init() {
     dma_channel_set_irq0_enabled(dma_chan_ctrl, true);
 
     irq_set_enabled(VGA_DMA_IRQ, true);
-    dma_start_channel_mask((1u << dma_chan));
+    dma_start_channel_mask(1u << dma_chan);
 }
 
 
