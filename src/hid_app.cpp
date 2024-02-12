@@ -55,17 +55,12 @@ struct input_bits_t {
   bool up: true;
   bool down: true;
 };
-extern struct input_bits_t keyboard_bits;
-extern struct input_bits_t gamepad1_bits;
+extern input_bits_t keyboard_bits;
+extern input_bits_t gamepad1_bits;
 
 static void process_kbd_report(hid_keyboard_report_t const *report);
 static void process_mouse_report(hid_mouse_report_t const * report);
 static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
-
-void hid_app_task(void)
-{
-  // nothing to do
-}
 
 //--------------------------------------------------------------------+
 // TinyUSB Callbacks
