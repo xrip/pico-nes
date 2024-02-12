@@ -500,7 +500,7 @@ static void __not_in_flash_func(main_video_loopTV)() {
                             uint8_t* input_buffer8 = input_buffer + y * g_buf.width;
                             if (input_buffer != NULL) {
                                 for (uint i = g_buf.shift_x; i--;) {
-                                    *output_buffer++ = 239;
+                                    *output_buffer++ = 200;
                                 }
                                 for (int i = g_buf.width / 16; i--;) {
                                     *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
@@ -538,14 +538,14 @@ static void __not_in_flash_func(main_video_loopTV)() {
                                     input_buffer8++;
                                 }
                                 for (uint i = g_buf.shift_x; i--;) {
-                                    *output_buffer++ = 239;
+                                    *output_buffer++ = 200;
                                 }
 
                             }
                             break;
                         }
                         case TEXTMODE_DEFAULT: {
-                            *output_buffer++ = 239;
+                            *output_buffer++ = 200;
 
                             for (int x = 0; x < TEXTMODE_COLS; x++) {
                                 const uint16_t offset = (y / 8) * (TEXTMODE_COLS * 2) + x * 2;
@@ -561,7 +561,7 @@ static void __not_in_flash_func(main_video_loopTV)() {
                                     glyph_row >>= 1;
                                 }
                             }
-                            *output_buffer = 239;
+                            *output_buffer = 200;
                             break;
                         }
                     }
