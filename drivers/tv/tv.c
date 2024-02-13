@@ -861,7 +861,7 @@ void tv_init(const output_format_e output_format) {
 
 
 void graphics_init() {
-    tv_init(TV_OUT_NTSC);
+    tv_init(TV_OUT_PAL);
 
     // FIXME сделать конфигурацию пользователем
     graphics_set_palette(200, RGB888(0x00, 0x00, 0x00)); //black
