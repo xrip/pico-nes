@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "graphics.h"
 #include "hardware/clocks.h"
-#include <stdalign.h>
 
 #include "hardware/structs/pll.h"
 #include "hardware/structs/systick.h"
@@ -23,7 +22,7 @@ uint8_t* text_buffer = NULL;
 //программа конвертации адреса для TV_OUT
 
 uint16_t pio_program_instructions_conv_TV[] = {
-    //		 //	 .wrap_target
+    //	 .wrap_target
     0x80a0, //  0: pull   block
     0x40e8, //  1: in	 osr, 8
     0x4037, //  2: in	 x, 23
@@ -42,8 +41,6 @@ const struct pio_program pio_program_conv_addr_TV = {
 //программа видеовывода VGA
 static uint16_t pio_program_TV_instructions[] = {
     //	 .wrap_target
-
-    //	 .wrap_target
     0x6008, //  0: out	pins, 8
     //	 .wrap
     //	 .wrap
@@ -55,7 +52,7 @@ static const struct pio_program program_pio_TV = {
     .origin = -1,
 };
 
-typedef struct TV_MODE {
+typedef struct {
     int H_len;
     int begin_img_shx;
     int img_size_x;
@@ -69,13 +66,13 @@ typedef struct TV_MODE {
     double CLK_SPD;
 } TV_MODE;
 
-typedef struct G_BUFFER {
+typedef struct {
     uint width;
     uint height;
     int shift_x;
     int shift_y;
     uint8_t* data;
-} G_BUFFER;
+} graphics_buffer_t;
 
 
 //режим видеовыхода
@@ -88,7 +85,7 @@ static TV_MODE v_mode = {
 };
 
 
-static G_BUFFER g_buf = {
+static graphics_buffer_t graphics_buffer = {
     .data = NULL,
     .shift_x = 0,
     .shift_y = 0,
@@ -100,13 +97,12 @@ static G_BUFFER g_buf = {
 //количество буферов задавать кратно степени двойки
 //
 #define N_LINE_BUF_log2 (2)
-
-
 #define N_LINE_BUF_DMA (1<<N_LINE_BUF_log2)
 #define N_LINE_BUF (N_LINE_BUF_DMA)
 
 //максимальный размер строки
 #define LINE_SIZE_MAX (512)
+
 //указатели на буферы строк
 //выравнивание нужно для кольцевого буфера
 static uint32_t rd_addr_DMA_CTRL[N_LINE_BUF * 2]__attribute__ ((aligned (4*N_LINE_BUF_DMA)));
@@ -128,18 +124,17 @@ static int dma_chan_pal_conv_ctrl = -1;
 static int dma_chan_pal_conv = -1;
 
 //ДМА палитра для конвертации
-static alignas(512)
-uint32_t conv_color[128];
+static __aligned(512) __scratch_x("palette_conv") uint32_t conv_color[128];
 
 static enum graphics_mode_t graphics_mode;
-static g_out_TV active_out;
+static output_format_e active_output_format;
 static repeating_timer_t video_timer;
 
 
 //программа установки начального адреса массива-конвертора
-static void pio_set_x(PIO pio, int sm, uint32_t v) {
-    uint instr_shift = pio_encode_in(pio_x, 4);
-    uint instr_mov = pio_encode_mov(pio_x, pio_isr);
+static void pio_set_x(PIO pio, const int sm, const uint32_t v) {
+    const uint instr_shift = pio_encode_in(pio_x, 4);
+    const uint instr_mov = pio_encode_mov(pio_x, pio_isr);
     for (int i = 0; i < 8; i++) {
         const uint32_t nibble = (v >> (i * 4)) & 0xf;
         pio_sm_exec(pio, sm, pio_encode_set(pio_x, nibble));
@@ -154,28 +149,31 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
     if (i >= 240) return;
     uint8_t conv0[] = { 0b00, 0b00, 0b01, 0b10, 0b10, 0b10, 0b11, 0b11 };
     uint8_t conv1[] = { 0b00, 0b01, 0b01, 0b01, 0b10, 0b11, 0b11, 0b11 };
-    uint8_t b = ((color888 & 0xff) / 42);
-    uint8_t g = (((color888 >> 8) & 0xff) / 42);
-    uint8_t r = (((color888 >> 16) & 0xff) / 42);
-    uint8_t c_hi = (conv0[r] << 4) | (conv0[g] << 2) | conv0[b];
-    uint8_t c_lo = (conv1[r] << 4) | (conv1[g] << 2) | conv1[b];
-    uint16_t palette16_mask = (0xc0 << 8) | (0xc0);
+
+    uint8_t B = (color888 & 0xff) / 42;
+    uint8_t G = (color888 >> 8 & 0xff) / 42;
+    uint8_t R = (color888 >> 16 & 0xff) / 42;
+
+    uint8_t c_hi = conv0[R] << 4 | conv0[G] << 2 | conv0[B];
+    uint8_t c_lo = conv1[R] << 4 | conv1[G] << 2 | conv1[B];
+
+    uint16_t palette16_mask = 0xc0 << 8 | 0xc0;
 
     uint16_t* conv_color16 = (uint16_t *)conv_color;
-    conv_color16[i] = (((c_hi << 8) | c_lo) & 0x3f3f) | palette16_mask;
+    conv_color16[i] = (c_hi << 8 | c_lo) & 0x3f3f | palette16_mask;
 }
 
 
 //основная функция заполнения буферов видеоданных
-static void __not_in_flash_func(main_video_loopTV)() {
+static void __scratch_x("tv_main_loop") main_video_loopTV() {
     static uint dma_inx_out = 0;
     static uint lines_buf_inx = 0;
 
     if (dma_chan_ctrl == -1) return; //не определен дма канал
 
     //получаем индекс выводимой строки
-    uint dma_inx = (N_LINE_BUF_DMA - 2 + ((dma_channel_hw_addr(dma_chan_ctrl)->read_addr - (uint32_t)rd_addr_DMA_CTRL) /
-                                          4)) % (N_LINE_BUF_DMA);
+    uint dma_inx = (N_LINE_BUF_DMA - 2 + (dma_channel_hw_addr(dma_chan_ctrl)->read_addr - (uint32_t)rd_addr_DMA_CTRL) /
+                    4) % (N_LINE_BUF_DMA);
 
     //uint n_loop=(N_LINE_BUF_DMA+dma_inx-dma_inx_out)%N_LINE_BUF_DMA;
 
@@ -190,7 +188,7 @@ static void __not_in_flash_func(main_video_loopTV)() {
         if (line_active == v_mode.N_lines) {
             line_active = 0;
             frame_i++;
-            input_buffer = g_buf.data;
+            input_buffer = graphics_buffer.data;
         }
 
         lines_buf_inx = (lines_buf_inx + 1) % N_LINE_BUF;
@@ -199,7 +197,7 @@ static void __not_in_flash_func(main_video_loopTV)() {
         bool is_line_visible = true;
 
         // if (false)
-        switch (active_out) {
+        switch (active_output_format) {
             case TV_OUT_PAL:
                 switch (line_active) {
                     case 0:
@@ -448,7 +446,7 @@ static void __not_in_flash_func(main_video_loopTV)() {
             output_buffer += v_mode.begin_img_shx;
 
             int y = -1;
-            switch (active_out) {
+            switch (active_output_format) {
                 case TV_OUT_PAL:
                     if ((line_active > 4) && (line_active < 310)) { y = line_active - 23; };
                     if ((line_active > 317) && (line_active < 622)) { y = line_active - 335; };
@@ -460,13 +458,13 @@ static void __not_in_flash_func(main_video_loopTV)() {
                     break;
             }
 
-            if ((y >= 240) || (y < 0) || (input_buffer == NULL)) {
+            if (y >= 240 || y < 0 || input_buffer == NULL) {
                 //вне изображения
                 memset(output_buffer, v_mode.NO_SYNC_TMPL, v_mode.H_len - v_mode.begin_img_shx);
             }
             else {
                 //зона изображения
-                if (active_out == TV_OUT_PAL) output_buffer += 33;
+                if (active_output_format == TV_OUT_PAL) output_buffer += 33;
 
                 /*if (active_mode == g_mode_320x240x4bpp) {
                     uint8_t* vbuf8 = vbuf + (line_inx) * g_buf.width / 2;
@@ -492,76 +490,47 @@ static void __not_in_flash_func(main_video_loopTV)() {
                         }
                 }
                 else*/
-                {
-                    switch (graphics_mode) {
-                        case GRAPHICSMODE_DEFAULT: {
-                            //для 8-битного буфера
-                            uint8_t* input_buffer8 = input_buffer + y * g_buf.width;
-                            if (input_buffer != NULL) {
-                                for (uint i = g_buf.shift_x; i--;) {
-                                    *output_buffer++ = 200;
-                                }
-                                for (int i = g_buf.width / 16; i--;) {
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                    *output_buffer++ = (*input_buffer8 < 240) ? *input_buffer8 : 0;
-                                    input_buffer8++;
-                                }
-                                for (uint i = g_buf.shift_x; i--;) {
-                                    *output_buffer++ = 200;
-                                }
+                switch (graphics_mode) {
+                    default:
+                    case GRAPHICSMODE_DEFAULT: {
+                        //для 8-битного буфера
+                        uint8_t* input_buffer8 = input_buffer + y * graphics_buffer.width;
+                        if (input_buffer != NULL) {
+                            // TODO: shift_y, background_color
+                            for (uint x = graphics_buffer.shift_x; x--;) {
+                                *output_buffer++ = 200;
                             }
-                            break;
-                        }
-                        case TEXTMODE_DEFAULT: {
-                            *output_buffer++ = 200;
 
-                            for (int x = 0; x < TEXTMODE_COLS; x++) {
-                                const uint16_t offset = (y / 8) * (TEXTMODE_COLS * 2) + x * 2;
-                                const uint8_t c = text_buffer[offset];
-                                const uint8_t colorIndex = text_buffer[offset + 1];
-                                uint8_t glyph_row = fnt6x8[c * 8 + y % 8];
-
-                                for (int bit = 6; bit--;) {
-                                    *output_buffer++ = glyph_row & 1
-                                                           ? textmode_palette[colorIndex & 0xf] //цвет шрифта
-                                                           : textmode_palette[colorIndex >> 4]; //цвет фона
-
-                                    glyph_row >>= 1;
-                                }
+                            for (uint x = graphics_buffer.width; x--;) {
+                                *output_buffer++ = *input_buffer8 < 240 ? *input_buffer8 : 0;
+                                input_buffer8++;
                             }
-                            *output_buffer = 200;
-                            break;
+
+                            for (uint x = graphics_buffer.shift_x; x--;) {
+                                *output_buffer++ = 200;
+                            }
                         }
+                        break;
+                    }
+                    case TEXTMODE_DEFAULT: {
+                        *output_buffer++ = 200;
+
+                        for (int x = 0; x < TEXTMODE_COLS; x++) {
+                            const uint16_t offset = y / 8 * (TEXTMODE_COLS * 2) + x * 2;
+                            const uint8_t c = text_buffer[offset];
+                            const uint8_t colorIndex = text_buffer[offset + 1];
+                            uint8_t glyph_row = fnt6x8[c * 8 + y % 8];
+
+                            for (int bit = 6; bit--;) {
+                                *output_buffer++ = glyph_row & 1
+                                                       ? textmode_palette[colorIndex & 0xf] //цвет шрифта
+                                                       : textmode_palette[colorIndex >> 4]; //цвет фона
+
+                                glyph_row >>= 1;
+                            }
+                        }
+                        *output_buffer = 200;
+                        break;
                     }
                 }
             }
@@ -677,15 +646,15 @@ static void __not_in_flash_func(main_video_loopTV)() {
         rd_addr_DMA_CTRL[dma_inx_out] = (uint32_t)&lines_buf[lines_buf_inx];
         //включаем заполненный буфер в данные для вывода
         dma_inx_out = (dma_inx_out + 1) % (N_LINE_BUF_DMA);
-        dma_inx = (N_LINE_BUF_DMA - 2 + ((dma_channel_hw_addr(dma_chan_ctrl)->read_addr - (uint32_t)rd_addr_DMA_CTRL) /
-                                         4)) % (N_LINE_BUF_DMA);
+        dma_inx = (N_LINE_BUF_DMA - 2 + (dma_channel_hw_addr(dma_chan_ctrl)->read_addr - (uint32_t)rd_addr_DMA_CTRL) /
+                   4) % (N_LINE_BUF_DMA);
     }
 }
 
 void graphics_set_buffer(uint8_t* buffer, const uint16_t width, const uint16_t height) {
-    g_buf.data = buffer;
-    g_buf.height = height;
-    g_buf.width = width;
+    graphics_buffer.data = buffer;
+    graphics_buffer.height = height;
+    graphics_buffer.width = width;
 }
 
 void graphics_set_textbuffer(uint8_t* buffer) {
@@ -693,8 +662,8 @@ void graphics_set_textbuffer(uint8_t* buffer) {
 };
 
 void graphics_set_offset(const int x, const int y) {
-    g_buf.shift_x = x;
-    g_buf.shift_y = y;
+    graphics_buffer.shift_x = x;
+    graphics_buffer.shift_y = y;
 };
 
 static bool __not_in_flash_func(video_timer_callbackTV(repeating_timer_t *rt)) {
@@ -704,10 +673,10 @@ static bool __not_in_flash_func(video_timer_callbackTV(repeating_timer_t *rt)) {
 
 
 //выделение и настройка общих ресурсов - 4 DMA канала, PIO программ и 2 SM
-void tv_init(g_out_TV g_out) {
-    active_out = g_out;
+void tv_init(const output_format_e output_format) {
+    active_output_format = output_format;
 
-    switch (active_out) {
+    switch (active_output_format) {
         case TV_OUT_NTSC:
             v_mode.CLK_SPD = 2 * 3.1 * 1e6;
             v_mode.N_lines = 525;

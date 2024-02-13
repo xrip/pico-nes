@@ -17,15 +17,11 @@ static const uint8_t textmode_palette[16] = {
 
 #define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
 
-typedef enum g_mode {
-    g_mode_320x240x8bpp,
-    g_mode_320x240x4bpp
-} g_mode;
 
 typedef enum g_out_TV {
     TV_OUT_PAL,
     TV_OUT_NTSC
-} g_out_TV;
+} output_format_e;
 
 
 //для совместимости
