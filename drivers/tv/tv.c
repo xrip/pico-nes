@@ -890,7 +890,7 @@ void clrScr(const uint8_t color) {
 }
 
 
-void graphics_set_mode(enum graphics_mode_t mode) {
+void graphics_set_mode(const enum graphics_mode_t mode) {
     graphics_mode = mode;
     clrScr(0);
 }
