@@ -1,26 +1,20 @@
-#include <stdio.h>
-#include "graphics.h"
-#include "hardware/clocks.h"
-
-#include "hardware/structs/pll.h"
-#include "hardware/structs/systick.h"
-
-#include "hardware/dma.h"
-#include "hardware/irq.h"
 #include <string.h>
-#include "hardware/pio.h"
+
+#include "graphics.h"
 #include "pico/stdlib.h"
-#include "stdlib.h"
-#include "fnt6x8.h"
+#include "hardware/clocks.h"
+#include "hardware/dma.h"
+#include "hardware/pio.h"
+
+#define SCREEN_WIDTH (320)
+#define SCREEN_HEIGHT (240)
 
 //текстовый буфер
 uint8_t* text_buffer = NULL;
 
 //программы PIO
 
-
 //программа конвертации адреса для TV_OUT
-
 uint16_t pio_program_instructions_conv_TV[] = {
     //	 .wrap_target
     0x80a0, //  0: pull   block
@@ -30,19 +24,16 @@ uint16_t pio_program_instructions_conv_TV[] = {
     //	 .wrap
 };
 
-
 const struct pio_program pio_program_conv_addr_TV = {
     .instructions = pio_program_instructions_conv_TV,
     .length = 4,
     .origin = -1,
 };
 
-
 //программа видеовывода VGA
 static uint16_t pio_program_TV_instructions[] = {
     //	 .wrap_target
     0x6008, //  0: out	pins, 8
-    //	 .wrap
     //	 .wrap
 };
 
@@ -84,13 +75,12 @@ static TV_MODE v_mode = {
     .CLK_SPD = 31500000.0
 };
 
-
 static graphics_buffer_t graphics_buffer = {
     .data = NULL,
     .shift_x = 0,
     .shift_y = 0,
-    .height = 240,
-    .width = 320
+    .width = SCREEN_WIDTH,
+    .height = SCREEN_HEIGHT,
 };
 
 //буферы строк
@@ -519,7 +509,7 @@ static void __scratch_x("tv_main_loop") main_video_loopTV() {
                             const uint16_t offset = y / 8 * (TEXTMODE_COLS * 2) + x * 2;
                             const uint8_t c = text_buffer[offset];
                             const uint8_t colorIndex = text_buffer[offset + 1];
-                            uint8_t glyph_row = fnt6x8[c * 8 + y % 8];
+                            uint8_t glyph_row = font_6x8[c * 8 + y % 8];
 
                             for (int bit = 6; bit--;) {
                                 *output_buffer++ = glyph_row & 1

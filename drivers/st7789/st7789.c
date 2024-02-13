@@ -17,7 +17,6 @@
 #include <pico/multicore.h>
 
 #include "st7789.pio.h"
-#include "fnt6x8.h"
 #include "hardware/dma.h"
 
 #ifndef SCREEN_WIDTH
@@ -235,7 +234,7 @@ void __inline __scratch_y("refresh_lcd") refresh_lcd() {
                     const uint16_t offset = (y / 8) * (TEXTMODE_COLS * 2) + x * 2;
                     const uint8_t c = text_buffer[offset];
                     const uint8_t colorIndex = text_buffer[offset + 1];
-                    const uint8_t glyph_row = fnt6x8[c * 8 + y % 8];
+                    const uint8_t glyph_row = font_6x8[c * 8 + y % 8];
 
                     for (uint8_t bit = 0; bit < 6; bit++) {
                         st7789_lcd_put_pixel(pio, sm, textmode_palette[(c && CHECK_BIT(glyph_row, bit))

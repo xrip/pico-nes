@@ -11,7 +11,6 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 #include "stdlib.h"
-#include "fnt8x16.h"
 
 uint16_t pio_program_VGA_instructions[] = {
     //     .wrap_target

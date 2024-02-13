@@ -17,28 +17,10 @@ static const uint8_t textmode_palette[16] = {
 
 #define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
 
-
-typedef enum g_out_TV {
+typedef enum {
     TV_OUT_PAL,
     TV_OUT_NTSC
 } output_format_e;
-
-
-//для совместимости
-typedef enum fr_rate {
-    rate_60Hz = 0,
-    rate_72Hz = 1,
-    rate_75Hz = 2,
-    rate_85Hz = 3
-} fr_rate;
-
-typedef enum g_out {
-    g_out_AUTO = 0,
-    g_out_VGA = 1,
-    g_out_HDMI = 2
-} g_out;
-
-bool graphics_try_framerate(g_out g_out, fr_rate rate, bool apply);
 
 
 static void graphics_set_flashmode(bool flash_line, bool flash_frame) {

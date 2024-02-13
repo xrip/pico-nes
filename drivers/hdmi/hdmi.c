@@ -8,7 +8,6 @@
 #include "pico/time.h"
 #include "pico/multicore.h"
 #include "hardware/clocks.h"
-#include "fnt6x8.h"
 
 //PIO параметры
 static uint offs_prg0 = 0;
@@ -230,7 +229,7 @@ static void __scratch_y("hdmi_driver") dma_handler_HDMI() {
                     const uint16_t offset = (y / 8) * (TEXTMODE_COLS * 2) + x * 2;
                     const uint8_t c = text_buffer[offset];
                     const uint8_t colorIndex = text_buffer[offset + 1];
-                    uint8_t glyph_row = fnt6x8[c * 8 + y % 8];
+                    uint8_t glyph_row = font_6x8[c * 8 + y % 8];
 
                     for (int bit = 6; bit--;) {
                         *output_buffer++ = glyph_row & 1
