@@ -149,7 +149,6 @@ static void pio_set_x(PIO pio, int sm, uint32_t v) {
 }
 
 
-
 //определение палитры
 void graphics_set_palette(uint8_t i, uint32_t color888) {
     if (i >= 240) return;
@@ -540,7 +539,6 @@ static void __not_in_flash_func(main_video_loopTV)() {
                                 for (uint i = g_buf.shift_x; i--;) {
                                     *output_buffer++ = 200;
                                 }
-
                             }
                             break;
                         }
@@ -797,12 +795,9 @@ void tv_init(g_out_TV g_out) {
     sm_config_set_out_shift(&c_c, true, true, 16);
     sm_config_set_fifo_join(&c_c, PIO_FIFO_JOIN_TX);
 
+    sm_config_set_clkdiv(&c_c, clock_get_hz(clk_sys) / (2 * v_mode.CLK_SPD));
     pio_sm_init(PIO_VIDEO, SM_video, offs_prg0, &c_c);
     pio_sm_set_enabled(PIO_VIDEO, SM_video, true);
-
-    float fdiv2 = clock_get_hz(clk_sys) / (2 * v_mode.CLK_SPD); //частота пиксельклока
-    uint32_t div_32 = (uint32_t)(fdiv2 * (1 << 16) + 0.0);
-    PIO_VIDEO->sm[SM_video].clkdiv = div_32 & 0xffff8000; //делитель для конкретной sm
 
     //настройки DMA
 
@@ -850,7 +845,7 @@ void tv_init(g_out_TV g_out) {
     //канал - конвертер палитры
     cfg_dma = dma_channel_get_default_config(dma_chan_pal_conv);
 
-    int n_trans_data = 1;
+    const int n_trans_data = 1;
 
     channel_config_set_transfer_data_size(&cfg_dma, DMA_SIZE_16);
 
@@ -907,7 +902,6 @@ void tv_init(g_out_TV g_out) {
 
 
 void graphics_init() {
-
     tv_init(TV_OUT_PAL);
 
     // FIXME сделать конфигурацию пользователем
@@ -927,7 +921,6 @@ void graphics_init() {
     graphics_set_palette(213, RGB888(0xF3, 0x4E, 0xF3)); //light magenta
     graphics_set_palette(214, RGB888(0xF3, 0xF3, 0x4E)); //yellow
     graphics_set_palette(215, RGB888(0xFF, 0xFF, 0xFF)); //white
-
 }
 
 void clrScr(const uint8_t color) {
