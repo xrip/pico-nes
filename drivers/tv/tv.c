@@ -672,12 +672,12 @@ void tv_init(const output_format_e output_format) {
             v_mode.N_lines = 525;
 
 
-            v_mode.H_len = (v_mode.CLK_SPD / 1e6) * 63.9;
+            v_mode.H_len = v_mode.CLK_SPD / 1e6 * 63.9;
             v_mode.H_len &= 0xfffffffc;
 
             v_mode.sync_size = 4.7 * v_mode.H_len / 64;
             v_mode.begin_img_shx = 10.5 * v_mode.H_len / 64;
-            v_mode.img_size_x = v_mode.H_len - ((12 * v_mode.H_len) / 64);
+            v_mode.img_size_x = v_mode.H_len - 12 * v_mode.H_len / 64;
             v_mode.img_size_x &= 0xfffffffc;
 
             break;
@@ -688,12 +688,12 @@ void tv_init(const output_format_e output_format) {
             v_mode.N_lines = 625;
 
 
-            v_mode.H_len = (v_mode.CLK_SPD / 1e6) * 63.9;
+            v_mode.H_len = v_mode.CLK_SPD / 1e6 * 63.9;
             v_mode.H_len &= 0xfffffffc;
 
             v_mode.sync_size = 4.7 * v_mode.H_len / 64;
             v_mode.begin_img_shx = 10.5 * v_mode.H_len / 64;
-            v_mode.img_size_x = v_mode.H_len - ((12 * v_mode.H_len) / 64);
+            v_mode.img_size_x = v_mode.H_len - 12 * v_mode.H_len / 64;
             v_mode.img_size_x &= 0xfffffffc;
 
             break;
@@ -719,7 +719,7 @@ void tv_init(const output_format_e output_format) {
 
     offs_prg1 = pio_add_program(PIO_VIDEO_ADDR, &pio_program_conv_addr_TV);
     offs_prg0 = pio_add_program(PIO_VIDEO, &program_pio_TV);
-    pio_set_x(PIO_VIDEO_ADDR, SM_conv, ((uint32_t)conv_color >> 9));
+    pio_set_x(PIO_VIDEO_ADDR, SM_conv, (uint32_t)conv_color >> 9);
     uint16_t* conv_color16 = (uint16_t *)conv_color;
 
     conv_color16[base_inx] = 0b1100000011000000; //нет синхры
@@ -851,7 +851,7 @@ void tv_init(const output_format_e output_format) {
     );
 
 
-    dma_start_channel_mask((1u << dma_chan_ctrl));
+    dma_start_channel_mask(1u << dma_chan_ctrl);
 
     int hz = 50000;
     if (!add_repeating_timer_us(1000000 / hz, video_timer_callbackTV, NULL, &video_timer)) {
@@ -861,7 +861,7 @@ void tv_init(const output_format_e output_format) {
 
 
 void graphics_init() {
-    tv_init(TV_OUT_PAL);
+    tv_init(TV_OUT_NTSC);
 
     // FIXME сделать конфигурацию пользователем
     graphics_set_palette(200, RGB888(0x00, 0x00, 0x00)); //black
