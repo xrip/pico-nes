@@ -559,8 +559,6 @@ void __not_in_flash_func(InfoNES_PreDrawLine)(int line) {
     InfoNES_SetLineBuffer(linebuffer, NES_DISP_WIDTH);
 }
 
-#define X2(a) (a | (a << 8))
-
 void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
     for (int x = 0; x < NES_DISP_WIDTH; x++) SCREEN[line][x] = (uint8_t)linebuffer[x];
     // if (settings.show_fps && line < 16) draw_fps(fps_text, line, 255);
@@ -611,145 +609,64 @@ void __scratch_x("render") render_core() {
     __unreachable();
 }
 
-typedef struct {
-    DWORD compressed;
-    int remainsDecompressed;
-} FILE_LZW;
-#ifdef LZW_INCLUDE
-static LZWBlockInputStream * pIs = 0;
-#endif
-FRESULT in_open(
-    FILE_LZW* fp, /* Pointer to the blank file object */
-    char* fn
-) {
-#ifdef LZW_INCLUDE
-    size_t fptr = 0;
-    DWORD token = toDWORD((char*)lz4source, fptr);
-    DWORD numberOfFiles = token & 0xFF;
-    DWORD bbOffset = token >> 8;
-    fptr += 4;
-    DWORD fileNum = 0;
-    DWORD compressed = 0;
-    DWORD compressedOff = 0;
-    fp->compressed = 0;
-    while (fileNum++ < numberOfFiles) {
-        int i = 5; // ignore trailing "\NES\"
-        while (fn[i++] == lz4source[fptr] && lz4source[fptr] != 0) {
-            fptr++;
-        }
-        if (lz4source[fptr++] == 0) { // file was found
-            compressed = toDWORD((char*)lz4source, fptr); fptr += 4;
-            fp->remainsDecompressed = toDWORD((char*)lz4source, fptr); fptr += 4;
-            fp->compressed = compressed;
-            fptr = (size_t)lz4source + bbOffset + compressedOff;
-            if (pIs) {
-                delete pIs;
-            }
-            pIs = new LZWBlockInputStream((char*)fptr, (const char*)rom);
-            return FR_OK;
-        } else {
-            while(lz4source[fptr++] != 0) {}
-            compressed = toDWORD((char*)lz4source, fptr); fptr += 8;
-            compressedOff += compressed;
-        }
-    }
-#endif
-    return FR_NO_FILE;
-}
 
-FRESULT in_read(
-    FILE_LZW* fp, /* Open file to be read */
-    char* buff, /* Data buffer to store the read data */
-    size_t btr, /* Number of bytes to read */
-    UINT* br /* Number of bytes read */
-) {
-#ifdef LZW_INCLUDE
-    if (fp->remainsDecompressed <= 0) {
-        *br = 0;
-    } else {
-        int decompressed = btr;
-        size_t read = pIs->read(buff, btr, &decompressed);
-        fp->remainsDecompressed -= decompressed;
-        *br = read;
-    }
-#endif
-    return FR_OK;
-}
+bool filebrowser_loadfile(const char pathname[256]) {
+    UINT bytes_read = 0;
+    FIL file;
 
-void flash_range_erase2(uint32_t addr, size_t sz) {
-    // char tmp[80]; sprintf(tmp, "Erase 0x%X len: 0x%X", addr, sz); logMsg(tmp);
-    gpio_put(PICO_DEFAULT_LED_PIN, true);
-    uint32_t interrupts = save_and_disable_interrupts();
-    flash_range_erase(addr - XIP_BASE, sz);
-    restore_interrupts(interrupts);
-    gpio_put(PICO_DEFAULT_LED_PIN, false);
-}
+    constexpr int window_y = (TEXTMODE_ROWS - 5) / 2;
+    constexpr int window_x = (TEXTMODE_COLS - 43) / 2;
 
-void flash_range_program2(uint32_t addr, const u_int8_t* buff, size_t sz) {
-    gpio_put(PICO_DEFAULT_LED_PIN, true);
-    uint32_t interrupts = save_and_disable_interrupts();
-    flash_range_program(addr - XIP_BASE, buff, sz);
-    restore_interrupts(interrupts);
-    gpio_put(PICO_DEFAULT_LED_PIN, false);
-    //char tmp[80]; sprintf(tmp, "Flashed 0x%X len: 0x%X from 0x%X", addr, sz, buff); logMsg(tmp);
-}
+    draw_window("Loading firmware", window_x, window_y, 43, 5);
 
-char* get_shared_ram() {
-    return (char *)SCREEN;
-}
+    FILINFO fileinfo;
+    f_stat(pathname, &fileinfo);
 
-size_t get_shared_ram_size() {
-    return sizeof(SCREEN) & 0xfffff000;
-}
-
-char* get_rom_filename() {
-    return (char *)rom_filename;
-}
-
-bool filebrowser_loadfile(char* pathname, bool built_in) {
-    draw_text("LOADING...", 0, 0, 15, 0);
-    if (strcmp((char *)rom_filename, pathname) == 0) {
+    if (16384 - 64 << 10 < fileinfo.fsize) {
+        draw_text("ERROR: ROM too large! Canceled!!", window_x + 1, window_y + 2, 13, 1);
+        sleep_ms(5000);
         return false;
     }
-    //restore_clean_fat(); // in case we write into space for flash drive, it is required to remove old FAT info
-    FIL file;
-    UINT bytesRead;
-    auto addr = (uint32_t)rom_filename;
 
-    FRESULT result = built_in ? in_open((FILE_LZW *)&file, pathname) : f_open(&file, pathname, FA_READ);
-    if (result == FR_OK) {
-        multicore_lockout_start_blocking();
-        flash_range_erase2(addr, 4096);
-        flash_range_program2(addr, reinterpret_cast<const uint8_t *>(pathname), 256);
-        size_t bufsize = 8192;
-        BYTE* buffer = (BYTE *)get_shared_ram();
-        addr = (uint32_t)rom;
-        while (true) {
-            result = !built_in
-                         ? f_read(&file, buffer, bufsize, &bytesRead)
-                         : in_read((FILE_LZW *)&file, (char *)buffer, bufsize, &bytesRead);
-            if (result == FR_OK) {
-                if (bytesRead == 0) {
-                    break;
-                }
-                flash_range_erase2(addr, bufsize);
-                flash_range_program2(addr, buffer, bufsize);
-                addr += bufsize;
-            }
-            else {
-                break;
+
+    draw_text("Loading...", window_x + 1, window_y + 2, 10, 1);
+    sleep_ms(500);
+
+
+    multicore_lockout_start_blocking();
+    auto flash_target_offset = FLASH_TARGET_OFFSET + 4096;
+
+    flash_range_erase(flash_target_offset, fileinfo.fsize);
+
+    if (FR_OK == f_open(&file, pathname, FA_READ)) {
+        uint8_t buffer[FLASH_PAGE_SIZE];
+
+        do {
+            f_read(&file, &buffer, FLASH_PAGE_SIZE, &bytes_read);
+
+            if (bytes_read) {
+                uint32_t ints = save_and_disable_interrupts();
+                flash_range_program(flash_target_offset, buffer, FLASH_PAGE_SIZE);
+                restore_interrupts(ints);
+
+                gpio_put(PICO_DEFAULT_LED_PIN, flash_target_offset >> 13 & 1);
+
+                flash_target_offset += FLASH_PAGE_SIZE;
             }
         }
-#ifdef LZW_INCLUDE
-        if (pIs) { delete pIs; pIs = 0; }
-#endif
-        if (!built_in) f_close(&file);
-        multicore_lockout_end_blocking();
+        while (bytes_read != 0);
+
+        gpio_put(PICO_DEFAULT_LED_PIN, true);
     }
-    // FIXME! Починить графический драйвер при загрузке
-    //watchdog_enable(100, true);
+    f_close(&file);
+    uint32_t ints = save_and_disable_interrupts();
+    flash_range_program(FLASH_TARGET_OFFSET, reinterpret_cast<const uint8_t *>(pathname), 256);
+    restore_interrupts(ints);
+
+    multicore_lockout_end_blocking();
     return true;
 }
+
 
 typedef struct __attribute__((__packed__)) {
     bool is_directory;
@@ -792,7 +709,7 @@ static inline bool isExecutable(const char pathname[256], const char* extensions
     return false;
 }
 
-void __not_in_flash_func(filebrowser)(const char pathname[256], const char* executables) {
+void filebrowser(const char pathname[256], const char* executables) {
     bool debounce = true;
     char basepath[256];
     char tmp[TEXTMODE_COLS + 1];
@@ -964,7 +881,7 @@ void __not_in_flash_func(filebrowser)(const char pathname[256], const char* exec
                 if (file_at_cursor.is_executable) {
                     sprintf(tmp, "%s\\%s", basepath, file_at_cursor.filename);
 
-                    if (filebrowser_loadfile(tmp, false)) {
+                    if (filebrowser_loadfile(tmp)) {
                         watchdog_enable(0, true);
                         // FIXME!!!
                         return;
