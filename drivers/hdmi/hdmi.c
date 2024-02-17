@@ -180,7 +180,7 @@ static void __scratch_y("hdmi_driver") dma_handler_HDMI() {
 
     uint8_t* activ_buf = (uint8_t *)dma_lines[inx_buf_dma & 1];
 
-    if (line < 480) {
+    if (graphics_buffer && line < 480 ) {
         //область изображения
         uint8_t* input_buffer = &graphics_buffer[(line / 2) * graphics_buffer_width];
         uint8_t* output_buffer = activ_buf + 72; //для выравнивания синхры;
@@ -608,8 +608,6 @@ void graphics_set_textbuffer(uint8_t* buffer) {
 
 
 void clrScr(const uint8_t color) {
-    uint16_t* t_buf = (uint16_t *)text_buffer;
-    int size = TEXTMODE_COLS * TEXTMODE_ROWS;
-
-    while (size--) *t_buf++ = color << 4 | ' ';
+    if (text_buffer)
+        memset(text_buffer, color, TEXTMODE_COLS * TEXTMODE_ROWS * 2);
 }
