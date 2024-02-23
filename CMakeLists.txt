@@ -11,6 +11,8 @@ option(TFT "Enable TFT display" OFF)
 option(ILI9341 "Enable TFT ILI9341 display" OFF)
 option(HDMI "Enable HDMI display" OFF)
 option(TV "Enable TV composite output" OFF)
+option(SOFTTV "Enable TV soft composite output" OFF)
+
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
@@ -37,6 +39,8 @@ add_subdirectory(drivers/vga-nextgen)
 add_subdirectory(drivers/st7789)
 add_subdirectory(drivers/hdmi)
 add_subdirectory(drivers/tv)
+add_subdirectory(drivers/tv-software)
+
 
 add_subdirectory(drivers/graphics)
 
@@ -84,6 +88,10 @@ ELSEIF(TV)
     target_compile_definitions(${PROJECT_NAME} PRIVATE TV)
     target_link_libraries(${PROJECT_NAME} PRIVATE tv)
     SET(BUILD_NAME "${BUILD_NAME}-TV")
+ELSEIF(SOFTTV)
+	target_compile_definitions(${PROJECT_NAME} PRIVATE SOFTTV)
+	target_link_libraries(${PROJECT_NAME} PRIVATE tv-software)
+	SET(BUILD_NAME "${BUILD_NAME}-TV-SOFT")
 ELSE()
     target_compile_definitions(${PROJECT_NAME} PRIVATE VGA)
     target_link_libraries(${PROJECT_NAME} PRIVATE vga-nextgen)

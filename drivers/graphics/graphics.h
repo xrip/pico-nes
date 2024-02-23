@@ -18,11 +18,13 @@ extern "C" {
 #ifdef TV
 #include "tv.h"
 #endif
-
+#ifdef SOFTTV
+#include "tv-software.h"
+#endif
 #include "font6x8.h"
 #include "font8x8.h"
 #include "font8x16.h"
-
+#define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
 enum graphics_mode_t {
     TEXTMODE_DEFAULT,
     GRAPHICSMODE_DEFAULT,
