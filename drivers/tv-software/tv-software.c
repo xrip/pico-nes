@@ -208,10 +208,8 @@ void graphics_set_modeTV(tv_out_mode_t mode) {
     };
     video_mode.LVL_BLACK_TMPL = CONV_DAC(video_mode.LVL_BLACK) | (1 << SYNC_PIN);
 
+    sm_config_set_clkdiv(PIO_VIDEO->sm, clock_get_hz(clk_sys) / (color_freq * 4));
 
-    float fdiv2 = clock_get_hz(clk_sys) / (color_freq * 4); //частота пиксельклока кратна поднесущей
-    uint32_t div_32 = (uint32_t)(fdiv2 * (1 << 16) + 0.0);
-    PIO_VIDEO->sm[SM_video].clkdiv = div_32 & 0xffffffff; //делитель для  sm
 };
 
 
@@ -1000,9 +998,10 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
 
                                 for (int bit = 6; bit--;) {
                                     uint32_t cout32 = conv_color[li][glyph_row & 1
-                                    ? textmode_palette[colorIndex & 0xf] //цвет шрифта
-                                    : textmode_palette[colorIndex >> 4] //цвет фона
-                                        ];
+                                                                         ? textmode_palette[colorIndex & 0xf]
+                                                                         //цвет шрифта
+                                                                         : textmode_palette[colorIndex >> 4] //цвет фона
+                                    ];
                                     uint8_t* c_4 = &cout32;
                                     *output_buffer8++ = c_4[bit % 4];
                                     *output_buffer8++ = c_4[bit % 4];
@@ -1021,23 +1020,25 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                             uint32_t cout32 = conv_color[li][color];
                             // uint8_t* c_4=&conv_color[0][c8&0xf];
                             uint8_t* c_4 = &cout32;
-                            output_buffer8 += buffer_shift ;
+                            output_buffer8 += buffer_shift;
 
                             int x = 0;
                             for (int i = 0; i < video_mode.img_W - d_end; i++) {
-                                    *output_buffer8++ = c_4[i % 4];
-                                    next_ibuf -= di;
-                                    if (next_ibuf <= 0) {
-                                        x++;
-                                        if(x > graphics_buffer.shift_x && x  < graphics_buffer.shift_x + graphics_buffer.width) {
-                                            color = *input_buffer8++;
-                                        } else {
-                                            color = 200;
-                                        }
-                                        cout32 = conv_color[li][color];
-                                        next_ibuf += 0x100;
+                                *output_buffer8++ = c_4[i % 4];
+                                next_ibuf -= di;
+                                if (next_ibuf <= 0) {
+                                    x++;
+                                    if (x > graphics_buffer.shift_x && x < graphics_buffer.shift_x + graphics_buffer.
+                                        width) {
+                                        color = *input_buffer8++;
                                     }
+                                    else {
+                                        color = 200;
+                                    }
+                                    cout32 = conv_color[li][color];
+                                    next_ibuf += 0x100;
                                 }
+                            }
                         }
                         break;
                     }
