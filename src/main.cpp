@@ -573,6 +573,7 @@ void __scratch_x("render") render_core() {
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
     graphics_set_textbuffer(buffer);
     graphics_set_bgcolor(0x000000);
+    // graphics_set_offset(0, 0);
     graphics_set_offset(32, 0);
 
     updatePalette(settings.palette);

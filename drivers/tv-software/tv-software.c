@@ -991,18 +991,21 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                 if (input_buffer != NULL)
                     switch (tv_out_mode.mode_bpp) {
                         case TEXTMODE_DEFAULT: {
+                            output_buffer8 += 8;
                             for (int x = 0; x < TEXTMODE_COLS; x++) {
                                 const uint16_t offset = y / 8 * (TEXTMODE_COLS * 2) + x * 2;
                                 const uint8_t c = text_buffer[offset];
                                 const uint8_t colorIndex = text_buffer[offset + 1];
-                                uint8_t glyph_row = font_8x8[c * 8 + y % 8];
+                                uint8_t glyph_row = font_6x8[c * 8 + y % 8];
 
-                                for (int bit = 8; bit--;) {
+                                for (int bit = 6; bit--;) {
                                     uint32_t cout32 = conv_color[li][glyph_row & 1
                                     ? textmode_palette[colorIndex & 0xf] //цвет шрифта
                                     : textmode_palette[colorIndex >> 4] //цвет фона
                                         ];
                                     uint8_t* c_4 = &cout32;
+                                    *output_buffer8++ = c_4[bit % 4];
+                                    *output_buffer8++ = c_4[bit % 4];
                                     *output_buffer8++ = c_4[bit % 4];
                                     glyph_row >>= 1;
                                 }
@@ -1013,21 +1016,28 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                             //для 8-битного буфера
                             uint8_t* input_buffer8 = input_buffer + y * graphics_buffer.width;
 
-                            uint8_t color = *input_buffer8++;
+                            // todo bgcolor
+                            uint8_t color = graphics_buffer.shift_x ? 63 : *input_buffer8++;
                             uint32_t cout32 = conv_color[li][color];
                             // uint8_t* c_4=&conv_color[0][c8&0xf];
                             uint8_t* c_4 = &cout32;
-                            output_buffer8 += buffer_shift;
+                            output_buffer8 += buffer_shift ;
 
+                            int x = 0;
                             for (int i = 0; i < video_mode.img_W - d_end; i++) {
-                                *output_buffer8++ = c_4[i % 4];
-                                next_ibuf -= di;
-                                if (next_ibuf <= 0) {
-                                    color = *input_buffer8++;
-                                    cout32 = conv_color[li][color];
-                                    next_ibuf += 0x100;
+                                    *output_buffer8++ = c_4[i % 4];
+                                    next_ibuf -= di;
+                                    if (next_ibuf <= 0) {
+                                        x++;
+                                        if(x > graphics_buffer.shift_x && x  < graphics_buffer.shift_x + graphics_buffer.width) {
+                                            color = *input_buffer8++;
+                                        } else {
+                                            color = 63;
+                                        }
+                                        cout32 = conv_color[li][color];
+                                        next_ibuf += 0x100;
+                                    }
                                 }
-                            }
                         }
                         break;
                     }
@@ -1208,5 +1218,8 @@ void clrScr(const uint8_t color) {
 
 void graphics_set_mode(const enum graphics_mode_t mode) {
     tv_out_mode.mode_bpp = mode;
+    tv_out_mode.color_index = TEXTMODE_DEFAULT == mode ? 0.0 : 1.0;
+
+    graphics_set_modeTV(tv_out_mode);
     clrScr(0);
 }

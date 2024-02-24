@@ -7,7 +7,7 @@
 
 #define TV_BASE_PIN (6)
 
-#define TEXTMODE_COLS 90
+#define TEXTMODE_COLS 40
 #define TEXTMODE_ROWS 30
 #define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
 
