@@ -30,9 +30,9 @@ typedef struct tv_out_mode_t {
 } tv_out_mode_t;
 
 //параметры по умолчанию
-static tv_out_mode_t tv_out_mode = {
+tv_out_mode_t tv_out_mode = {
     .tv_system = g_TV_OUT_NTSC,
-    .N_lines = _525_lines,
+    .N_lines = _524_lines,
     .mode_bpp = GRAPHICSMODE_DEFAULT,
     .c_freq = _3579545,
     .color_index = 1.0, //0-1
@@ -40,6 +40,16 @@ static tv_out_mode_t tv_out_mode = {
     .cb_sync_PI_shift_half_frame = true
 };
 
+//параметры по умолчанию
+tv_out_mode_t tv_out_mode1 = {
+    .tv_system = g_TV_OUT_PAL,
+    .N_lines = _624_lines,
+    .mode_bpp = GRAPHICSMODE_DEFAULT,
+    .c_freq = _4433619,
+    .color_index = 1.0, //0-1
+    .cb_sync_PI_shift_lines = false,
+    .cb_sync_PI_shift_half_frame = true
+};
 
 //программы PIO
 //программа видеовывода
@@ -1220,7 +1230,8 @@ void clrScr(const uint8_t color) {
 void graphics_set_mode(const enum graphics_mode_t mode) {
     tv_out_mode.mode_bpp = mode;
     tv_out_mode.color_index = TEXTMODE_DEFAULT == mode ? 0.0 : 1.0;
-
+    // tv_out_mode.cb_sync_PI_shift_lines = TEXTMODE_DEFAULT == mode ? true : false;
+    // tv_out_mode.color_index = tv_out_mode.color_index != 0.0 ? 1.0 : 0.0;
     graphics_set_modeTV(tv_out_mode);
     clrScr(0);
 }

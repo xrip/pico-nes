@@ -317,7 +317,6 @@ static input_bits_t gamepad2_bits = { false, false, false, false, false, false, 
 #if USE_NESPAD
 
 void nespad_tick() {
-
     nespad_read();
 
     gamepad1_bits.a = (nespad_state & DPAD_A) != 0;
@@ -677,7 +676,7 @@ typedef struct __attribute__((__packed__)) {
 } file_item_t;
 
 constexpr int max_files = 600;
-file_item_t * fileItems = (file_item_t *)(&SCREEN[0][0] + TEXTMODE_COLS*TEXTMODE_ROWS*2);
+file_item_t* fileItems = (file_item_t *)(&SCREEN[0][0] + TEXTMODE_COLS * TEXTMODE_ROWS * 2);
 
 int compareFileItems(const void* a, const void* b) {
     const auto* itemA = (file_item_t *)a;
@@ -970,36 +969,90 @@ void save_config() {
     }
 }
 
+typedef bool (*menu_callback_t)();
+
 typedef struct __attribute__((__packed__)) {
     const char* text;
     menu_type_e type;
     const void* value;
+    menu_callback_t callback;
     uint8_t max_value;
-    char value_list[5][10];
+    char value_list[15][10];
 } MenuItem;
+
+#if SOFT-TV
+typedef struct tv_out_mode_t {
+    // double color_freq;
+    float color_index;
+    COLOR_FREQ_t c_freq;
+    enum graphics_mode_t mode_bpp;
+    g_out_TV_t tv_system;
+    NUM_TV_LINES_t N_lines;
+    bool cb_sync_PI_shift_lines;
+    bool cb_sync_PI_shift_half_frame;
+} tv_out_mode_t;
+extern tv_out_mode_t tv_out_mode;
+#endif
+int save_slot = 0;
+
+
+
+bool save() {
+    char pathname[255];
+
+    if (save_slot) {
+        sprintf(pathname, "%s_%d", rom_filename, save_slot);
+    }
+    else {
+        sprintf(pathname, "%s", rom_filename);
+    }
+
+    save_state(pathname);
+    return true;
+}
+
+bool load() {
+    char pathname[255];
+
+    if (save_slot) {
+        sprintf(pathname, "%s_%d", rom_filename, save_slot);
+    }
+    else {
+        sprintf(pathname, "%s", rom_filename);
+    }
+
+    load_state(pathname);
+    return true;
+}
 
 
 const MenuItem menu_items[] = {
-    { "Player 1: %s", ARRAY, &settings.player_1_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" } },
-    { "Player 2: %s", ARRAY, &settings.player_2_input, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" } },
+    { "Player 1: %s", ARRAY, &settings.player_1_input, nullptr, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" } },
+    { "Player 2: %s", ARRAY, &settings.player_2_input, nullptr, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" } },
     { "" },
-    { "Volume: %d", INT, &settings.snd_vol, 8 },
+    { "Volume: %d", INT, &settings.snd_vol, nullptr, 8 },
 #if VGA
-    { "Flash line: %s", ARRAY, &settings.flash_line, 1, { "NO ", "YES" } },
-    { "Flash frame: %s", ARRAY, &settings.flash_frame, 1, { "NO ", "YES" } },
-    { "VGA Mode: %s", ARRAY, &settings.palette, 1, { "RGB333", "RGB222" } },
-#else
 { "" },
+    { "Flash line: %s", ARRAY, &settings.flash_line, nullptr,1, { "NO ", "YES" } },
+    { "Flash frame: %s", ARRAY, &settings.flash_frame, nullptr,1, { "NO ", "YES" } },
+    { "VGA Mode: %s", ARRAY, &settings.palette, nullptr,1, { "RGB333", "RGB222" } },
 #endif
-    { "NES Palette: %s", ARRAY, &settings.nes_palette, 1, { "Default ", "Colorful" } },
+#if SOFTTV
     { "" },
-    { "Save gamestate", SAVE },
-    { "Load gamestate", LOAD },
+    { "TV system %s", ARRAY, &tv_out_mode.tv_system, nullptr, 1, { "PAL ", "NTSC" } },
+    { "TV Lines %s", ARRAY, &tv_out_mode.N_lines, nullptr, 3, { "624", "625", "524", "525" } },
+    { "Freq %s", ARRAY, &tv_out_mode.c_freq, nullptr, 1, { "3.579545", "4.433619" } },
+    { "Color %s", ARRAY, &tv_out_mode.color_index, nullptr, 1, { "BW   ", "COLOR" } },
+    { "Shift lines %s", ARRAY, &tv_out_mode.cb_sync_PI_shift_lines, nullptr, 1, { "NO ", "YES" } },
+    { "Shift half frame %s", ARRAY, &tv_out_mode.cb_sync_PI_shift_half_frame, nullptr, 1, { "NO ", "YES" } },
+#endif
     { "" },
-{ "Back to ROM select", ROM_SELECT },
-{ "Load from USB device", USB_DEVICE },
-{ "" },
-    { "Reset game", RESET },
+    { "NES Palette: %s", ARRAY, &settings.nes_palette, nullptr, 1, { "Default ", "Colorful" } },
+    { "" },
+    { "Save state: %i", INT, &save_slot, &save, 5 },
+    { "Load state: %i", INT, &save_slot, &load, 5 },
+    { "" },
+    { "Back to ROM select", ROM_SELECT },
     { "Return to game", RETURN },
 };
 #define MENU_ITEMS_NUMBER (sizeof(menu_items) / sizeof (MenuItem))
@@ -1011,8 +1064,8 @@ int menu() {
     snprintf(footer, TEXTMODE_COLS, ":: %s ::", PICO_PROGRAM_NAME);
     draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, 0, 11, 1);
     snprintf(footer, TEXTMODE_COLS, ":: %s build %s %s ::", PICO_PROGRAM_VERSION_STRING, __DATE__,
-         __TIME__);
-    draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, TEXTMODE_ROWS-1, 11, 1);
+             __TIME__);
+    draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, TEXTMODE_ROWS - 1, 11, 1);
     int current_item = 0;
     while (!exit) {
         sleep_ms(25);
@@ -1086,6 +1139,9 @@ int menu() {
                             exit = true;
                         }
                 }
+                if (nullptr != item->callback && (gamepad1_bits.start || keyboard_bits.start)) {
+                    exit = item->callback();
+                }
             }
             static char result[TEXTMODE_COLS];
             switch (item->type) {
@@ -1098,6 +1154,8 @@ int menu() {
                 case TEXT:
                     snprintf(result, TEXTMODE_COLS, item->text, item->value);
                     break;
+                case NONE:
+                    color = 6;
                 default:
                     snprintf(result, TEXTMODE_COLS, "%s", item->text);
             }
@@ -1115,7 +1173,6 @@ int menu() {
 
 
 int InfoNES_LoadFrame() {
-
     if ((keyboard_bits.start || gamepad1_bits.start) && (keyboard_bits.select || gamepad1_bits.select)) {
         if (menu() == ROM_SELECT) {
             return -1;
