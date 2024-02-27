@@ -1,3 +1,8 @@
+# v3.0.0 
+- VGA / HDMI / TFT / TV Out composite outputs added
+- File browser reworked 
+
+
 # v2.2.0
 - HDMI output support
 ```
