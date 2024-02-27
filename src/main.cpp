@@ -980,7 +980,7 @@ typedef struct __attribute__((__packed__)) {
     char value_list[15][10];
 } MenuItem;
 
-#if SOFT-TV
+#if SOFTTV
 typedef struct tv_out_mode_t {
     // double color_freq;
     float color_index;
