@@ -1,3 +1,6 @@
+#include <cache.h>
+#include <psram_spi.h>
+
 #include "graphics.h"
 #include <stdio.h>
 #include <string.h>
@@ -162,7 +165,7 @@ static void pio_set_x(PIO pio, const int sm, uint32_t v) {
     pio_sm_exec(pio, sm, instr_mov);
 }
 
-
+extern psram_spi_inst_t psram_spi;
 static void __scratch_y("hdmi_driver") dma_handler_HDMI() {
     static uint32_t inx_buf_dma;
     static uint line = 0;
@@ -202,7 +205,21 @@ static void __scratch_y("hdmi_driver") dma_handler_HDMI() {
                     *output_buffer++ = 255;
                 }
 
-            //рисуем сам видеобуфер+пространство справа
+                if (y > 8 && y < graphics_buffer_height) {
+#pragma unroll(256)
+                    for (int ii = 0; ii < 256; ii+=16) {
+                        psram_read(&psram_spi, y * 256+ii, output_buffer+ii, 16);
+                    }
+                } else {
+                    memset(output_buffer, 255,256+32);
+                }
+                // psram_read(&psram_spi, addr+128, output_buffer+128, 128);
+                /*for (int ii = 0; ii < 16; ii++) {
+                    // *output_buffer++ = psram_input_buffer_8bit[ii];
+                    *output_buffer++ = 255;
+                }*/
+
+            /*//рисуем сам видеобуфер+пространство справа
                 input_buffer = &graphics_buffer[(y - graphics_buffer_shift_y) * graphics_buffer_width];
 
                 const uint8_t* input_buffer_end = input_buffer + graphics_buffer_width;
@@ -217,7 +234,7 @@ static void __scratch_y("hdmi_driver") dma_handler_HDMI() {
                     }
                     else
                         *output_buffer++ = 255;
-                }
+                }*/
 
                 break;
 

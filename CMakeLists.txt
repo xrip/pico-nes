@@ -40,7 +40,7 @@ add_subdirectory(drivers/st7789)
 add_subdirectory(drivers/hdmi)
 add_subdirectory(drivers/tv)
 add_subdirectory(drivers/tv-software)
-
+add_subdirectory(drivers/psram)
 
 add_subdirectory(drivers/graphics)
 
@@ -112,6 +112,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
 target_link_libraries(${PROJECT_NAME} PRIVATE
         infones
 
+
+        psram
+
         audio
         graphics
 
@@ -165,6 +168,18 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         TFT_DC_PIN=10
         TFT_DATA_PIN=12
         TFT_CLK_PIN=13
+
+
+        PSRAM
+        # PSRAM_MUTEX=1
+        PSRAM_SPINLOCK=1
+        PSRAM_ASYNC=1
+
+        PSRAM_PIN_CS=18
+        PSRAM_PIN_SCK=19
+        PSRAM_PIN_MOSI=20
+        PSRAM_PIN_MISO=21
+
 )
 
 target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections)
