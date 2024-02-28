@@ -13,6 +13,8 @@
 
 #include <InfoNES.h>
 #include <InfoNES_System.h>
+#include <psram_spi.h>
+
 #include <bsp/board_api.h>
 
 #include "InfoNES_Mapper.h"
@@ -46,6 +48,8 @@ size_t get_rom4prog_size() { return sizeof(rom); }
 const char* rom_filename = (const char *)(XIP_BASE + FLASH_TARGET_OFFSET);
 const uint8_t* rom = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET) + 4096;
 size_t get_rom4prog_size() { return FLASH_TARGET_OFFSET - 4096; }
+
+psram_spi_inst_t psram_spi;
 
 class Decoder {
 };
@@ -558,9 +562,25 @@ void __not_in_flash_func(InfoNES_PreDrawLine)(int line) {
     InfoNES_SetLineBuffer(linebuffer, NES_DISP_WIDTH);
 }
 
-void __not_in_flash_func(InfoNES_PostDrawLine)(int line) {
-    for (int x = 0; x < NES_DISP_WIDTH; x++) SCREEN[line][x] = (uint8_t)linebuffer[x];
-    // if (settings.show_fps && line < 16) draw_fps(fps_text, line, 255);
+#define X2(a) (a | (a << 8))
+#define MERGE_UINT32(a, b, c, d) (((uint32_t)(a & 0xFF) << 24) | ((uint32_t)(b & 0xFF) << 16) | ((uint32_t)(c & 0xFF) << 8) | (uint32_t)(d & 0xFF))
+void __scratch_x("line") (InfoNES_PostDrawLine)(int line) {
+    for (int x = 0; x < NES_DISP_WIDTH; x+=4) {
+        psram_write32(&psram_spi, x + line * NES_DISP_WIDTH, MERGE_UINT32(linebuffer[x+3], linebuffer[x+2], linebuffer[x+1], linebuffer[x]));
+    }
+    return;
+
+    for (int x = 0; x < NES_DISP_WIDTH; x++) {
+        psram_write8(&psram_spi, x + line * NES_DISP_WIDTH, linebuffer[x] & 0xFF);
+    }
+    //if (settings.show_fps && line < 16) draw_fps(fps_text, line, 255);
+}
+
+
+inline bool init_psram() {
+    psram_spi = psram_spi_init_clkdiv(pio0, -1, 1.6, true);
+    psram_write32(&psram_spi, 0x313373, 0xDEADBEEF);
+    return 0xDEADBEEF == psram_read32(&psram_spi, 0x313373);
 }
 
 /* Renderer loop on Pico's second core */
@@ -577,6 +597,15 @@ void __scratch_x("render") render_core() {
 
     updatePalette(settings.palette);
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
+
+    if (!init_psram()) {
+        while(true) {
+            gpio_put(PICO_DEFAULT_LED_PIN, true);
+            sleep_ms(5);
+            gpio_put(PICO_DEFAULT_LED_PIN, false);
+            sleep_ms(5);
+        }
+    }
     sem_acquire_blocking(&vga_start_semaphore);
 
     // 60 FPS loop
@@ -1199,9 +1228,6 @@ int main() {
         sleep_ms(33);
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
-
-    // board_init();
-    tuh_init(BOARD_TUH_RHPORT);
 
     memset(&SCREEN[0][0], 0, sizeof SCREEN);
 #if USE_PS2_KBD
