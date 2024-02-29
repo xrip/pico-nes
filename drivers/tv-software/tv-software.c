@@ -465,7 +465,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
         int dec_str = 0;
 
 
-        if (line_active == video_mode.N_lines) {
+        if (line_active >= video_mode.N_lines) {
             line_active = 0;
             frame_i++;
             input_buffer = graphics_buffer.data;
@@ -1033,6 +1033,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                             output_buffer8 += buffer_shift;
 
                             int x = 0;
+#pragma unroll(640)
                             for (int i = 0; i < video_mode.img_W - d_end; i++) {
                                 *output_buffer8++ = c_4[i % 4];
                                 next_ibuf -= di;
@@ -1229,9 +1230,9 @@ void clrScr(const uint8_t color) {
 
 void graphics_set_mode(const enum graphics_mode_t mode) {
     tv_out_mode.mode_bpp = mode;
-    tv_out_mode.color_index = TEXTMODE_DEFAULT == mode ? 0.0 : 1.0;
+    // tv_out_mode.color_index = TEXTMODE_DEFAULT == mode ? 0.0 : 1.0;
     // tv_out_mode.cb_sync_PI_shift_lines = TEXTMODE_DEFAULT == mode ? true : false;
-    // tv_out_mode.color_index = tv_out_mode.color_index != 0.0 ? 1.0 : 0.0;
+     // tv_out_mode.color_index = tv_out_mode.color_index < 1 ? 0 : 1;
     graphics_set_modeTV(tv_out_mode);
     clrScr(0);
 }
