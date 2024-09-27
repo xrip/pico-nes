@@ -14,11 +14,13 @@ endif()
 # ====================================================================================
 cmake_minimum_required(VERSION 3.13)
 
-set(HDMI ON)
+set(VGA ON)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}  -funroll-loops -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
 
 set(PICO_BOARD pico2 CACHE STRING "Board type")
 
@@ -164,7 +166,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         TFT_CLK_PIN=13
 
         PICO_PROGRAM_NAME="pico2-ness"
-        PICO_PROGRAM_VERSION_STRING="302"
+        PICO_PROGRAM_VERSION_STRING="303"
 )
 
 IF(TFT)
