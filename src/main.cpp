@@ -1187,7 +1187,7 @@ int InfoNES_LoadFrame() {
 }
 
 int main() {
-    hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
+    vreg_set_voltage(VREG_VOLTAGE_1_40);
     sleep_ms(10);
     set_sys_clock_khz(378 * KHZ, true);
 
