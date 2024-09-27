@@ -1,3 +1,17 @@
+# == DO NEVER EDIT THE NEXT LINES for Raspberry Pi Pico VS Code Extension to work ==
+if(WIN32)
+    set(USERHOME $ENV{USERPROFILE})
+else()
+    set(USERHOME $ENV{HOME})
+endif()
+set(sdkVersion 2.0.0)
+set(toolchainVersion 13_2_Rel1)
+set(picotoolVersion 2.0.0)
+set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
+if (EXISTS ${picoVscode})
+    include(${picoVscode})
+endif()
+# ====================================================================================
 cmake_minimum_required(VERSION 3.13)
 include(pico_sdk_import.cmake)
 
@@ -55,12 +69,12 @@ message(STATUS "")
 
 add_executable(${PROJECT_NAME} ${SRC})
 
-pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
-target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
-pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
+#pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
+#target_compile_definitions(slower_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
+#pico_set_boot_stage2(${PROJECT_NAME} slower_boot2)
 
-set(FAMILY rp2040)
-set(BOARD pico_sdk)
+#set(FAMILY rp2040)
+#set(BOARD pico_sdk)
 
 pico_set_program_name(dendy "NES Emulator by xrip & DnCraptor")
 pico_set_program_version(dendy "test")
@@ -131,6 +145,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         hardware_clocks
         hardware_pwm
         hardware_flash
+        stdc++
 
         tinyusb_host tinyusb_board
 )
