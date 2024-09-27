@@ -14,6 +14,8 @@ endif()
 # ====================================================================================
 cmake_minimum_required(VERSION 3.13)
 
+set(HDMI ON)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -131,7 +133,6 @@ target_compile_options(${PROJECT_NAME} PUBLIC
 endif ()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
-        VGA=1
         # SDCARD
         SDCARD_PIN_SPI0_CS=5
         SDCARD_PIN_SPI0_SCK=2

@@ -1187,7 +1187,11 @@ int InfoNES_LoadFrame() {
 }
 
 int main() {
+#ifdef VREG_VOLTAGE_1_40
     vreg_set_voltage(VREG_VOLTAGE_1_40);
+#else
+    vreg_set_voltage(VREG_VOLTAGE_1_30);
+#endif
     sleep_ms(10);
     set_sys_clock_khz(378 * KHZ, true);
 
