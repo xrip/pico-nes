@@ -23,6 +23,8 @@
  *
  */
 
+#include "pico.h"
+#include "hardware/watchdog.h"
 #include "bsp/board_api.h"
 #include "tusb.h"
 
@@ -148,17 +150,50 @@ static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8
   return false;
 }
 
+extern volatile bool altPressed;
+extern volatile bool ctrlPressed;
+extern volatile uint8_t fxPressedV;
+
 static void process_kbd_report(hid_keyboard_report_t const *report)
 {
   static hid_keyboard_report_t prev_report = { 0, 0, {0} }; // previous report to check key released
-  keyboard_bits.start = find_key_in_report(report, HID_KEY_ENTER);
-  keyboard_bits.select = find_key_in_report(report, HID_KEY_BACKSPACE);
-  keyboard_bits.a = find_key_in_report(report, HID_KEY_Z);
-  keyboard_bits.b = find_key_in_report(report, HID_KEY_X);
-  keyboard_bits.up = find_key_in_report(report, HID_KEY_ARROW_UP);
-  keyboard_bits.down = find_key_in_report(report, HID_KEY_ARROW_DOWN);
-  keyboard_bits.left = find_key_in_report(report, HID_KEY_ARROW_LEFT);
-  keyboard_bits.right = find_key_in_report(report, HID_KEY_ARROW_RIGHT);
+  keyboard_bits.start = find_key_in_report(report, HID_KEY_ENTER) || find_key_in_report(report, HID_KEY_KEYPAD_ENTER);
+  keyboard_bits.select = find_key_in_report(report, HID_KEY_BACKSPACE) || find_key_in_report(report, HID_KEY_ESCAPE) || find_key_in_report(report, HID_KEY_KEYPAD_ADD);
+  keyboard_bits.a = find_key_in_report(report, HID_KEY_Z) || find_key_in_report(report, HID_KEY_O) || find_key_in_report(report, HID_KEY_KEYPAD_0);
+  keyboard_bits.b = find_key_in_report(report, HID_KEY_X) || find_key_in_report(report, HID_KEY_P) || find_key_in_report(report, HID_KEY_KEYPAD_DECIMAL);
+
+  bool b7 = find_key_in_report(report, HID_KEY_KEYPAD_7);
+  bool b9 = find_key_in_report(report, HID_KEY_KEYPAD_9);
+  bool b1 = find_key_in_report(report, HID_KEY_KEYPAD_1);
+  bool b3 = find_key_in_report(report, HID_KEY_KEYPAD_3);
+
+  keyboard_bits.up = b7 || b9 || find_key_in_report(report, HID_KEY_ARROW_UP) || find_key_in_report(report, HID_KEY_W) || find_key_in_report(report, HID_KEY_KEYPAD_8);
+  keyboard_bits.down = b1 || b3 || find_key_in_report(report, HID_KEY_ARROW_DOWN) || find_key_in_report(report, HID_KEY_S) || find_key_in_report(report, HID_KEY_KEYPAD_2) || find_key_in_report(report, HID_KEY_KEYPAD_5);
+  keyboard_bits.left = b7 || b1 || find_key_in_report(report, HID_KEY_ARROW_LEFT) || find_key_in_report(report, HID_KEY_A) || find_key_in_report(report, HID_KEY_KEYPAD_4);
+  keyboard_bits.right = b9 || b3 || find_key_in_report(report, HID_KEY_ARROW_RIGHT)  || find_key_in_report(report, HID_KEY_D) || find_key_in_report(report, HID_KEY_KEYPAD_6);
+
+  altPressed = find_key_in_report(report, HID_KEY_ALT_LEFT) || find_key_in_report(report, HID_KEY_ALT_RIGHT);
+  ctrlPressed = find_key_in_report(report, HID_KEY_CONTROL_LEFT) || find_key_in_report(report, HID_KEY_CONTROL_RIGHT);
+
+    
+  if (altPressed && ctrlPressed && find_key_in_report(report, HID_KEY_DELETE)) {
+    watchdog_enable(10, true);
+    while(true) {
+        tight_loop_contents();
+    }
+}
+if (ctrlPressed || altPressed) {
+    uint8_t fxPressed = 0;
+    if (find_key_in_report(report, HID_KEY_F1)) fxPressed = 1;
+    else if (find_key_in_report(report, HID_KEY_F2)) fxPressed = 2;
+    else if (find_key_in_report(report, HID_KEY_F3)) fxPressed = 3;
+    else if (find_key_in_report(report, HID_KEY_F4)) fxPressed = 4;
+    else if (find_key_in_report(report, HID_KEY_F5)) fxPressed = 5;
+    else if (find_key_in_report(report, HID_KEY_F6)) fxPressed = 6;
+    else if (find_key_in_report(report, HID_KEY_F7)) fxPressed = 7;
+    else if (find_key_in_report(report, HID_KEY_F8)) fxPressed = 8;
+    fxPressedV = fxPressed;
+}
 
   //------------- example code ignore control (non-printable) key affects -------------//
   for(uint8_t i=0; i<6; i++)
