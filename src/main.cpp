@@ -412,8 +412,9 @@ void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const* report
 
 Ps2Kbd_Mrmltr ps2kbd(
     pio1,
-    0,
-    process_kbd_report);
+    PS2KBD_GPIO_FIRST,
+    process_kbd_report
+);
 #endif
 
 inline bool checkNESMagic(const uint8_t* data) {
