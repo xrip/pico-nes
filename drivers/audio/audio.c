@@ -39,8 +39,8 @@ i2s_config_t i2s_get_default_config(void) {
     i2s_config_t i2s_config = {
 		.sample_freq = 44100, 
 		.channel_count = 2,
-		.data_pin = 26,
-		.clock_pin_base = 27,
+		.data_pin = AUDIO_DATA_PIN,
+		.clock_pin_base = AUDIO_CLOCK_PIN,
 		.pio = pio1,
 		.sm = 0,
         .dma_channel = 0,
@@ -100,7 +100,7 @@ void i2s_init(i2s_config_t *i2s_config) {
 
     channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_32);
 
-    uint32_t* addr_write_DMA=&(i2s_config->pio->txf[i2s_config->sm]);
+    volatile uint32_t* addr_write_DMA=&(i2s_config->pio->txf[i2s_config->sm]);
 #ifdef AUDIO_PWM_PIN
     gpio_set_function(PWM_PIN0, GPIO_FUNC_PWM);
     gpio_set_function(PWM_PIN1, GPIO_FUNC_PWM);
