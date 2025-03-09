@@ -14,13 +14,13 @@ endif()
 # ====================================================================================
 cmake_minimum_required(VERSION 3.13)
 
-#set(I2S ON)
 set(VGA ON)
-#set(HDMI ON)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}  -funroll-loops -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -O2")
 
 set(PICO_BOARD pico2 CACHE STRING "Board type")
 
@@ -29,7 +29,7 @@ include(pico_sdk_import.cmake)
 
 SET(PROJECT_NAME pico2-nes)
 set(FLASH_SIZE 4096)
-SET(BUILD_NAME "${PROJECT_NAME}")
+SET(BUILD_NAME "${PROJECT_NAME}-${FLASH_SIZE}K")
 
 set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
@@ -105,6 +105,8 @@ if (PICO_CYW43_SUPPORTED)
     target_link_libraries(pico2-nes pico_cyw43_arch_none)
 endif()
 
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
+
 pico_enable_stdio_uart(${PROJECT_NAME} 0)
 ##pico_enable_stdio_usb(${PROJECT_NAME} 1)
 
@@ -164,7 +166,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         TFT_CLK_PIN=13
 
         PICO_PROGRAM_NAME="pico2-ness"
-        PICO_PROGRAM_VERSION_STRING="302"
+        PICO_PROGRAM_VERSION_STRING="303"
 )
 
 IF(TFT)
@@ -197,14 +199,10 @@ ENDIF()
 
 IF(NOT I2S)
     target_compile_definitions(${PROJECT_NAME} PRIVATE AUDIO_PWM_PIN=26)
-    SET(BUILD_NAME "${BUILD_NAME}-PWM")
 ELSEIF(I2S_CS4334)
     target_compile_definitions(${PROJECT_NAME} PRIVATE I2S_CS4334)
     SET(BUILD_NAME "${BUILD_NAME}-I2S-CS4334")
 ELSE()
     SET(BUILD_NAME "${BUILD_NAME}-I2S-TDA1387")
 ENDIF()
-
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
-pico_set_linker_script(${PROJECT_NAME} "${CMAKE_SOURCE_DIR}/memmap.ld")
 
