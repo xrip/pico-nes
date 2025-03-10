@@ -12,6 +12,9 @@ struct input_bits_t {
     bool down: true;
 };
 
+#include "main.h"
+extern SETTINGS settings;
+
 extern input_bits_t gamepad1_bits;
 
 //Since https://github.com/hathach/tinyusb/pull/2222, we can add in custom vendor drivers easily
@@ -24,8 +27,13 @@ void tuh_xinput_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t c
     auto xid_itf = (xinputh_interface_t *)report;
     const xinput_gamepad_t* p = &xid_itf->pad;
 
-    gamepad1_bits.a = p->wButtons & XINPUT_GAMEPAD_A;
-    gamepad1_bits.b = p->wButtons & XINPUT_GAMEPAD_B;
+    if (settings.swap_ab) {
+        gamepad1_bits.b = p->wButtons & XINPUT_GAMEPAD_A;
+        gamepad1_bits.a = p->wButtons & XINPUT_GAMEPAD_B;
+    } else {
+        gamepad1_bits.a = p->wButtons & XINPUT_GAMEPAD_A;
+        gamepad1_bits.b = p->wButtons & XINPUT_GAMEPAD_B;
+    }
 
 
     if (p->wButtons & XINPUT_GAMEPAD_GUIDE) {

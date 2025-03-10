@@ -11,6 +11,8 @@
 #include <hardware/sync.h>
 #include <hardware/flash.h>
 
+#include "main.h"
+
 #include <InfoNES.h>
 #include <InfoNES_System.h>
 #include <bsp/board_api.h>
@@ -72,40 +74,17 @@ struct semaphore vga_start_semaphore;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH]; // 61440 bytes
 uint16_t linebuffer[256];
 
-enum PALETTES {
-    RGB333,
-    RBG222,
-};
-
-enum INPUT {
-    KEYBOARD,
-    GAMEPAD1,
-    GAMEPAD2,
-    COMBINED,
-};
-
-typedef struct __attribute__((__packed__)) {
-    uint8_t version;
-    bool show_fps;
-    bool flash_line;
-    bool flash_frame;
-    PALETTES palette;
-    uint8_t snd_vol;
-    INPUT player_1_input;
-    INPUT player_2_input;
-    uint8_t nes_palette;
-} SETTINGS;
-
 SETTINGS settings = {
     .version = 3,
     .show_fps = false,
     .flash_line = true,
     .flash_frame = true,
     .palette = RGB333,
-    .snd_vol = 8,
+    .snd_vol = 4,
     .player_1_input = COMBINED,
     .player_2_input = GAMEPAD1,
     .nes_palette = 0,
+    .swap_ab = false,
 };
 
 static FATFS fs, fs1;
@@ -333,8 +312,8 @@ static input_bits_t gamepad2_bits = { false, false, false, false, false, false, 
 void nespad_tick() {
     nespad_read();
 
-    gamepad1_bits.a = (nespad_state & DPAD_A) != 0;
-    gamepad1_bits.b = (nespad_state & DPAD_B) != 0;
+    gamepad1_bits.a = settings.swap_ab ? (nespad_state & DPAD_B) != 0 : (nespad_state & DPAD_A) != 0;
+    gamepad1_bits.b = settings.swap_ab ? (nespad_state & DPAD_A) != 0 : (nespad_state & DPAD_B) != 0;
     gamepad1_bits.select = (nespad_state & DPAD_SELECT) != 0;
     gamepad1_bits.start = (nespad_state & DPAD_START) != 0;
     gamepad1_bits.up = (nespad_state & DPAD_UP) != 0;
@@ -343,8 +322,8 @@ void nespad_tick() {
     gamepad1_bits.right = (nespad_state & DPAD_RIGHT) != 0;
 
     // second
-    gamepad2_bits.a = (nespad_state2 & DPAD_A) != 0;
-    gamepad2_bits.b = (nespad_state2 & DPAD_B) != 0;
+    gamepad2_bits.a = settings.swap_ab ? (nespad_state2 & DPAD_B) != 0 : (nespad_state2 & DPAD_A) != 0;
+    gamepad2_bits.b = settings.swap_ab ? (nespad_state2 & DPAD_A) != 0 : (nespad_state2 & DPAD_B) != 0;
     gamepad2_bits.select = (nespad_state2 & DPAD_SELECT) != 0;
     gamepad2_bits.start = (nespad_state2 & DPAD_START) != 0;
     gamepad2_bits.up = (nespad_state2 & DPAD_UP) != 0;
@@ -374,8 +353,13 @@ void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const* report
                                              hid_keyboard_report_t const* prev_report) {
     keyboard_bits.start = isInReport(report, HID_KEY_ENTER) || isInReport(report, HID_KEY_KEYPAD_ENTER);
     keyboard_bits.select = isInReport(report, HID_KEY_BACKSPACE) || isInReport(report, HID_KEY_ESCAPE) || isInReport(report, HID_KEY_KEYPAD_ADD);
-    keyboard_bits.a = isInReport(report, HID_KEY_Z) || isInReport(report, HID_KEY_O) || isInReport(report, HID_KEY_KEYPAD_0);
-    keyboard_bits.b = isInReport(report, HID_KEY_X) || isInReport(report, HID_KEY_P) || isInReport(report, HID_KEY_KEYPAD_DECIMAL);
+    if (settings.swap_ab) {
+        keyboard_bits.b = isInReport(report, HID_KEY_Z) || isInReport(report, HID_KEY_O) || isInReport(report, HID_KEY_KEYPAD_0);
+        keyboard_bits.a = isInReport(report, HID_KEY_X) || isInReport(report, HID_KEY_P) || isInReport(report, HID_KEY_KEYPAD_DECIMAL);
+    } else {
+        keyboard_bits.a = isInReport(report, HID_KEY_Z) || isInReport(report, HID_KEY_O) || isInReport(report, HID_KEY_KEYPAD_0);
+        keyboard_bits.b = isInReport(report, HID_KEY_X) || isInReport(report, HID_KEY_P) || isInReport(report, HID_KEY_KEYPAD_DECIMAL);
+    }
 
     bool b7 = isInReport(report, HID_KEY_KEYPAD_7);
     bool b9 = isInReport(report, HID_KEY_KEYPAD_9);
@@ -641,7 +625,6 @@ void __scratch_x("render") render_core() {
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
     graphics_set_textbuffer(buffer);
     graphics_set_bgcolor(0x000000);
-    // graphics_set_offset(0, 0);
     graphics_set_offset(32, 0);
 
     updatePalette(settings.palette);
@@ -773,6 +756,33 @@ static inline bool isExecutable(const char pathname[256], const char* extensions
     return false;
 }
 
+void save_config();
+
+bool is_start_locked() {
+    FIL fd;
+    char pathname[256];
+    sprintf(pathname, "%s\\pico-nes.lock", HOME_DIR);
+    bool res = FR_OK == f_open(&fd, pathname, FA_READ);
+    f_close(&fd);
+    return res;
+}
+
+void unlock_start() {
+    char pathname[256];
+    sprintf(pathname, "%s\\pico-nes.lock", HOME_DIR);
+    f_unlink(pathname);
+}
+
+void lock_start() {
+    FIL fd;
+    char pathname[256];
+    sprintf(pathname, "%s\\pico-nes.lock", HOME_DIR);
+    FRESULT fr = f_open(&fd, pathname, FA_CREATE_NEW | FA_WRITE);
+    UINT bw;
+    f_write(&fd, &settings, sizeof(settings), &bw);
+    f_close(&fd);
+}
+
 void filebrowser(const char pathname[256], const char* executables) {
     bool debounce = true;
     char basepath[256];
@@ -782,11 +792,6 @@ void filebrowser(const char pathname[256], const char* executables) {
 
     DIR dir;
     FILINFO fileInfo;
-
-    if (FR_OK != f_mount(&fs, "SD", 1)) {
-        draw_text("SD Card not inserted or SD Card error!", 0, 0, 12, 0);
-        while (true);
-    }
 
     while (true) {
         memset(fileItems, 0, sizeof(file_item_t) * max_files);
@@ -946,6 +951,8 @@ void filebrowser(const char pathname[256], const char* executables) {
                 if (file_at_cursor.is_executable) {
                     sprintf(tmp, "%s\\%s", basepath, file_at_cursor.filename);
                     if (filebrowser_loadfile(tmp)) {
+                        save_config();
+                        unlock_start();
                         watchdog_enable(0, true);
                         // FIXME!!!
                         return;
@@ -1005,10 +1012,9 @@ int InfoNES_Menu() {
 
 void load_config() {
     char pathname[256];
-    sprintf(pathname, "%s\\emulator.cfg", "NES");
-    FRESULT fr = f_mount(&fs, "", 1);
+    sprintf(pathname, "%s\\pico-nes.cfg", HOME_DIR);
     FIL fd;
-    fr = f_open(&fd, pathname, FA_READ);
+    FRESULT fr = f_open(&fd, pathname, FA_READ);
     if (fr != FR_OK) {
         return;
     }
@@ -1019,16 +1025,13 @@ void load_config() {
 
 void save_config() {
     char pathname[256];
-    sprintf(pathname, "%s\\emulator.cfg", "NES");
-    FRESULT fr = f_mount(&fs, "", 1);
+    sprintf(pathname, "%s\\pico-nes.cfg", HOME_DIR);
+    FIL fd;
+    FRESULT fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
     if (FR_OK != fr) {
-        FIL fd;
-        fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
-        if (FR_OK != fr) {
-            UINT bw;
-            f_write(&fd, &settings, sizeof(settings), &bw);
-            f_close(&fd);
-        }
+        UINT bw;
+        f_write(&fd, &settings, sizeof(settings), &bw);
+        f_close(&fd);
     }
 }
 
@@ -1089,6 +1092,7 @@ bool load() {
 const MenuItem menu_items[] = {
     { "Player 1: %s", ARRAY, &settings.player_1_input, nullptr, 3, { "Keyboard ", "Gamepad 1", "Gamepad 2", "Combined " } },
     { "Player 2: %s", ARRAY, &settings.player_2_input, nullptr, 2, { "Keyboard ", "Gamepad 1", "Gamepad 2" } },
+    { "Swap AB <> BA: %s", ARRAY, &settings.swap_ab, nullptr, 1, {"NO ", "YES"} },
     { "" },
     { "Volume: %d", INT, &settings.snd_vol, nullptr, 8 },
 #if VGA
@@ -1181,9 +1185,11 @@ int menu() {
                         break;
                     case RESET:
                         if (gamepad1_bits.start || keyboard_bits.start)
-                            watchdog_enable(100, true);
+                        watchdog_enable(10, true);
+                        while(true) {
+                            tight_loop_contents();
+                        }
                         break;
-
                     case ROM_SELECT:
                         if (gamepad1_bits.start || keyboard_bits.start) {
                             exit = true;
@@ -1195,7 +1201,7 @@ int menu() {
                             clrScr(1);
                             draw_text((char *)"Mount me as USB drive...", 30, 15, 7, 1);
                             // in_flash_drive();
-                            watchdog_enable(100, true);
+                            watchdog_enable(10, true);
                             exit = true;
                         }
                 }
@@ -1247,13 +1253,21 @@ int InfoNES_LoadFrame() {
 }
 
 int main() {
-#ifdef VREG_VOLTAGE_1_40
-    vreg_set_voltage(VREG_VOLTAGE_1_40);
+#if !PICO_RP2040
+    volatile uint32_t *qmi_m0_timing=(uint32_t *)0x400d000c;
+    vreg_disable_voltage_limit();
+    vreg_set_voltage(VREG_VOLTAGE_1_60);
+    sleep_ms(33);
+    *qmi_m0_timing = 0x60007204;
+    set_sys_clock_khz(378 * KHZ, 0);
+    *qmi_m0_timing = 0x60007303;
+    graphics_set_mode(TEXTMODE_DEFAULT);
 #else
-    vreg_set_voltage(VREG_VOLTAGE_1_30);
-#endif
+    hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(10);
+    graphics_set_mode(TEXTMODE_DEFAULT);
     set_sys_clock_khz(378 * KHZ, true);
+#endif
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
@@ -1277,13 +1291,17 @@ int main() {
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
+
+    f_mount(&fs, "", 1);
+    f_mkdir(HOME_DIR);
     load_config();
 
 #ifndef BUILD_IN_GAMES
-    if (!parseROM(reinterpret_cast<const uint8_t *>(rom)) && f_mount(&fs, "", 1) == FR_OK) {
+    if (is_start_locked() || !parseROM(reinterpret_cast<const uint8_t *>(rom))) {
         InfoNES_Menu();
     }
 #endif
+    lock_start();
     bool start_from_game = InfoNES_Main(true);
     while (1) {
         sleep_ms(500);

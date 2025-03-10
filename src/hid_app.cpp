@@ -150,17 +150,25 @@ static inline bool find_key_in_report(hid_keyboard_report_t const *report, uint8
   return false;
 }
 
+#include "main.h"
+
 extern volatile bool altPressed;
 extern volatile bool ctrlPressed;
 extern volatile uint8_t fxPressedV;
+extern SETTINGS settings;
 
 static void process_kbd_report(hid_keyboard_report_t const *report)
 {
   static hid_keyboard_report_t prev_report = { 0, 0, {0} }; // previous report to check key released
   keyboard_bits.start = find_key_in_report(report, HID_KEY_ENTER) || find_key_in_report(report, HID_KEY_KEYPAD_ENTER);
   keyboard_bits.select = find_key_in_report(report, HID_KEY_BACKSPACE) || find_key_in_report(report, HID_KEY_ESCAPE) || find_key_in_report(report, HID_KEY_KEYPAD_ADD);
-  keyboard_bits.a = find_key_in_report(report, HID_KEY_Z) || find_key_in_report(report, HID_KEY_O) || find_key_in_report(report, HID_KEY_KEYPAD_0);
-  keyboard_bits.b = find_key_in_report(report, HID_KEY_X) || find_key_in_report(report, HID_KEY_P) || find_key_in_report(report, HID_KEY_KEYPAD_DECIMAL);
+  if (settings.swap_ab) {
+    keyboard_bits.b = find_key_in_report(report, HID_KEY_Z) || find_key_in_report(report, HID_KEY_O) || find_key_in_report(report, HID_KEY_KEYPAD_0);
+    keyboard_bits.a = find_key_in_report(report, HID_KEY_X) || find_key_in_report(report, HID_KEY_P) || find_key_in_report(report, HID_KEY_KEYPAD_DECIMAL);
+  } else {
+    keyboard_bits.a = find_key_in_report(report, HID_KEY_Z) || find_key_in_report(report, HID_KEY_O) || find_key_in_report(report, HID_KEY_KEYPAD_0);
+    keyboard_bits.b = find_key_in_report(report, HID_KEY_X) || find_key_in_report(report, HID_KEY_P) || find_key_in_report(report, HID_KEY_KEYPAD_DECIMAL);
+  }
 
   bool b7 = find_key_in_report(report, HID_KEY_KEYPAD_7);
   bool b9 = find_key_in_report(report, HID_KEY_KEYPAD_9);

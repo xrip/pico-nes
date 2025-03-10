@@ -183,8 +183,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         # NES Gamepad
         USE_NESPAD
 
-        PICO_PROGRAM_NAME="Dendy/NES"
-        PICO_PROGRAM_VERSION_STRING="303"
+        PICO_PROGRAM_VERSION_STRING="304"
 )
 
 IF(TFT)
