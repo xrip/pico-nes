@@ -1261,11 +1261,9 @@ int main() {
     *qmi_m0_timing = 0x60007204;
     set_sys_clock_khz(378 * KHZ, 0);
     *qmi_m0_timing = 0x60007303;
-    graphics_set_mode(TEXTMODE_DEFAULT);
 #else
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(10);
-    graphics_set_mode(TEXTMODE_DEFAULT);
     set_sys_clock_khz(378 * KHZ, true);
 #endif
 
