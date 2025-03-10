@@ -1028,11 +1028,9 @@ void save_config() {
     sprintf(pathname, "%s\\pico-nes.cfg", HOME_DIR);
     FIL fd;
     FRESULT fr = f_open(&fd, pathname, FA_CREATE_ALWAYS | FA_WRITE);
-    if (FR_OK != fr) {
-        UINT bw;
-        f_write(&fd, &settings, sizeof(settings), &bw);
-        f_close(&fd);
-    }
+    UINT bw;
+    f_write(&fd, &settings, sizeof(settings), &bw);
+    f_close(&fd);
 }
 
 typedef bool (*menu_callback_t)();
