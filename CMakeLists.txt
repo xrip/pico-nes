@@ -14,10 +14,16 @@ endif()
 # ====================================================================================
 cmake_minimum_required(VERSION 3.13)
 set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR}/boards )
-#set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
-set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
-set(PICO_BOARD "murmulator" CACHE STRING "Board type")
-#set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
+set(PICO_PLATFORM "rp2350" CACHE STRING "Chip type")
+#set(PICO_PLATFORM "rp2040" CACHE STRING "Chip type")
+#set(PICO_BOARD "murmulator" CACHE STRING "Board type")
+set(PICO_BOARD "murmulator2" CACHE STRING "Board type")
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
 
 project(nes C CXX ASM)
@@ -35,26 +41,23 @@ option(m1p2launcher "Enable m1p2-launcher support" OFF)
 endif()
 
 #set(m1p2launcher ON)
-#set(I2S ON)
+set(I2S ON)
 #set(TFT ON)
 #set(ILI9341 ON)
 #set(HDMI ON)
 #set(TV ON)
 #set(SOFTTV ON)
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-#add_compile_options(-flto)
-set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -funroll-loops -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -Ofast")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -funroll-loops -fno-rtti -ffast-math -feliminate-unused-debug-types -ffunction-sections -fdata-sections -Ofast")
-
-#set(FLASH_SIZE 4096)
-#SET(BUILD_NAME "${PROJECT_NAME}-${FLASH_SIZE}K")
+SET(PROJECT_NAME nes)
+set(FLASH_SIZE 4096)
+SET(BUILD_NAME "${PROJECT_NAME}")
 
 set(OUTPUT_DIR "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR}")
+
+# Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
 add_subdirectory(infones)
@@ -70,6 +73,8 @@ add_subdirectory(drivers/tv)
 add_subdirectory(drivers/tv-software)
 add_subdirectory(drivers/graphics)
 
+#target_compile_definitions(${PROJECT_NAME} PRIVATE VGA)
+
 # INCLUDE FILES THAT SHOULD BE COMPILED:
 file(GLOB_RECURSE SRC "src/*.cpp" "src/*.c"
 #        "drivers/usb/*.c"
@@ -82,7 +87,6 @@ endforeach ()
 message(STATUS "")
 
 add_executable(${PROJECT_NAME} ${SRC})
-
 
 if( ${PICO_PLATFORM} MATCHES "rp2040" )
 	pico_define_boot_stage2(slower_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
@@ -110,9 +114,77 @@ else()
 	pico_set_program_name(nes "Dendy/NES emulator by xrip for MURMULATOR 1.x board")
 endif()
 
+# pull in common dependencies
+target_link_libraries(nes PRIVATE
+    infones
+    audio
+    graphics
+    
+    ps2kbd
+    nespad
+    sdcard
+    fatfs
+    
+    pico_runtime
+    pico_stdlib
+    pico_multicore
+    hardware_dma
+    hardware_pio
+    hardware_i2c
+    hardware_interp
+    hardware_timer
+    hardware_clocks
+    hardware_pwm
+    hardware_flash
+    stdc++
+    
+    tinyusb_host tinyusb_board
+)
+
 target_include_directories(${PROJECT_NAME} PRIVATE
     infones
     src
+)
+
+if (PICO_CYW43_SUPPORTED)
+    target_link_libraries(nes pico_cyw43_arch_none)
+endif()
+
+pico_enable_stdio_uart(${PROJECT_NAME} 0)
+##pico_enable_stdio_usb(${PROJECT_NAME} 1)
+
+# create map/bin/hex file etc.
+pico_add_extra_outputs(${PROJECT_NAME})
+
+# add url via pico_set_program_url
+target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage)
+target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+target_compile_options(${PROJECT_NAME} PUBLIC
+        -Wno-error=suggest-attribute=format
+        -Wno-error=cast-qual
+        -Wno-error=unused-parameter
+        -Wno-error=conversion
+        -Wno-error=format=
+        -Wno-error=sign-compare
+        -Wno-error=missing-field-initializers
+        -Wno-error=switch
+        -Wno-error=implicit-fallthrough=
+        -Wno-error=stringop-truncation
+        -Wno-error=restrict
+        -w
+)
+endif ()
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+        # PS2KBD
+        USE_PS2_KBD
+        # NES Gamepad
+        USE_NESPAD
+
+        PICO_PROGRAM_NAME="Dendy/NES"
+        PICO_PROGRAM_VERSION_STRING="303"
 )
 
 IF(TFT)
@@ -154,69 +226,4 @@ ELSE()
 ENDIF()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${BUILD_NAME}")
-
-# pull in common dependencies
-target_link_libraries(nes PRIVATE
-    infones
-    audio
-    graphics
-    
-    ps2kbd
-    nespad
-    sdcard
-    fatfs
-    
-    pico_runtime
-    pico_stdlib
-    pico_multicore
-    hardware_dma
-    hardware_pio
-    hardware_i2c
-    hardware_interp
-    hardware_timer
-    hardware_clocks
-    hardware_pwm
-    hardware_flash
-    stdc++
-    
-    tinyusb_host tinyusb_board
-)
-
-if (PICO_CYW43_SUPPORTED)
-    target_link_libraries(nes pico_cyw43_arch_none)
-endif()
-
-pico_enable_stdio_uart(${PROJECT_NAME} 0)
-##pico_enable_stdio_usb(${PROJECT_NAME} 1)
-
-# create map/bin/hex file etc.
-pico_add_extra_outputs(${PROJECT_NAME})
-
-# add url via pico_set_program_url
-target_link_options(${PROJECT_NAME} PRIVATE -Xlinker --print-memory-usage --data-sections --function-sections)
-target_compile_definitions(${PROJECT_NAME} PRIVATE FLASH_SIZE=${FLASH_SIZE})
-
-if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-target_compile_options(${PROJECT_NAME} PUBLIC
-        -Wno-error=suggest-attribute=format
-        -Wno-error=cast-qual
-        -Wno-error=unused-parameter
-        -Wno-error=conversion
-        -Wno-error=format=
-        -Wno-error=sign-compare
-        -Wno-error=missing-field-initializers
-        -Wno-error=switch
-        -Wno-error=implicit-fallthrough=
-        -Wno-error=stringop-truncation
-        -Wno-error=restrict
-        -w
-)
-endif ()
-
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-        PICO_PROGRAM_NAME="nes"
-        PICO_PROGRAM_VERSION_STRING="304"
-        USE_PS2_KBD
-        USE_NESPAD
-)
 
