@@ -13,5 +13,9 @@ target_include_directories(ps2kbd INTERFACE
 
 
 pico_generate_pio_header(ps2kbd 
-  ${CMAKE_CURRENT_LIST_DIR}/ps2kbd_mrmltr.pio
+${CMAKE_CURRENT_LIST_DIR}/ps2kbd_mrmltr.pio
+)
+
+pico_generate_pio_header(ps2kbd 
+${CMAKE_CURRENT_LIST_DIR}/ps2kbd_mrmltr2.pio
 )
