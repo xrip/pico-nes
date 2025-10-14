@@ -1237,7 +1237,9 @@ int menu() {
             }
             draw_text(result, x, y, color, bg_color);
         }
-        if (gamepad1_bits.b || (gamepad1_bits.select && !gamepad1_bits.start)) {
+        if (gamepad1_bits.b || (gamepad1_bits.select && !gamepad1_bits.start) ||
+            keyboard_bits.b || (keyboard_bits.select && !keyboard_bits.start)
+        ) {
             exit = true;
         }
         #ifdef TFT

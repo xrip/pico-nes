@@ -185,7 +185,7 @@ void graphics_init() {
     lcd_init(init_seq);
     gpio_put(TFT_LED_PIN, 1);
 
-    for (int i = 0; i < sizeof palette; i++) {
+    for (int i = 0; i < sizeof(palette) / sizeof(palette[0]); ++i) {
         graphics_set_palette(i, 0x0000);
     }
     clrScr(0);
@@ -235,6 +235,26 @@ void st7789_dma_pixels(const uint16_t* pixels, const uint num_pixels) {
     const uint ctrl = dma_channel_hw_addr(st7789_chan)->ctrl_trig;
     dma_channel_hw_addr(st7789_chan)->ctrl_trig = ctrl | DMA_CH0_CTRL_TRIG_INCR_READ_BITS;
 }
+
+static const uint16_t textmode_palette[16] = {
+    //R, G, B
+    RGB888(0x00,0x00, 0x00), //black
+    RGB888(0x00,0x00, 0xC4), //blue
+    RGB888(0x00,0xC4, 0x00), //green
+    RGB888(0x00,0xC4, 0xC4), //cyan
+    RGB888(0xC4,0x00, 0x00), //red
+    RGB888(0xC4,0x00, 0xC4), //magenta
+    RGB888(0xC4,0x7E, 0x00), //brown
+    RGB888(0xC4,0xC4, 0xC4), //light gray
+    RGB888(0x4E,0x4E, 0x4E), //dark gray
+    RGB888(0x4E,0x4E, 0xDC), //light blue
+    RGB888(0x4E,0xDC, 0x4E), //light green
+    RGB888(0x4E,0xF3, 0xF3), //light cyan
+    RGB888(0xDC,0x4E, 0x4E), //light red
+    RGB888(0xF3,0x4E, 0xF3), //light magenta
+    RGB888(0xF3,0xF3, 0x4E), //yellow
+    RGB888(0xFF,0xFF, 0xFF), //white
+};
 
 void __inline __scratch_y("refresh_lcd") refresh_lcd() {
     switch (graphics_mode) {
