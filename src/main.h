@@ -21,4 +21,5 @@ typedef struct __attribute__((__packed__)) {
     INPUT player_2_input;
     uint8_t nes_palette;
     bool swap_ab;
+    bool inversion;
 } SETTINGS;
