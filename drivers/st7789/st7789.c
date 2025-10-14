@@ -39,6 +39,7 @@
 #define MADCTL_ROW_COLUMN_EXCHANGE (1<<5)
 #define MADCTL_COLUMN_ADDRESS_ORDER_SWAP (1<<6)
 
+uint8_t INVERSION = 0;
 
 #define CHECK_BIT(var, pos) (((var)>>(pos)) & 1)
 
@@ -57,36 +58,6 @@ static int graphics_buffer_shift_x = 0;
 static int graphics_buffer_shift_y = 0;
 
 enum graphics_mode_t graphics_mode = GRAPHICSMODE_DEFAULT;
-
-static const uint8_t init_seq[] = {
-    1, 20, 0x01, // Software reset
-    1, 10, 0x11, // Exit sleep mode
-    2, 2, 0x3a, 0x55, // Set colour mode to 16 bit
-#ifdef ILI9341
-    // ILI9341
-    #ifdef INVERSION
-    // ILI9341: переворот и инверсия цветов
-    2, 0, 0x36, MADCTL_MY | MADCTL_MX | MADCTL_ROW_COLUMN_EXCHANGE | MADCTL_BGR_PIXEL_ORDER, // flip + BGR
-    #else
-    2, 0, 0x36, MADCTL_ROW_COLUMN_EXCHANGE | MADCTL_BGR_PIXEL_ORDER, // Set MADCTL
-    #endif
-#else
-    // ST7789
-    2, 0, 0x36, MADCTL_COLUMN_ADDRESS_ORDER_SWAP | MADCTL_ROW_COLUMN_EXCHANGE, // Set MADCTL
-#endif
-    5, 0, 0x2a, 0x00, 0x00, SCREEN_WIDTH >> 8, SCREEN_WIDTH & 0xff, // CASET: column addresses
-    5, 0, 0x2b, 0x00, 0x00, SCREEN_HEIGHT >> 8, SCREEN_HEIGHT & 0xff, // RASET: row addresses
-#ifdef INVERSION
-    1, 2, 0x21, // Inversion ON
-#else
-    1, 2, 0x20, // Inversion OFF
-#endif
-    1, 2, 0x13, // Normal display on, then 10 ms delay
-    1, 2, 0x29, // Main screen turn on, then wait 500 ms
-    0 // Terminate list
-};
-// Format: cmd length (including cmd byte), post delay in units of 5 ms, then cmd payload
-// Note the delays have been shortened a little
 
 static inline void lcd_set_dc_cs(const bool dc, const bool cs) {
     sleep_us(5);
@@ -182,6 +153,35 @@ void graphics_init() {
 
     gpio_put(TFT_CS_PIN, 1);
     gpio_put(TFT_RST_PIN, 1);
+
+    const uint8_t init_seq[] = {
+        1, 20, 0x01, // Software reset
+        1, 10, 0x11, // Exit sleep mode
+        2, 2, 0x3a, 0x55, // Set colour mode to 16 bit
+        1, 2, 0x20 + INVERSION,
+    #ifdef ILI9341
+        // ILI9341
+        #ifdef INVERSION
+        // ILI9341: переворот и инверсия цветов
+        2, 0, 0x36, MADCTL_MY | MADCTL_MX | MADCTL_ROW_COLUMN_EXCHANGE | MADCTL_BGR_PIXEL_ORDER, // flip + BGR
+        #else
+        2, 0, 0x36, MADCTL_ROW_COLUMN_EXCHANGE | MADCTL_BGR_PIXEL_ORDER, // Set MADCTL
+        #endif
+    #else
+        // ST7789
+    //    2, 0, 0x36, MADCTL_COLUMN_ADDRESS_ORDER_SWAP | MADCTL_ROW_COLUMN_EXCHANGE, // Set MADCTL
+        2, 0, 0x36, MADCTL_COLUMN_ADDRESS_ORDER_SWAP | 32, // Set MADCTL
+    #endif
+        5, 0, 0x2a, 0x00, 0x00, SCREEN_WIDTH >> 8, SCREEN_WIDTH & 0xff, // CASET: column addresses
+        5, 0, 0x2b, 0x00, 0x00, SCREEN_HEIGHT >> 8, SCREEN_HEIGHT & 0xff, // RASET: row addresses
+        1, 2, 0x13, // Normal display on, then 10 ms delay
+        1, 2, 0x29, // Main screen turn on, then wait 500 ms
+        0 // Terminate list
+    };
+    // Format: cmd length (including cmd byte), post delay in units of 5 ms, then cmd payload
+    // Note the delays have been shortened a little
+
+
     lcd_init(init_seq);
     gpio_put(TFT_LED_PIN, 1);
 

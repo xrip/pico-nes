@@ -85,6 +85,7 @@ SETTINGS settings = {
     .player_2_input = GAMEPAD1,
     .nes_palette = 0,
     .swap_ab = false,
+    .inversion = false
 };
 
 static FATFS fs, fs1;
@@ -1010,6 +1011,10 @@ int InfoNES_Menu() {
     return 1;
 }
 
+#ifdef TFT
+extern "C" uint8_t INVERSION;
+#endif
+
 void load_config() {
     char pathname[256];
     sprintf(pathname, "%s\\pico-nes.cfg", HOME_DIR);
@@ -1021,6 +1026,9 @@ void load_config() {
     UINT br;
     f_read(&fd, &settings, sizeof(settings), &br);
     f_close(&fd);
+#ifdef TFT
+    INVERSION = settings.inversion;
+#endif
 }
 
 void save_config() {
@@ -1098,6 +1106,10 @@ const MenuItem menu_items[] = {
     { "Flash line: %s", ARRAY, &settings.flash_line, nullptr,1, { "NO ", "YES" } },
     { "Flash frame: %s", ARRAY, &settings.flash_frame, nullptr,1, { "NO ", "YES" } },
     { "VGA Mode: %s", ARRAY, &settings.palette, nullptr,1, { "RGB333", "RGB222" } },
+#endif
+#if TFT
+    { "" },
+    { "Investion %s", ARRAY, &settings.inversion, nullptr, 1, { "NO ", "YES" } },
 #endif
 #if SOFTTV
     { "" },
@@ -1225,6 +1237,19 @@ int menu() {
             }
             draw_text(result, x, y, color, bg_color);
         }
+        if (gamepad1_bits.b || (gamepad1_bits.select && !gamepad1_bits.start)) {
+            exit = true;
+        }
+        #ifdef TFT
+        if (INVERSION != settings.inversion) {
+            save_config();
+            f_unmount("");
+            watchdog_enable(10, true);
+            while(true) {
+                tight_loop_contents();
+            }
+        }
+        #endif
         sleep_ms(100);
     }
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
@@ -1447,8 +1472,10 @@ int main() {
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
 
+    #ifndef TFT
     uint8_t link = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
     SELECT_VGA = (link == 0) || (link == 0x1F);
+    #endif
 
     // board_init();
     tuh_init(BOARD_TUH_RHPORT);
@@ -1460,13 +1487,13 @@ int main() {
 #if USE_NESPAD
     nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
 #endif
-    sem_init(&vga_start_semaphore, 0, 1);
-    multicore_launch_core1(render_core);
-    sem_release(&vga_start_semaphore);
-
     f_mount(&fs, "", 1);
     f_mkdir(HOME_DIR);
     load_config();
+
+    sem_init(&vga_start_semaphore, 0, 1);
+    multicore_launch_core1(render_core);
+    sem_release(&vga_start_semaphore);
 
 #ifndef BUILD_IN_GAMES
     if (is_start_locked() || !parseROM(reinterpret_cast<const uint8_t *>(rom))) {

@@ -31,6 +31,8 @@
 #define TEXTMODE_COLS 53
 #define TEXTMODE_ROWS 30
 
+extern uint8_t INVERSION;
+
 #define RGB888(r, g, b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3))
 static const uint16_t textmode_palette[16] = {
     //R, G, B
