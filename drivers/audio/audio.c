@@ -161,11 +161,17 @@ void i2s_dma_write(i2s_config_t *i2s_config,const int16_t *samples) {
     /* Copy samples into the DMA buffer */
 
 #ifdef AUDIO_PWM_PIN
-    for(uint16_t i=0;i<i2s_config->dma_trans_count*2;i++) {
-           
-            i2s_config->dma_buf[i] = (65536/2+(samples[i]))>>(4+i2s_config->volume);
-
-        }
+    /*
+     * Preserve the original PWM stream format: each 32-bit DMA word carries
+     * one converted sample in its low half.  Convert backwards in-place so
+     * the existing dma_trans_count * uint32_t buffer can temporarily hold
+     * 2 * dma_trans_count uint16_t values without overflowing.
+     */
+    uint16_t *pwm_samples = (uint16_t *)i2s_config->dma_buf;
+    for (int32_t i = (int32_t)i2s_config->dma_trans_count * 2 - 1; i >= 0; --i) {
+        pwm_samples[i] = (uint16_t)((32768 + (int32_t)samples[i]) >>
+                                    (4 + i2s_config->volume));
+    }
 #else
 
     if(i2s_config->volume==0) {
