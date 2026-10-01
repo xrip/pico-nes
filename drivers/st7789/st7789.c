@@ -152,7 +152,14 @@ void graphics_init() {
     gpio_set_dir(TFT_LED_PIN, GPIO_OUT);
 
     gpio_put(TFT_CS_PIN, 1);
+
+    // Hardware reset. Do not rely on the display controller power-on state.
     gpio_put(TFT_RST_PIN, 1);
+    sleep_ms(5);
+    gpio_put(TFT_RST_PIN, 0);
+    sleep_ms(20);
+    gpio_put(TFT_RST_PIN, 1);
+    sleep_ms(120);
 
     const uint8_t init_seq[] = {
         1, 20, 0x01, // Software reset
@@ -172,8 +179,8 @@ void graphics_init() {
     //    2, 0, 0x36, MADCTL_COLUMN_ADDRESS_ORDER_SWAP | MADCTL_ROW_COLUMN_EXCHANGE, // Set MADCTL
         2, 0, 0x36, MADCTL_COLUMN_ADDRESS_ORDER_SWAP | 32, // Set MADCTL
     #endif
-        5, 0, 0x2a, 0x00, 0x00, SCREEN_WIDTH >> 8, SCREEN_WIDTH & 0xff, // CASET: column addresses
-        5, 0, 0x2b, 0x00, 0x00, SCREEN_HEIGHT >> 8, SCREEN_HEIGHT & 0xff, // RASET: row addresses
+        5, 0, 0x2a, 0x00, 0x00, (SCREEN_WIDTH - 1) >> 8, (SCREEN_WIDTH - 1) & 0xff, // CASET: column addresses
+        5, 0, 0x2b, 0x00, 0x00, (SCREEN_HEIGHT - 1) >> 8, (SCREEN_HEIGHT - 1) & 0xff, // RASET: row addresses
         1, 2, 0x13, // Normal display on, then 10 ms delay
         1, 2, 0x29, // Main screen turn on, then wait 500 ms
         0 // Terminate list
