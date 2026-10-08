@@ -79,7 +79,8 @@ pico_board_cmake_set_default(PICO_RP2350_A2_SUPPORTED, 1)
 #define PICO_RP2350_A2_SUPPORTED 1
 #endif
 
-#include "boards/pico2.h"
+// Do not include boards/pico2.h here: it redefines PICO_RP2350A to 1, the SDK then
+// limits GPIOs to 0..29 and drops the PIO GPIO base, and HDMI on GPIO32..39 never starts.
 
 #define CPU_FREQ 252
 #define ZERO2 1
@@ -92,13 +93,14 @@ pico_board_cmake_set_default(PICO_RP2350_A2_SUPPORTED, 1)
 #define SDCARD_PIN_SPI0_CS 43
 
 // PS2KBD
-#define PS2KBD_GPIO_FIRST 0
+#define PS2KBD_GPIO_FIRST 2 // CLK=GP2, DATA=GP3 - as in MOS2 and murm386 for z0p2
 
 // NES Gamepad
-#define NES_GPIO_CLK 7
-#define NES_GPIO_LAT 8
-#define NES_GPIO_DATA 9
-#define NES_GPIO_DATA2 10
+// as in MOS2 for z0p2; joystick 2 data is DATA+1 = GP8 (GP10..12 are taken by the I2S DAC)
+#define NES_GPIO_CLK 4
+#define NES_GPIO_LAT 5
+#define NES_GPIO_DATA 7
+#define NES_GPIO_DATA2 8
 
 // HDMI 8 pins starts from pin:
 #define HDMI_BASE_PIN 32
