@@ -41,7 +41,11 @@ i2s_config_t i2s_get_default_config(void) {
 		.channel_count = 2,
 		.data_pin = AUDIO_DATA_PIN,
 		.clock_pin_base = AUDIO_CLOCK_PIN,
+#if NUM_PIOS > 2
+		.pio = pio2, // RP2350: own PIO; pio1 is shared with PS/2 keyboard and NES gamepad (I2S there stays silent on z0p2)
+#else
 		.pio = pio1,
+#endif
 		.sm = 0,
         .dma_channel = 0,
         .dma_buf = NULL,
@@ -63,7 +67,11 @@ void i2s_init(i2s_config_t *i2s_config) {
 
 #ifndef AUDIO_PWM_PIN
 
-    uint8_t func=GPIO_FUNC_PIO1;    // TODO: GPIO_FUNC_PIO0 for pio0 or GPIO_FUNC_PIO1 for pio1
+    uint8_t func = GPIO_FUNC_PIO1;
+    if (i2s_config->pio == pio0) func = GPIO_FUNC_PIO0;
+#if NUM_PIOS > 2
+    else if (i2s_config->pio == pio2) func = GPIO_FUNC_PIO2;
+#endif
     gpio_set_function(i2s_config->data_pin, func);
     gpio_set_function(i2s_config->clock_pin_base, func);
     gpio_set_function(i2s_config->clock_pin_base+1, func);

@@ -1475,8 +1475,12 @@ int main() {
     }
 
     #ifndef TFT
+#if ZERO2
+    SELECT_VGA = false; // RP2350-PiZero has only mini-HDMI, no VGA
+#else
     uint8_t link = testPins(VGA_BASE_PIN, VGA_BASE_PIN + 1);
     SELECT_VGA = (link == 0) || (link == 0x1F);
+#endif
     #endif
 
     // board_init();
