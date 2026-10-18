@@ -7,7 +7,10 @@
 
 #define TV_BASE_PIN (6)
 
-#define TEXTMODE_COLS 40
+// Text columns depend on the active line length of the TV standard (6-pixel glyphs,
+// 3 samples per pixel): PAL ~50, NTSC ~40. TEXTMODE_COLS_MAX sizes the text buffer.
+#define TEXTMODE_COLS_MAX 53
+#define TEXTMODE_COLS getCols()
 #define TEXTMODE_ROWS 30
 #define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
 

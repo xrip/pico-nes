@@ -71,6 +71,8 @@ enum menu_type_e {
 };
 
 struct semaphore vga_start_semaphore;
+// set by the render core once text/graphics buffers are attached to the video driver
+static volatile bool render_ready = false;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH]; // 61440 bytes
 uint16_t linebuffer[256];
 
@@ -639,10 +641,15 @@ void __scratch_x("render") render_core() {
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
     graphics_set_textbuffer(buffer);
     graphics_set_bgcolor(0x000000);
+#if SOFTTV
+    graphics_set_offset(0, 0); // the TV driver places the 256 pixels itself, with the real NES pixel width
+#else
     graphics_set_offset(32, 0);
+#endif
 
     updatePalette(settings.palette);
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
+    render_ready = true;
     sem_acquire_blocking(&vga_start_semaphore);
 
     // 60 FPS loop
@@ -680,10 +687,11 @@ bool filebrowser_loadfile(const char pathname[256]) {
     UINT bytes_read = 0;
     FIL file;
 
+    const int window_w = (int)TEXTMODE_COLS < 43 ? (int)TEXTMODE_COLS : 43; // TV NTSC has only 40 columns
     int window_y = (TEXTMODE_ROWS - 5) / 2;
-    int window_x = (TEXTMODE_COLS - 43) / 2;
+    int window_x = ((int)TEXTMODE_COLS - window_w) / 2;
 
-    draw_window("Loading firmware", window_x, window_y, 43, 5);
+    draw_window("Loading firmware", window_x, window_y, window_w, 5);
 
     draw_text("Loading...", window_x + 1, window_y + 2, 10, 1);
     sleep_ms(500);
@@ -737,7 +745,11 @@ typedef struct __attribute__((__packed__)) {
 } file_item_t;
 
 constexpr int max_files = 600;
+#ifdef TEXTMODE_COLS_MAX // text columns change at run time (TV): keep the file list past the largest text buffer
+file_item_t* fileItems = (file_item_t *)(&SCREEN[0][0] + TEXTMODE_COLS_MAX * TEXTMODE_ROWS * 2);
+#else
 file_item_t* fileItems = (file_item_t *)(&SCREEN[0][0] + TEXTMODE_COLS * TEXTMODE_ROWS * 2);
+#endif
 
 int compareFileItems(const void* a, const void* b) {
     const auto* itemA = (file_item_t *)a;
@@ -1542,6 +1554,9 @@ int main() {
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
+    // Do not draw the first menu before the video driver has its text buffer:
+    // draw_text() into a NULL text_buffer is lost (the file browser frame is drawn only once).
+    while (!render_ready) tight_loop_contents();
 
 #ifndef BUILD_IN_GAMES
     if (is_start_locked() || !parseROM(reinterpret_cast<const uint8_t *>(rom))) {

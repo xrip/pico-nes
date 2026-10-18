@@ -105,6 +105,30 @@ static TV_MODE video_mode = {
 };
 
 
+// text columns that fit into the active part of the current TV line
+// Derived from the selected TV system only, not from video_mode: the menu can be drawn
+// before the video core has applied the mode (graphics_set_modeTV() returns early while
+// SM_video == -1), and the first screen must already use the right line stride.
+static int tv_cols_for(const double color_freq) {
+    const int text_px = 6 * 3;          // glyph width in samples
+    const int margin = 8;               // samples left/right
+    const int h_len = (int)(((color_freq * 4) / 1e6) * 63.9) & 0xfffffff8; // as in graphics_set_modeTV()
+    const int img_w = (h_len - ((12 * h_len) / 64)) & 0xfffffffc;
+    const int cols = (img_w - 2 * margin) / text_px;
+    return cols > TEXTMODE_COLS_MAX ? TEXTMODE_COLS_MAX : cols;
+}
+
+size_t getCols() {
+    // computed once per system: also called from the scanline callback
+    static int cols_pal = 0, cols_ntsc = 0;
+    if (tv_out_mode.tv_system == g_TV_OUT_PAL) {
+        if (!cols_pal) cols_pal = tv_cols_for(4.43361875e6);
+        return cols_pal;
+    }
+    if (!cols_ntsc) cols_ntsc = tv_cols_for(3.579545e6);
+    return cols_ntsc;
+}
+
 static G_BUFFER graphics_buffer = {
     .data = NULL,
     .shift_x = 0,
@@ -999,9 +1023,14 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                 if (input_buffer != NULL)
                     switch (tv_out_mode.mode_bpp) {
                         case TEXTMODE_DEFAULT: {
-                            output_buffer8 += 8;
-                            for (int x = 0; x < TEXTMODE_COLS; x++) {
-                                const uint16_t offset = y / 8 * (TEXTMODE_COLS * 2) + x * 2;
+                            const int cols = getCols(); // text buffer stride
+                            int draw_cols = cols;       // guard: the line may still be in the previous TV mode
+                            if (draw_cols * 6 * 3 > video_mode.img_W) draw_cols = video_mode.img_W / (6 * 3);
+                            const int lead = (video_mode.img_W - draw_cols * 6 * 3) / 2;
+                            memset(output_buffer8, video_mode.LVL_BLACK_TMPL, lead);
+                            output_buffer8 += lead;
+                            for (int x = 0; x < draw_cols; x++) {
+                                const uint16_t offset = y / 8 * (cols * 2) + x * 2;
                                 const uint8_t c = text_buffer[offset];
                                 const uint8_t colorIndex = text_buffer[offset + 1];
                                 uint8_t glyph_row = font_6x8[c * 8 + y % 8];
@@ -1019,36 +1048,44 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                                     glyph_row >>= 1;
                                 }
                             }
+                            memset(output_buffer8, video_mode.LVL_BLACK_TMPL, video_mode.img_W - lead - draw_cols * 6 * 3);
                         }
                         break;
                         case GRAPHICSMODE_DEFAULT: {
                             //для 8-битного буфера
                             uint8_t* input_buffer8 = input_buffer + y * graphics_buffer.width;
 
-                            // todo bgcolor
-                            uint8_t color = graphics_buffer.shift_x ? 200 : *input_buffer8++;
+                            // Real NES/Dendy pixel width: the PPU pixel clock against our 4*Fsc sample clock.
+                            // Dendy (PAL): 26.601712/5 = 5.3203 MHz vs 17.7345 MHz -> 3.33 samples/pixel,
+                            // NES (NTSC):  21.477272/4 = 5.3693 MHz vs 14.3182 MHz -> 2.67 samples/pixel.
+                            // 256 pixels then take ~48 us of the ~52 us active line, as on a real TV.
+                            const int di_nes = (tv_out_mode.c_freq == _4433619) ? 77 : 96;
+                            const int nes_samples = (graphics_buffer.width * 0x100 + di_nes - 1) / di_nes;
+                            int lead = ((video_mode.img_W - nes_samples) / 2) & ~3; // keep subcarrier phase
+                            if (lead < 0) lead = 0;
+                            int count = nes_samples;
+                            if (lead + count > video_mode.img_W) count = video_mode.img_W - lead;
+
+                            memset(output_buffer8, video_mode.LVL_BLACK_TMPL, lead);
+                            output_buffer8 += lead;
+
+                            uint8_t color = *input_buffer8++;
                             uint32_t cout32 = conv_color[li][color];
-                            // uint8_t* c_4=&conv_color[0][c8&0xf];
                             uint8_t* c_4 = (uint8_t *)&cout32;
-                            output_buffer8 += buffer_shift;
 
                             int x = 0;
-                            for (int i = 0; i < video_mode.img_W - d_end; i++) {
+                            for (int i = 0; i < count; i++) {
                                 *output_buffer8++ = c_4[i % 4];
-                                next_ibuf -= di;
+                                next_ibuf -= di_nes;
                                 if (next_ibuf <= 0) {
-                                    x++;
-                                    if (x > graphics_buffer.shift_x && x < graphics_buffer.shift_x + graphics_buffer.
-                                        width) {
+                                    if (++x < graphics_buffer.width) {
                                         color = *input_buffer8++;
-                                    }
-                                    else {
-                                        color = 200;
                                     }
                                     cout32 = conv_color[li][color];
                                     next_ibuf += 0x100;
                                 }
                             }
+                            memset(output_buffer8, video_mode.LVL_BLACK_TMPL, video_mode.img_W - lead - count);
                         }
                         break;
                     }
