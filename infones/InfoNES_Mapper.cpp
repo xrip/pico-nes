@@ -11,6 +11,7 @@
 /*-------------------------------------------------------------------*/
 
 #include "InfoNES.h"
+#include "InfoNES_System.h" // InfoNES_MemorySet / InfoNES_MemoryCopy (Mapper 5)
 #include "InfoNES_Mapper.h"
 #include "K6502.h"
 #include <pico.h>
@@ -39,7 +40,6 @@ struct MapperTable_tag MapperTable[] =
         {7, Map7_Init},
         {11, Map11_Init},
         //{19, Map19_Init},
-        //{ 206, Map206_Init},
         {8, Map8_Init},
         {9, Map9_Init},
         {10, Map10_Init},
@@ -95,7 +95,6 @@ struct MapperTable_tag MapperTable[] =
         {80, Map80_Init},
         {82, Map82_Init},
         {83, Map83_Init},
-        //  {  85, Map85_Init  },
         {86, Map86_Init},
         {87, Map87_Init},
         {88, Map88_Init},
@@ -169,6 +168,30 @@ struct MapperTable_tag MapperTable[] =
         {251, Map251_Init},
         {252, Map252_Init},
         {255, Map255_Init},
+#if !PICO_RP2040
+        /* RP2350 only: MMC5 keeps 64 KB of PRG-RAM plus 3 KB of ExRAM, Namco 163
+           an 8 KB CHR-RAM, which the RP2040 has no room for (same code as in
+           pico-infonesPlus, where they are enabled). */
+        {5, Map5_Init},
+        {19, Map19_Init},
+        /* UNROM 512: 32 KB of CHR-RAM */
+        {30, Map30_Init},
+        /* VRC7: 8 KB CHR-RAM (FM sound not emulated) */
+        {85, Map85_Init},
+#endif
+        /* ported from frank-nes (QuickNES) */
+        {152, Map70_Init}, /* InfoNES Map70 already implements the 152 one-screen bit */
+        {154, Map154_Init},
+        {156, Map156_Init},
+        {184, Map184_Init},
+        {190, Map190_Init},
+        {206, Map206_Init},
+        {207, Map207_Init},
+        /* ported from RetroMul */
+        {153, Map153_Init},
+        {155, Map1_Init},  /* MMC1A: same as MMC1 here */
+        {159, Map16_Init}, /* Bandai FCG with 24C01 EEPROM: as mapper 16 (EEPROM not emulated) */
+        {210, Map210_Init},
         /* */
         {-1, NULL}};
 
@@ -181,13 +204,27 @@ struct MapperTable_tag MapperTable[] =
 #include "mapper/InfoNES_Mapper_002.cpp"
 #include "mapper/InfoNES_Mapper_003.cpp"
 #include "mapper/InfoNES_Mapper_004.cpp"
-//#include "mapper/InfoNES_Mapper_005.cpp"
+#if !PICO_RP2040
+#include "mapper/InfoNES_Mapper_005.cpp"
+#endif
 //#include "mapper/InfoNES_Mapper_006.cpp"
 #include "mapper/InfoNES_Mapper_007.cpp"
 #include "mapper/InfoNES_Mapper_212.cpp"
 //#include "mapper/InfoNES_Mapper_011.cpp"
-//#include "mapper/InfoNES_Mapper_019.cpp"
-//#include "mapper/InfoNES_Mapper_206.cpp"
+#if !PICO_RP2040
+#include "mapper/InfoNES_Mapper_019.cpp"
+#endif
+#include "mapper/InfoNES_Mapper_206.cpp"
+#if !PICO_RP2040
+#include "mapper/InfoNES_Mapper_030.cpp"
+#endif
+#include "mapper/InfoNES_Mapper_154.cpp"
+#include "mapper/InfoNES_Mapper_156.cpp"
+#include "mapper/InfoNES_Mapper_184.cpp"
+#include "mapper/InfoNES_Mapper_190.cpp"
+#include "mapper/InfoNES_Mapper_207.cpp"
+#include "mapper/InfoNES_Mapper_153.cpp"
+#include "mapper/InfoNES_Mapper_210.cpp"
 #include "mapper/InfoNES_Mapper_008.cpp"
 #include "mapper/InfoNES_Mapper_009.cpp"
 #include "mapper/InfoNES_Mapper_010.cpp"
@@ -244,7 +281,9 @@ struct MapperTable_tag MapperTable[] =
 #include "mapper/InfoNES_Mapper_080.cpp"
 #include "mapper/InfoNES_Mapper_082.cpp"
 #include "mapper/InfoNES_Mapper_083.cpp"
+#if !PICO_RP2040
 #include "mapper/InfoNES_Mapper_085.cpp"
+#endif
 #include "mapper/InfoNES_Mapper_086.cpp"
 #include "mapper/InfoNES_Mapper_087.cpp"
 #include "mapper/InfoNES_Mapper_088.cpp"

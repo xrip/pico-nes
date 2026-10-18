@@ -142,15 +142,33 @@ extern BYTE PPU_UpDown_Clip;
 #define SCAN_ON_SCREEN_START 8
 #define SCAN_BOTTOM_OFF_SCREEN_START 232
 #define SCAN_UNKNOWN_START 240
-//#define SCAN_VBLANK_START 242
-#define SCAN_VBLANK_START 241
-//#define SCAN_VBLANK_END 262
-#define SCAN_VBLANK_END 261 // 262-1
+/*-------------------------------------------------------------------*/
+/*  Console timing (region)                                          */
+/*-------------------------------------------------------------------*/
+//          scanlines  NMI line  CPU cycles/line  CPU clock
+// NTSC        262       241        113.67        1.7898 MHz
+// PAL         312       241        106.56        1.6626 MHz
+// Dendy       312       291        113.67        1.7734 MHz
+#define NES_REGION_NTSC 0
+#define NES_REGION_PAL 1
+#define NES_REGION_DENDY 2
+#define NES_MAX_SCANLINES 312
 
-// #define STEP_PER_SCANLINE 112
-// #define STEP_PER_FRAME 29828
-#define STEP_PER_SCANLINE 114 // 113.66
-#define STEP_PER_FRAME 29780 // 29780.5
+extern BYTE g_NesRegion;
+extern WORD g_nScanVBlankStart;
+extern WORD g_nScanVBlankEnd;
+extern WORD g_nStepPerScanline;
+extern DWORD g_nStepPerFrame;
+
+#define SCAN_VBLANK_START g_nScanVBlankStart
+#define SCAN_VBLANK_END g_nScanVBlankEnd // last scanline of the frame
+#define STEP_PER_SCANLINE g_nStepPerScanline
+#define STEP_PER_FRAME g_nStepPerFrame // APU frame counter period in CPU cycles
+
+// Region requested by the ROM header: NES 2.0 byte 12, iNES byte 9 bit 0
+BYTE InfoNES_HeaderRegion();
+// Select the timing; may be called before InfoNES_Reset() or while running
+void InfoNES_SetRegion(BYTE byRegion);
 
 /* Develop Scroll Registers */
 #if 0
@@ -288,7 +306,7 @@ struct NesHeader_tag
 extern struct NesHeader_tag NesHeader;
 
 /* Mapper No. */
-extern BYTE MapperNo;
+extern WORD MapperNo;
 
 /* Other */
 extern BYTE ROM_Mirroring;

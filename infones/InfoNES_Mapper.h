@@ -91,6 +91,7 @@ void Map5_Init();
 void Map5_Write(WORD wAddr, BYTE byData);
 void Map5_Apu(WORD wAddr, BYTE byData);
 BYTE Map5_ReadApu(WORD wAddr);
+void Map5_Sram(WORD wAddr, BYTE byData);
 void Map5_HSync();
 void Map5_RenderScreen(BYTE byMode);
 void Map5_Sync_Prg_Banks(void);
@@ -621,5 +622,33 @@ BYTE Map255_ReadApu(WORD wAddr);
 
 void Map212_Init();
 void Map212_Write(WORD wAddr, BYTE byData);
+
+void Map30_Init();
+void Map30_Write(WORD wAddr, BYTE byData);
+
+void Map154_Init();
+void Map154_Write(WORD wAddr, BYTE byData);
+
+void Map156_Init();
+void Map156_Write(WORD wAddr, BYTE byData);
+
+void Map184_Init();
+void Map184_Sram(WORD wAddr, BYTE byData);
+
+void Map190_Init();
+void Map190_Write(WORD wAddr, BYTE byData);
+
+void Map206_Init();
+void Map206_Write(WORD wAddr, BYTE byData);
+
+void Map207_Init();
+void Map207_Sram(WORD wAddr, BYTE byData);
+
+void Map153_Init();
+void Map153_Write(WORD wAddr, BYTE byData);
+void Map153_HSync();
+
+void Map210_Init();
+void Map210_Write(WORD wAddr, BYTE byData);
 
 #endif /* !InfoNES_MAPPER_H_INCLUDED */

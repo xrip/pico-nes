@@ -25,6 +25,7 @@
 
 #include "pico.h"
 #include "hardware/watchdog.h"
+#include "psram.h"
 #include "bsp/board_api.h"
 #include "tusb.h"
 
@@ -185,10 +186,7 @@ static void process_kbd_report(hid_keyboard_report_t const *report)
 
     
   if (altPressed && ctrlPressed && find_key_in_report(report, HID_KEY_DELETE)) {
-    watchdog_enable(10, true);
-    while(true) {
-        tight_loop_contents();
-    }
+    nes_safe_reset();
 }
 if (ctrlPressed || altPressed) {
     uint8_t fxPressed = 0;

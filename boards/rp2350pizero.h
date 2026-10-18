@@ -82,6 +82,11 @@ pico_board_cmake_set_default(PICO_RP2350_A2_SUPPORTED, 1)
 // Do not include boards/pico2.h here: it redefines PICO_RP2350A to 1, the SDK then
 // limits GPIOs to 0..29 and drops the PIO GPIO base, and HDMI on GPIO32..39 never starts.
 
+#if PICO_RP2350
+#define PSRAM_CS1_GPIO_RP2350A 8
+#define PSRAM_CS1_GPIO_RP2350B 47
+#endif
+
 #define CPU_FREQ 252
 #define ZERO2 1
 

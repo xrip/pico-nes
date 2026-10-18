@@ -190,7 +190,8 @@ void Map19_Write(WORD wAddr, BYTE byData)
     break;
 
   case 0xc000: /* $c000-c7ff */
-    if (byData < 0xe0 || Map19_Regs[0] == 1)
+    /* $E0-$FF always select CIRAM; $E800 bits only affect $0000-$1FFF */
+    if (byData < 0xe0)
     {
       byData %= (NesHeader.byVRomSize << 3);
       PPUBANK[NAME_TABLE0] = VROMPAGE(byData);
@@ -202,7 +203,8 @@ void Map19_Write(WORD wAddr, BYTE byData)
     break;
 
   case 0xc800: /* $c800-cfff */
-    if (byData < 0xe0 || Map19_Regs[0] == 1)
+    /* $E0-$FF always select CIRAM; $E800 bits only affect $0000-$1FFF */
+    if (byData < 0xe0)
     {
       byData %= (NesHeader.byVRomSize << 3);
       PPUBANK[NAME_TABLE1] = VROMPAGE(byData);
@@ -214,7 +216,8 @@ void Map19_Write(WORD wAddr, BYTE byData)
     break;
 
   case 0xd000: /* $d000-d7ff */
-    if (byData < 0xe0 || Map19_Regs[0] == 1)
+    /* $E0-$FF always select CIRAM; $E800 bits only affect $0000-$1FFF */
+    if (byData < 0xe0)
     {
       byData %= (NesHeader.byVRomSize << 3);
       PPUBANK[NAME_TABLE2] = VROMPAGE(byData);
@@ -226,7 +229,8 @@ void Map19_Write(WORD wAddr, BYTE byData)
     break;
 
   case 0xd800: /* $d800-dfff */
-    if (byData < 0xe0 || Map19_Regs[0] == 1)
+    /* $E0-$FF always select CIRAM; $E800 bits only affect $0000-$1FFF */
+    if (byData < 0xe0)
     {
       byData %= (NesHeader.byVRomSize << 3);
       PPUBANK[NAME_TABLE3] = VROMPAGE(byData);

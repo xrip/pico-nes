@@ -105,6 +105,30 @@ static TV_MODE video_mode = {
 };
 
 
+// text columns that fit into the active part of the current TV line
+// Derived from the selected TV system only, not from video_mode: the menu can be drawn
+// before the video core has applied the mode (graphics_set_modeTV() returns early while
+// SM_video == -1), and the first screen must already use the right line stride.
+static int tv_cols_for(const double color_freq) {
+    const int text_px = 6 * 3;          // glyph width in samples
+    const int margin = 8;               // samples left/right
+    const int h_len = (int)(((color_freq * 4) / 1e6) * 63.9) & 0xfffffff8; // as in graphics_set_modeTV()
+    const int img_w = (h_len - ((12 * h_len) / 64)) & 0xfffffffc;
+    const int cols = (img_w - 2 * margin) / text_px;
+    return cols > TEXTMODE_COLS_MAX ? TEXTMODE_COLS_MAX : cols;
+}
+
+size_t getCols() {
+    // computed once per system: also called from the scanline callback
+    static int cols_pal = 0, cols_ntsc = 0;
+    if (tv_out_mode.tv_system == g_TV_OUT_PAL) {
+        if (!cols_pal) cols_pal = tv_cols_for(4.43361875e6);
+        return cols_pal;
+    }
+    if (!cols_ntsc) cols_ntsc = tv_cols_for(3.579545e6);
+    return cols_ntsc;
+}
+
 static G_BUFFER graphics_buffer = {
     .data = NULL,
     .shift_x = 0,
@@ -218,7 +242,7 @@ void graphics_set_modeTV(tv_out_mode_t mode) {
     };
     video_mode.LVL_BLACK_TMPL = CONV_DAC(video_mode.LVL_BLACK) | (1 << SYNC_PIN);
 
-    sm_config_set_clkdiv(PIO_VIDEO->sm, clock_get_hz(clk_sys) / (color_freq * 4));
+    pio_sm_set_clkdiv(PIO_VIDEO, SM_video, clock_get_hz(clk_sys) / (color_freq * 4));
 
 };
 
@@ -252,8 +276,8 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
     int8_t Y8 = ((int)(Y * video_mode.LVL_Y_MAX)) + base8;
 
     uint32_t cd0_32, cd1_32;
-    int8_t* cd0 = &cd0_32;
-    int8_t* cd1 = &cd1_32;
+    int8_t* cd0 = (int8_t *)&cd0_32;
+    int8_t* cd1 = (int8_t *)&cd1_32;
 
     float sin[] = { 0, 1, 0, -1 };
     // float sin[]={-1,1,1,-1,-1};//test
@@ -420,14 +444,14 @@ void graphics_set_palette(uint8_t i, uint32_t color888) {
 
 
     uint32_t Y32 = (Y8 << 24) | (Y8 << 16) | (Y8 << 8) | (Y8 << 0);
-    int8_t* yi = &Y32;
-    int8_t* ci = &cd0_32;
+    int8_t* yi = (int8_t *)&Y32;
+    int8_t* ci = (int8_t *)&cd0_32;
 
     for (int i = 0; i < 4; i++) { yi[i] = CONV_DAC(yi[i]+ci[i]) | (1 << SYNC_PIN); };
     conv_color[0][i] = Y32;
 
     Y32 = (Y8 << 24) | (Y8 << 16) | (Y8 << 8) | (Y8 << 0);
-    ci = &cd1_32;
+    ci = (int8_t *)&cd1_32;
     for (int i = 0; i < 4; i++) { yi[i] = CONV_DAC(yi[i]+ci[i]) | (1 << SYNC_PIN); };
     conv_color[1][i] = Y32;
 
@@ -931,7 +955,7 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                     uint32_t cout32;
                     cout32 = conv_color[li][c8 & 0xf];
                     // uint8_t* c_4=&conv_color[0][c8&0xf];
-                    uint8_t* c_4 = &cout32;
+                    uint8_t* c_4 = (uint8_t *)&cout32;
 
 
                     out_buf8 += buf_sh;
@@ -999,9 +1023,14 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                 if (input_buffer != NULL)
                     switch (tv_out_mode.mode_bpp) {
                         case TEXTMODE_DEFAULT: {
-                            output_buffer8 += 8;
-                            for (int x = 0; x < TEXTMODE_COLS; x++) {
-                                const uint16_t offset = y / 8 * (TEXTMODE_COLS * 2) + x * 2;
+                            const int cols = getCols(); // text buffer stride
+                            int draw_cols = cols;       // guard: the line may still be in the previous TV mode
+                            if (draw_cols * 6 * 3 > video_mode.img_W) draw_cols = video_mode.img_W / (6 * 3);
+                            const int lead = (video_mode.img_W - draw_cols * 6 * 3) / 2;
+                            memset(output_buffer8, video_mode.LVL_BLACK_TMPL, lead);
+                            output_buffer8 += lead;
+                            for (int x = 0; x < draw_cols; x++) {
+                                const uint16_t offset = y / 8 * (cols * 2) + x * 2;
                                 const uint8_t c = text_buffer[offset];
                                 const uint8_t colorIndex = text_buffer[offset + 1];
                                 uint8_t glyph_row = font_6x8[c * 8 + y % 8];
@@ -1012,43 +1041,51 @@ static bool __time_critical_func(video_timer_callbackTV)(repeating_timer_t* rt) 
                                                                          //цвет шрифта
                                                                          : textmode_palette[colorIndex >> 4] //цвет фона
                                     ];
-                                    uint8_t* c_4 = &cout32;
+                                    uint8_t* c_4 = (uint8_t *)&cout32;
                                     *output_buffer8++ = c_4[bit % 4];
                                     *output_buffer8++ = c_4[bit % 4];
                                     *output_buffer8++ = c_4[bit % 4];
                                     glyph_row >>= 1;
                                 }
                             }
+                            memset(output_buffer8, video_mode.LVL_BLACK_TMPL, video_mode.img_W - lead - draw_cols * 6 * 3);
                         }
                         break;
                         case GRAPHICSMODE_DEFAULT: {
                             //для 8-битного буфера
                             uint8_t* input_buffer8 = input_buffer + y * graphics_buffer.width;
 
-                            // todo bgcolor
-                            uint8_t color = graphics_buffer.shift_x ? 200 : *input_buffer8++;
+                            // Real NES/Dendy pixel width: the PPU pixel clock against our 4*Fsc sample clock.
+                            // Dendy (PAL): 26.601712/5 = 5.3203 MHz vs 17.7345 MHz -> 3.33 samples/pixel,
+                            // NES (NTSC):  21.477272/4 = 5.3693 MHz vs 14.3182 MHz -> 2.67 samples/pixel.
+                            // 256 pixels then take ~48 us of the ~52 us active line, as on a real TV.
+                            const int di_nes = (tv_out_mode.c_freq == _4433619) ? 77 : 96;
+                            const int nes_samples = (graphics_buffer.width * 0x100 + di_nes - 1) / di_nes;
+                            int lead = ((video_mode.img_W - nes_samples) / 2) & ~3; // keep subcarrier phase
+                            if (lead < 0) lead = 0;
+                            int count = nes_samples;
+                            if (lead + count > video_mode.img_W) count = video_mode.img_W - lead;
+
+                            memset(output_buffer8, video_mode.LVL_BLACK_TMPL, lead);
+                            output_buffer8 += lead;
+
+                            uint8_t color = *input_buffer8++;
                             uint32_t cout32 = conv_color[li][color];
-                            // uint8_t* c_4=&conv_color[0][c8&0xf];
-                            uint8_t* c_4 = &cout32;
-                            output_buffer8 += buffer_shift;
+                            uint8_t* c_4 = (uint8_t *)&cout32;
 
                             int x = 0;
-                            for (int i = 0; i < video_mode.img_W - d_end; i++) {
+                            for (int i = 0; i < count; i++) {
                                 *output_buffer8++ = c_4[i % 4];
-                                next_ibuf -= di;
+                                next_ibuf -= di_nes;
                                 if (next_ibuf <= 0) {
-                                    x++;
-                                    if (x > graphics_buffer.shift_x && x < graphics_buffer.shift_x + graphics_buffer.
-                                        width) {
+                                    if (++x < graphics_buffer.width) {
                                         color = *input_buffer8++;
-                                    }
-                                    else {
-                                        color = 200;
                                     }
                                     cout32 = conv_color[li][color];
                                     next_ibuf += 0x100;
                                 }
                             }
+                            memset(output_buffer8, video_mode.LVL_BLACK_TMPL, video_mode.img_W - lead - count);
                         }
                         break;
                     }
@@ -1227,11 +1264,27 @@ void clrScr(const uint8_t color) {
         memset(text_buffer, 0, TEXTMODE_COLS * TEXTMODE_ROWS * 2);
 }
 
+static float tv_user_color_index = 1.0f; // user setting for the game picture
+
 void graphics_set_mode(const enum graphics_mode_t mode) {
     tv_out_mode.mode_bpp = mode;
-    tv_out_mode.color_index = TEXTMODE_DEFAULT == mode ? 0.0 : 1.0;
-    // tv_out_mode.cb_sync_PI_shift_lines = TEXTMODE_DEFAULT == mode ? true : false;
-    // tv_out_mode.color_index = tv_out_mode.color_index != 0.0 ? 1.0 : 0.0;
+    // A TV standard is a coherent timing set, not independent knobs
+    if (tv_out_mode.tv_system == g_TV_OUT_PAL) {
+        tv_out_mode.N_lines = _624_lines;
+        tv_out_mode.c_freq = _4433619;
+    } else {
+        tv_out_mode.N_lines = _524_lines;
+        tv_out_mode.c_freq = _3579545;
+    }
+    tv_out_mode.cb_sync_PI_shift_lines = false;
+    tv_out_mode.cb_sync_PI_shift_half_frame = true;
+    // menu text stays monochrome (sharper), the game picture follows the setting
+    tv_out_mode.color_index = TEXTMODE_DEFAULT == mode ? 0.0f : tv_user_color_index;
     graphics_set_modeTV(tv_out_mode);
     clrScr(0);
+}
+
+void graphics_set_tv(bool pal, bool color) {
+    tv_out_mode.tv_system = pal ? g_TV_OUT_PAL : g_TV_OUT_NTSC;
+    tv_user_color_index = color ? 1.0f : 0.0f;
 }

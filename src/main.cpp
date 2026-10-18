@@ -8,10 +8,15 @@
 #include "hardware/i2c.h"
 #include "hardware/vreg.h"
 #include "hardware/watchdog.h"
+#include "hardware/clocks.h"
 #include <hardware/sync.h>
 #include <hardware/flash.h>
+#if PICO_RP2350
+#include <hardware/structs/qmi.h>
+#endif
 
 #include "main.h"
+#include "psram.h"
 
 #include <InfoNES.h>
 #include <InfoNES_System.h>
@@ -45,6 +50,9 @@
 size_t get_rom4prog_size() { return sizeof(rom); }
 #else
 #define FLASH_TARGET_OFFSET (1024 * 1024)
+/* Flash retains the last cartridge across power cycles.  A ROM loaded into
+ * QSPI PSRAM replaces these pointers only until the next hardware reset. */
+static char psram_rom_filename[256];
 const char* rom_filename = (const char *)(XIP_BASE + FLASH_TARGET_OFFSET);
 const uint8_t* rom = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET) + 4096;
 size_t get_rom4prog_size() { return FLASH_TARGET_OFFSET - 4096; }
@@ -71,6 +79,8 @@ enum menu_type_e {
 };
 
 struct semaphore vga_start_semaphore;
+// set by the render core once text/graphics buffers are attached to the video driver
+static volatile bool render_ready = false;
 uint8_t SCREEN[NES_DISP_HEIGHT][NES_DISP_WIDTH]; // 61440 bytes
 uint16_t linebuffer[256];
 
@@ -85,8 +95,27 @@ SETTINGS settings = {
     .player_2_input = GAMEPAD1,
     .nes_palette = 0,
     .swap_ab = false,
-    .inversion = false
+    .inversion = false,
+    .tv_system = 0,
+    .tv_color = true,
+    .nes_timing = 0
 };
+
+/* All watchdog resets (including USB keyboard Ctrl+Alt+Del) take the same
+ * route.  Drop clk_sys before VREG; release QMI CS1 first so PSRAM does not
+ * remain in QPI mode across reset. */
+extern "C" void __no_inline_not_in_flash_func(nes_safe_reset)(void) {
+    watchdog_enable(100, true); // failsafe in case QMI/clock transition stalls
+#if PICO_RP2350
+    save_and_disable_interrupts();
+    nes_psram_prepare_reset();
+    set_sys_clock_khz(150000, false);
+    vreg_set_voltage(VREG_VOLTAGE_1_10);
+    sleep_ms(10);
+#endif
+    watchdog_reboot(0, 0, 10);
+    while (true) tight_loop_contents();
+}
 
 static FATFS fs, fs1;
 
@@ -350,6 +379,11 @@ extern "C" {
     volatile uint8_t fxPressedV = 0;
 }
 
+static volatile bool kbd_page_up = false;
+static volatile bool kbd_page_down = false;
+static volatile bool kbd_home = false;
+static volatile bool kbd_end = false;
+
 void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const* report,
                                              hid_keyboard_report_t const* prev_report) {
     keyboard_bits.start = isInReport(report, HID_KEY_ENTER) || isInReport(report, HID_KEY_KEYPAD_ENTER);
@@ -372,14 +406,17 @@ void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const* report
     keyboard_bits.left = b7 || b1 || isInReport(report, HID_KEY_ARROW_LEFT) || isInReport(report, HID_KEY_A) || isInReport(report, HID_KEY_KEYPAD_4);
     keyboard_bits.right = b9 || b3 || isInReport(report, HID_KEY_ARROW_RIGHT)  || isInReport(report, HID_KEY_D) || isInReport(report, HID_KEY_KEYPAD_6);
 
+    // file browser navigation
+    kbd_page_up = isInReport(report, HID_KEY_PAGE_UP);
+    kbd_page_down = isInReport(report, HID_KEY_PAGE_DOWN);
+    kbd_home = isInReport(report, HID_KEY_HOME);
+    kbd_end = isInReport(report, HID_KEY_END);
+
     altPressed = isInReport(report, HID_KEY_ALT_LEFT) || isInReport(report, HID_KEY_ALT_RIGHT);
     ctrlPressed = isInReport(report, HID_KEY_CONTROL_LEFT) || isInReport(report, HID_KEY_CONTROL_RIGHT);
     
     if (altPressed && ctrlPressed && isInReport(report, HID_KEY_DELETE)) {
-        watchdog_enable(10, true);
-        while(true) {
-            tight_loop_contents();
-        }
+        nes_safe_reset();
     }
     if (ctrlPressed || altPressed) {
         uint8_t fxPressed = 0;
@@ -626,10 +663,15 @@ void __scratch_x("render") render_core() {
     graphics_set_buffer(buffer, NES_DISP_WIDTH, NES_DISP_HEIGHT);
     graphics_set_textbuffer(buffer);
     graphics_set_bgcolor(0x000000);
+#if SOFTTV
+    graphics_set_offset(0, 0); // the TV driver places the 256 pixels itself, with the real NES pixel width
+#else
     graphics_set_offset(32, 0);
+#endif
 
     updatePalette(settings.palette);
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
+    render_ready = true;
     sem_acquire_blocking(&vga_start_semaphore);
 
     // 60 FPS loop
@@ -663,58 +705,146 @@ void __scratch_x("render") render_core() {
 }
 
 
-bool filebrowser_loadfile(const char pathname[256]) {
-    UINT bytes_read = 0;
-    FIL file;
-
-    int window_y = (TEXTMODE_ROWS - 5) / 2;
-    int window_x = (TEXTMODE_COLS - 43) / 2;
-
-    draw_window("Loading firmware", window_x, window_y, 43, 5);
-
-    draw_text("Loading...", window_x + 1, window_y + 2, 10, 1);
-    sleep_ms(500);
-
-
-    multicore_lockout_start_blocking();
-    auto flash_target_offset = FLASH_TARGET_OFFSET + 4096;
-    uint32_t cnt = FLASH_SECTOR_SIZE;
-
-    if (FR_OK == f_open(&file, pathname, FA_READ)) {
-        uint8_t buffer[FLASH_PAGE_SIZE];
-
-        do {
-            f_read(&file, &buffer, FLASH_PAGE_SIZE, &bytes_read);
-
-            if (bytes_read) {
-                uint32_t ints = save_and_disable_interrupts();
-                if (cnt >= FLASH_SECTOR_SIZE) {
-                    flash_range_erase(flash_target_offset, FLASH_SECTOR_SIZE);
-                    cnt = 0;
-                }
-                flash_range_program(flash_target_offset, buffer, FLASH_PAGE_SIZE);
-                cnt += FLASH_PAGE_SIZE;
-                restore_interrupts(ints);
-
-                gpio_put(PICO_DEFAULT_LED_PIN, flash_target_offset >> 13 & 1);
-
-                flash_target_offset += FLASH_PAGE_SIZE;
-            }
-        }
-        while (bytes_read != 0);
-
-        gpio_put(PICO_DEFAULT_LED_PIN, true);
-    }
-    f_close(&file);
-    uint32_t ints = save_and_disable_interrupts();
-    flash_range_erase(FLASH_TARGET_OFFSET, FLASH_SECTOR_SIZE);
-    flash_range_program(FLASH_TARGET_OFFSET, reinterpret_cast<const uint8_t *>(pathname), 256);
-    restore_interrupts(ints);
-
-    multicore_lockout_end_blocking();
-    return true;
+/* The flash slot begins at 1 MiB and reserves one sector for the ROM path.
+ * Keep a flash fallback for boards without a populated/working QSPI PSRAM. */
+static size_t flash_rom_capacity(void) {
+    return (size_t)PICO_FLASH_SIZE_BYTES - FLASH_TARGET_OFFSET - FLASH_SECTOR_SIZE;
 }
 
+bool filebrowser_loadfile(const char pathname[256]) {
+    FIL file;
+    FILINFO fileinfo;
+    const int window_w = (int)TEXTMODE_COLS < 43 ? (int)TEXTMODE_COLS : 43;
+    const int window_y = (TEXTMODE_ROWS - 5) / 2;
+    const int window_x = ((int)TEXTMODE_COLS - window_w) / 2;
+
+    draw_window("Loading ROM", window_x, window_y, window_w, 5);
+    if (f_stat(pathname, &fileinfo) != FR_OK || fileinfo.fsize < 16) {
+        draw_text("ROM missing or too small", window_x + 1, window_y + 2, 12, 1);
+        sleep_ms(1200);
+        return false;
+    }
+
+    const size_t load_size = fileinfo.fsize;
+    const bool use_psram = nes_psram_available() &&
+                           load_size <= nes_psram_size();
+    if (!use_psram && load_size > flash_rom_capacity()) {
+        draw_text("ROM exceeds available storage", window_x + 1, window_y + 2, 12, 1);
+        sleep_ms(1200);
+        return false;
+    }
+    if (f_open(&file, pathname, FA_READ) != FR_OK)
+        return false;
+
+    /* Reject malformed/unsupported ROMs before overwriting the cartridge.
+     * An iNES trainer is included in the file size, not removed from RAM. */
+    uint8_t header[16];
+    UINT got = 0;
+    const bool valid = f_read(&file, header, sizeof header, &got) == FR_OK &&
+                       got == sizeof header && checkNESMagic(header) &&
+                       load_size >= 16u + ((header[6] & 4u) ? 512u : 0u) +
+                                        (size_t)header[4] * 16384u +
+                                        (size_t)header[5] * 8192u;
+    if (!valid || f_lseek(&file, 0) != FR_OK) {
+        f_close(&file);
+        draw_text("Invalid/unsupported NES ROM", window_x + 1, window_y + 2, 12, 1);
+        sleep_ms(1200);
+        return false;
+    }
+
+    draw_text(use_psram ? "Loading into QSPI PSRAM..." : "Loading into Flash...",
+              window_x + 1, window_y + 2, 10, 1);
+    UINT bytes_read = 0;
+    size_t total_read = 0;
+    FRESULT fr = FR_OK;
+
+    if (use_psram) {
+        uint8_t *dst = (uint8_t *)NES_PSRAM_BASE;
+        do {
+            const UINT chunk = (UINT)((load_size - total_read) > 4096u ?
+                                      4096u : load_size - total_read);
+            fr = f_read(&file, dst + total_read, chunk, &bytes_read);
+            total_read += bytes_read;
+        } while (fr == FR_OK && bytes_read != 0 && total_read < load_size);
+        f_close(&file);
+        if (fr != FR_OK || total_read != load_size) {
+            draw_text("PSRAM ROM load failed", window_x + 1, window_y + 2, 12, 1);
+            sleep_ms(1200);
+            return false;
+        }
+        memcpy(psram_rom_filename, pathname, strlen(pathname) + 1);
+        rom_filename = psram_rom_filename;
+        rom = (const uint8_t *)NES_PSRAM_BASE;
+        return true; // no reset: external PSRAM is not nonvolatile
+    }
+
+    /* Flash fallback: program complete padded sectors while core1 is
+     * locked out.  Never write beyond the board's flash capacity. */
+    static uint8_t buffer[FLASH_SECTOR_SIZE] __aligned(4);
+    uint32_t target = FLASH_TARGET_OFFSET + FLASH_SECTOR_SIZE;
+    bool failed = false;
+    multicore_lockout_start_blocking();
+    while (total_read < load_size) {
+        memset(buffer, 0xff, sizeof(buffer));
+        const UINT chunk = (UINT)((load_size - total_read) > sizeof(buffer) ?
+                                  sizeof(buffer) : load_size - total_read);
+        fr = f_read(&file, buffer, chunk, &bytes_read);
+        if (fr != FR_OK || bytes_read != chunk) {
+            failed = true;
+            break;
+        }
+        total_read += bytes_read;
+        const uint8_t *mapped = (const uint8_t *)(XIP_BASE + target);
+        if (memcmp(mapped, buffer, sizeof(buffer)) != 0) {
+            uint32_t ints = save_and_disable_interrupts();
+            flash_range_erase(target, FLASH_SECTOR_SIZE);
+            flash_range_program(target, buffer, FLASH_SECTOR_SIZE);
+            restore_interrupts(ints);
+            if (memcmp(mapped, buffer, sizeof(buffer)) != 0) {
+                failed = true;
+                break;
+            }
+        }
+        target += FLASH_SECTOR_SIZE;
+        gpio_put(PICO_DEFAULT_LED_PIN, (target >> 13) & 1);
+    }
+    multicore_lockout_end_blocking();
+    f_close(&file);
+    gpio_put(PICO_DEFAULT_LED_PIN, true);
+    if (failed || total_read != load_size) {
+        draw_text("Flash ROM load failed", window_x + 1, window_y + 2, 12, 1);
+        sleep_ms(1200);
+        return false;
+    }
+
+    /* The first sector is a persistent filename, not ROM data.  Like the
+     * Gamate Flash loader, do not erase an identical sector, and verify
+     * every sector that was programmed before reporting success. */
+    static uint8_t name_sector[FLASH_SECTOR_SIZE] __aligned(4);
+    memset(name_sector, 0xff, sizeof(name_sector));
+    const size_t pathname_len = strlen(pathname);
+    if (pathname_len >= sizeof(name_sector)) {
+        draw_text("Flash ROM path too long", window_x + 1, window_y + 2, 12, 1);
+        sleep_ms(1200);
+        return false;
+    }
+    memcpy(name_sector, pathname, pathname_len + 1);
+    const uint8_t *name_flash = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
+    if (memcmp(name_flash, name_sector, sizeof(name_sector)) != 0) {
+        multicore_lockout_start_blocking();
+        const uint32_t ints = save_and_disable_interrupts();
+        flash_range_erase(FLASH_TARGET_OFFSET, FLASH_SECTOR_SIZE);
+        flash_range_program(FLASH_TARGET_OFFSET, name_sector, FLASH_SECTOR_SIZE);
+        restore_interrupts(ints);
+        multicore_lockout_end_blocking();
+        if (memcmp(name_flash, name_sector, sizeof(name_sector)) != 0) {
+            draw_text("Flash filename verify failed", window_x + 1, window_y + 2, 12, 1);
+            sleep_ms(1200);
+            return false;
+        }
+    }
+    return true;
+}
 
 typedef struct __attribute__((__packed__)) {
     bool is_directory;
@@ -724,7 +854,11 @@ typedef struct __attribute__((__packed__)) {
 } file_item_t;
 
 constexpr int max_files = 600;
+#ifdef TEXTMODE_COLS_MAX // text columns change at run time (TV): keep the file list past the largest text buffer
+file_item_t* fileItems = (file_item_t *)(&SCREEN[0][0] + TEXTMODE_COLS_MAX * TEXTMODE_ROWS * 2);
+#else
 file_item_t* fileItems = (file_item_t *)(&SCREEN[0][0] + TEXTMODE_COLS * TEXTMODE_ROWS * 2);
+#endif
 
 int compareFileItems(const void* a, const void* b) {
     const auto* itemA = (file_item_t *)a;
@@ -779,12 +913,14 @@ void lock_start() {
     char pathname[256];
     sprintf(pathname, "%s\\pico-nes.lock", HOME_DIR);
     FRESULT fr = f_open(&fd, pathname, FA_CREATE_NEW | FA_WRITE);
-    UINT bw;
-    f_write(&fd, &settings, sizeof(settings), &bw);
-    f_close(&fd);
+    if (fr == FR_OK) {
+        UINT bw;
+        f_write(&fd, &settings, sizeof(settings), &bw);
+        f_close(&fd);
+    }
 }
 
-void filebrowser(const char pathname[256], const char* executables) {
+bool filebrowser(const char pathname[256], const char* executables) {
     bool debounce = true;
     char basepath[256];
     char tmp[TEXTMODE_COLS + 1];
@@ -800,6 +936,8 @@ void filebrowser(const char pathname[256], const char* executables) {
 
         snprintf(tmp, TEXTMODE_COLS, "SD:\\%s", basepath);
         draw_window(tmp, 0, 0, TEXTMODE_COLS, TEXTMODE_ROWS - 1);
+        draw_text(nes_psram_available() ? "QSPI PSRAM" : "FLASH",
+                  TEXTMODE_COLS - 11, 0, 10, 1);
         memset(tmp, ' ', TEXTMODE_COLS);
 
 #ifndef TFT
@@ -842,7 +980,12 @@ void filebrowser(const char pathname[256], const char* executables) {
             fileItems[total_files].is_directory = fileInfo.fattrib & AM_DIR;
             size_t sz = fileInfo.fsize >> 10;
             fileItems[total_files].size = sz;
-            fileItems[total_files].is_executable = sz < ((3ul << 10) - 4) ? isExecutable(fileInfo.fname, executables) : false;
+            /* Allow Flash fallback for ROMs that are larger than the
+             * detected PSRAM but still fit the board's Flash slot. */
+            fileItems[total_files].is_executable =
+                (fileInfo.fsize <= flash_rom_capacity() ||
+                 (nes_psram_available() && fileInfo.fsize <= nes_psram_size())) &&
+                isExecutable(fileInfo.fname, executables);
             strncpy(fileItems[total_files].filename, fileInfo.fname, 78);
             total_files++;
         }
@@ -866,7 +1009,7 @@ void filebrowser(const char pathname[256], const char* executables) {
 
             // ESCAPE
             if (gamepad1_bits.select || keyboard_bits.select) {
-                return;
+                return false;
             }
 
             /*
@@ -931,6 +1074,36 @@ void filebrowser(const char pathname[256], const char* executables) {
                 }
             }
 
+            if (total_files > 0 && (kbd_page_down || kbd_page_up || kbd_home || kbd_end)) {
+                const int last = total_files - 1;
+                const int per_page_half = per_page >> 1;
+                const int max_offset = total_files > per_page_half ? total_files - per_page_half : 0;
+                int pos = offset + current_item;
+                if (kbd_page_down) {
+                    pos += per_page_half;
+                    offset += per_page_half;
+                }
+                else if (kbd_page_up) {
+                    pos -= per_page_half;
+                    offset -= per_page_half;
+                }
+                else if (kbd_home) {
+                    pos = 0;
+                    offset = 0;
+                }
+                else {
+                    pos = last;
+                    offset = max_offset;
+                }
+                if (pos > last) pos = last;
+                if (pos < 0) pos = 0;
+                if (offset > max_offset) offset = max_offset;
+                if (offset < 0) offset = 0;
+                if (pos < offset) offset = pos;
+                if (pos >= offset + per_page_half) offset = pos - per_page_half + 1;
+                current_item = pos - offset;
+            }
+
             if (debounce && (gamepad1_bits.start || keyboard_bits.start)) {
                 auto file_at_cursor = fileItems[offset + current_item];
 
@@ -950,13 +1123,20 @@ void filebrowser(const char pathname[256], const char* executables) {
                 }
 
                 if (file_at_cursor.is_executable) {
-                    sprintf(tmp, "%s\\%s", basepath, file_at_cursor.filename);
-                    if (filebrowser_loadfile(tmp)) {
+                    char fullpath[256];
+                    if (snprintf(fullpath, sizeof fullpath, "%s\\%s", basepath,
+                                 file_at_cursor.filename) >= (int)sizeof fullpath)
+                        continue;
+                    if (filebrowser_loadfile(fullpath)) {
                         save_config();
                         unlock_start();
-                        watchdog_enable(0, true);
-                        // FIXME!!!
-                        return;
+                        if (rom == (const uint8_t *)NES_PSRAM_BASE) {
+                            /* PSRAM contents are lost on power-off; do not
+                             * auto-resume the older Flash ROM after reset. */
+                            lock_start();
+                            return true;
+                        }
+                        nes_safe_reset(); // Flash ROM: boot from persistent image
                     }
                 }
             }
@@ -991,24 +1171,46 @@ void filebrowser(const char pathname[256], const char* executables) {
 
 int menu();
 
+// NES palette index $0F is black. Rows 0-3 and 236-239 are never drawn by InfoNES and
+// SCREEN is shared with the text mode, so clear it before showing the game picture.
+static void set_game_graphics_mode() {
+    // graphics_set_mode() clears the buffer itself (VGA: memset 0 = NES grey,
+    // HDMI: clrScr() writes text-mode spaces), so fill with black after it
+    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    memset(&SCREEN[0][0], 0x0F, sizeof SCREEN);
+}
+
+// NTSC / PAL / Dendy: the menu setting, or for "Auto" the ROM header,
+// then the "(E)" / "(Europe)" tag of the file name for old iNES headers without a TV flag
+static BYTE detect_nes_region() {
+    if (settings.nes_timing)
+        return settings.nes_timing - 1;
+    BYTE region = InfoNES_HeaderRegion();
+    if (region == NES_REGION_NTSC && (NesHeader.byInfo2 & 0x0c) != 0x08 &&
+        (strstr(rom_filename, "(E)") || strstr(rom_filename, "(Europe)") || strstr(rom_filename, "(PAL)")))
+        region = NES_REGION_PAL;
+    return region;
+}
+
 int InfoNES_Video() {
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
         menu();
         return 0; // TODO: 1?
     }
+    InfoNES_SetRegion(detect_nes_region());
     if (InfoNES_Reset() < 0) {
         menu();
         return 1; // TODO: ?
     }
-    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    set_game_graphics_mode();
     return 0;
 }
 
 int InfoNES_Menu() {
     graphics_set_mode(TEXTMODE_DEFAULT);
-    filebrowser(HOME_DIR, (char *)"nes");
-    graphics_set_mode(GRAPHICSMODE_DEFAULT);
-    return 1;
+    const bool loaded = filebrowser(HOME_DIR, (char *)"nes");
+    set_game_graphics_mode();
+    return loaded ? 0 : 1;
 }
 
 #ifdef TFT
@@ -1026,6 +1228,9 @@ void load_config() {
     UINT br;
     f_read(&fd, &settings, sizeof(settings), &br);
     f_close(&fd);
+    // older (shorter) configs leave the TV fields at their defaults
+    if (settings.tv_system > 1) settings.tv_system = 0;
+    if (settings.nes_timing > 3) settings.nes_timing = 0;
 #ifdef TFT
     INVERSION = settings.inversion;
 #endif
@@ -1051,20 +1256,6 @@ typedef struct __attribute__((__packed__)) {
     uint8_t max_value;
     char value_list[15][10];
 } MenuItem;
-
-#if SOFTTV
-typedef struct tv_out_mode_t {
-    // double color_freq;
-    float color_index;
-    COLOR_FREQ_t c_freq;
-    enum graphics_mode_t mode_bpp;
-    g_out_TV_t tv_system;
-    NUM_TV_LINES_t N_lines;
-    bool cb_sync_PI_shift_lines;
-    bool cb_sync_PI_shift_half_frame;
-} tv_out_mode_t;
-extern tv_out_mode_t tv_out_mode;
-#endif
 
 bool save() {
     char pathname[255];
@@ -1113,15 +1304,12 @@ const MenuItem menu_items[] = {
 #endif
 #if SOFTTV
     { "" },
-    { "TV system %s", ARRAY, &tv_out_mode.tv_system, nullptr, 1, { "PAL ", "NTSC" } },
-    { "TV Lines %s", ARRAY, &tv_out_mode.N_lines, nullptr, 3, { "624", "625", "524", "525" } },
-    { "Freq %s", ARRAY, &tv_out_mode.c_freq, nullptr, 1, { "3.579545", "4.433619" } },
-    { "Color %s", ARRAY, &tv_out_mode.color_index, nullptr, 1, { "BW   ", "COLOR" } },
-    { "Shift lines %s", ARRAY, &tv_out_mode.cb_sync_PI_shift_lines, nullptr, 1, { "NO ", "YES" } },
-    { "Shift half frame %s", ARRAY, &tv_out_mode.cb_sync_PI_shift_half_frame, nullptr, 1, { "NO ", "YES" } },
+    { "TV system %s", ARRAY, &settings.tv_system, nullptr, 1, { "PAL ", "NTSC" } },
+    { "Colors: %s", ARRAY, &settings.tv_color, nullptr, 1, { "NO ", "YES" } },
 #endif
     { "" },
     { "NES Palette: %s", ARRAY, &settings.nes_palette, nullptr, 1, { "Default ", "Colorful" } },
+    { "Timing: %s", ARRAY, &settings.nes_timing, nullptr, 3, { "Auto ", "NTSC ", "PAL  ", "Dendy" } },
     { "" },
     { "Save state: %i", INT, &save_slot, &save, 5 },
     { "Load state: %i", INT, &save_slot, &load, 5 },
@@ -1195,15 +1383,16 @@ int menu() {
                         break;
                     case RESET:
                         if (gamepad1_bits.start || keyboard_bits.start)
-                        watchdog_enable(10, true);
-                        while(true) {
-                            tight_loop_contents();
-                        }
+                            nes_safe_reset();
                         break;
                     case ROM_SELECT:
                         if (gamepad1_bits.start || keyboard_bits.start) {
                             exit = true;
-                            return InfoNES_Menu();
+                            /* A new PSRAM ROM starts on the next InfoNES_Main
+                             * iteration; cancelling selection resumes this one. */
+                            if (InfoNES_Menu() == 0)
+                                return ROM_SELECT;
+                            break;
                         }
                         break;
                     case USB_DEVICE:
@@ -1211,8 +1400,7 @@ int menu() {
                             clrScr(1);
                             draw_text((char *)"Mount me as USB drive...", 30, 15, 7, 1);
                             // in_flash_drive();
-                            watchdog_enable(10, true);
-                            exit = true;
+                            nes_safe_reset();
                         }
                 }
                 if (nullptr != item->callback && (gamepad1_bits.start || keyboard_bits.start)) {
@@ -1246,18 +1434,19 @@ int menu() {
         if (INVERSION != settings.inversion) {
             save_config();
             f_unmount("");
-            watchdog_enable(10, true);
-            while(true) {
-                tight_loop_contents();
-            }
+            nes_safe_reset();
         }
         #endif
         sleep_ms(100);
     }
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
+#if SOFTTV
+    graphics_set_tv(settings.tv_system == 0, settings.tv_color);
+#endif
+    if (ROM) InfoNES_SetRegion(detect_nes_region()); // timing may have been changed in the menu
 
     updatePalette(settings.palette);
-    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    set_game_graphics_mode();
     save_config();
     return 0;
 }
@@ -1266,7 +1455,7 @@ int menu() {
 int InfoNES_LoadFrame() {
     if ((keyboard_bits.start || gamepad1_bits.start) && (keyboard_bits.select || gamepad1_bits.select)) {
         if (menu() == ROM_SELECT) {
-            return -1;
+            return -2; // restart emulation for the newly selected PSRAM ROM
         }
         //if(selected == USB_DEVICE) {
         //    return -2; // TODO: enum
@@ -1450,20 +1639,40 @@ static int testPins(uint32_t pin0, uint32_t pin1) {
     return res;
 }
 
+#if PICO_RP2350
+/* Match Gamate's frequency-dependent QMI M0 timing instead of assuming that
+ * the same hard-coded dividers are safe at every CPU_FREQ.  Reconfigure the
+ * Flash bus BEFORE increasing clk_sys; the old boot clock stays safe, too. */
+static void __not_in_flash_func(nes_flash_timings)(uint32_t target_hz) {
+    const uint32_t max_flash_hz = 88u * 1000000u;
+    uint32_t divisor = (target_hz + max_flash_hz - 1u) / max_flash_hz;
+    if (divisor < 2u && target_hz > 100u * 1000000u)
+        divisor = 2u;
+    uint32_t rxdelay = divisor;
+    if (target_hz / divisor > 100u * 1000000u)
+        ++rxdelay;
+    qmi_hw->m[0].timing = 0x60007000u |
+                          (rxdelay << QMI_M0_TIMING_RXDELAY_LSB) |
+                          (divisor << QMI_M0_TIMING_CLKDIV_LSB);
+}
+#endif
+
 int main() {
 #if !PICO_RP2040
-    volatile uint32_t *qmi_m0_timing=(uint32_t *)0x400d000c;
     vreg_disable_voltage_limit();
     vreg_set_voltage(VREG_VOLTAGE_1_60);
     sleep_ms(33);
-    *qmi_m0_timing = 0x60007204;
-    set_sys_clock_khz(CPU_FREQ * KHZ, 0);
-    *qmi_m0_timing = 0x60007303;
+    nes_flash_timings(CPU_FREQ * 1000000u);
+    set_sys_clock_khz(CPU_FREQ * KHZ, false);
 #else
     hw_set_bits(&vreg_and_chip_reset_hw->vreg, VREG_AND_CHIP_RESET_VREG_VSEL_BITS);
     sleep_ms(10);
     set_sys_clock_khz(CPU_FREQ * KHZ, true);
 #endif
+
+    /* Configure QMI CS1 before either core starts using ROM pointers.  On
+     * RP2040 or boards without PSRAM, the loader retains its Flash fallback. */
+    nes_psram_init();
 
     gpio_init(PICO_DEFAULT_LED_PIN);
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
@@ -1474,7 +1683,7 @@ int main() {
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
 
-    #ifndef TFT
+    #if defined(VGA) || defined(HDMI) // SELECT_VGA lives in vga-nextgen: not linked for TFT / TV / SOFTTV
 #if ZERO2
     SELECT_VGA = false; // RP2350-PiZero has only mini-HDMI, no VGA
 #else
@@ -1491,15 +1700,30 @@ int main() {
     ps2kbd.init_gpio();
 #endif
 #if USE_NESPAD
-    nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
+    /* CS1 on some RP2350A boards shares a header pin with the external NES
+     * controller.  Do not let PIO drive the PSRAM chip select.  USB and PS/2
+     * input remain available when the external NESpad cannot be enabled. */
+    const int cs1_pin = nes_psram_cs1_gpio();
+    if (cs1_pin < 0 || (cs1_pin != NES_GPIO_CLK && cs1_pin != NES_GPIO_LAT &&
+                        cs1_pin != NES_GPIO_DATA && cs1_pin != NES_GPIO_DATA + 1)) {
+        nespad_begin(clock_get_hz(clk_sys) / 1000, NES_GPIO_CLK, NES_GPIO_DATA, NES_GPIO_LAT);
+    } else {
+        printf("NESpad disabled: GPIO %d is in use by QSPI PSRAM CS1\n", cs1_pin);
+    }
 #endif
     f_mount(&fs, "", 1);
     f_mkdir(HOME_DIR);
     load_config();
+#if SOFTTV
+    graphics_set_tv(settings.tv_system == 0, settings.tv_color);
+#endif
 
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);
     sem_release(&vga_start_semaphore);
+    // Do not draw the first menu before the video driver has its text buffer:
+    // draw_text() into a NULL text_buffer is lost (the file browser frame is drawn only once).
+    while (!render_ready) tight_loop_contents();
 
 #ifndef BUILD_IN_GAMES
     if (is_start_locked() || !parseROM(reinterpret_cast<const uint8_t *>(rom))) {

@@ -1196,6 +1196,35 @@ void __not_in_flash_func(InfoNES_pAPUHsync)(bool enabled)
 
 /*===================================================================*/
 /*                                                                   */
+/*   InfoNES_pAPUSetRegion() : rates for NTSC / PAL / Dendy timing   */
+/*                                                                   */
+/*===================================================================*/
+void InfoNES_pAPUSetRegion(void)
+{
+  ApuQuality = pAPU_QUALITY - 1;
+  const ApuQualityData_t &q = ApuQual[ApuQuality];
+
+  // CPU clock relative to NTSC (1789773 Hz): pitch and DMC rate scale with it
+  // PAL 1662607 Hz, Dendy 1773448 Hz
+  const uint64_t num = (g_NesRegion == NES_REGION_PAL) ? 1662607 : (g_NesRegion == NES_REGION_DENDY) ? 1773448 : 1789773;
+  const uint64_t den = 1789773;
+  ApuPulseMagic = (DWORD)(q.pulse_magic * num / den);
+  ApuTriangleMagic = (DWORD)(q.triangle_magic * num / den);
+  ApuNoiseMagic = (DWORD)(q.noise_magic * num / den);
+  ApuCycleRate = (DWORD)(q.cycle_rate * num / den);
+  ApuCyclesPerSample = q.cycles_per_sample;
+  ApuSampleRate = q.sample_rate;
+
+  // samples per scanline (16.16): sample_rate * 1.003 / (frames/s * lines/frame)
+  // the audio output paces the emulation, so this also sets 60 or 50 frames per second
+  if (g_NesRegion == NES_REGION_NTSC)
+    ApuSamplesPerSync16 = q.samples_per_sync_16; // 60 Hz, 262 lines
+  else
+    ApuSamplesPerSync16 = (unsigned int)((uint64_t)q.samples_per_sync_16 * 60 * 262 / (50 * 312)); // 50 Hz, 312 lines
+}
+
+/*===================================================================*/
+/*                                                                   */
 /*            InfoNES_pApuInit() : Initialize pApu                   */
 /*                                                                   */
 /*===================================================================*/
@@ -1207,13 +1236,7 @@ void InfoNES_pAPUInit(void)
 
   ApuQuality = pAPU_QUALITY - 1; // 1: 22050, 2: 44100 [samples/sec]
 
-  ApuPulseMagic = ApuQual[ApuQuality].pulse_magic;
-  ApuTriangleMagic = ApuQual[ApuQuality].triangle_magic;
-  ApuNoiseMagic = ApuQual[ApuQuality].noise_magic;
-  ApuSamplesPerSync16 = ApuQual[ApuQuality].samples_per_sync_16;
-  ApuCyclesPerSample = ApuQual[ApuQuality].cycles_per_sample;
-  ApuSampleRate = ApuQual[ApuQuality].sample_rate;
-  ApuCycleRate = ApuQual[ApuQuality].cycle_rate;
+  InfoNES_pAPUSetRegion();
 
   InfoNES_SoundOpen((ApuSamplesPerSync16 + 65535) >> 16, ApuSampleRate);
 

@@ -7,7 +7,10 @@
 
 #define TV_BASE_PIN (6)
 
-#define TEXTMODE_COLS 40
+// Text columns depend on the active line length of the TV standard (6-pixel glyphs,
+// 3 samples per pixel): PAL ~50, NTSC ~40. TEXTMODE_COLS_MAX sizes the text buffer.
+#define TEXTMODE_COLS_MAX 53
+#define TEXTMODE_COLS getCols()
 #define TEXTMODE_ROWS 30
 #define RGB888(r, g, b) ((r<<16) | (g << 8 ) | b )
 
@@ -24,6 +27,9 @@ typedef enum NUM_TV_LINES_t {
 typedef enum COLOR_FREQ_t {
     _3579545, _4433619
 } COLOR_FREQ_t;
+
+// PAL: 625 lines / 4.43 MHz, NTSC: 525 lines / 3.58 MHz; applied by the next graphics_set_mode()
+void graphics_set_tv(bool pal, bool color);
 
 // TODO: Сделать настраиваемо
 static const uint8_t textmode_palette[16] = {

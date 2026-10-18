@@ -128,7 +128,7 @@ BYTE Map90_ReadApu( WORD wAddr )
 /*-------------------------------------------------------------------*/
 void Map90_Write( WORD wAddr, BYTE byData )
 {
-  switch ( wAddr )
+  switch ( wAddr & 0xf007 ) // J.Y. ASIC decodes A0-A2 only (Mortal Kombat II writes $8500, $C502...)
   {
     /* Set ROM Banks */
     case 0x8000:

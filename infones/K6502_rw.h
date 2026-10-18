@@ -360,7 +360,7 @@ static inline void __not_in_flash_func(K6502_Write)(WORD wAddr, BYTE byData)
     break;
 
   case 0x4000: /* Sound */
-    switch (wAddr & 0x1f)
+    switch (wAddr < 0x4018 ? (wAddr & 0x1f) : 0xff) // $4018-$5fff are mapper registers, not APU mirrors
     {
     case 0x00:
     case 0x01:
@@ -467,8 +467,9 @@ static inline void __not_in_flash_func(K6502_Write)(WORD wAddr, BYTE byData)
     SRAM[wAddr & 0x1fff] = byData;
     SRAMwritten = true;
 
-    /* Write to SRAM, when no SRAM */
-    if (!ROM_SRAM)
+    /* Write to SRAM, when no SRAM. $7EF0-$7EFF are Taito X1-005/X1-017
+       registers (mappers 80, 82, 207) even on carts with battery RAM. */
+    if (!ROM_SRAM || (wAddr & 0xfff0) == 0x7ef0)
     {
       MapperSram(wAddr, byData);
     }
