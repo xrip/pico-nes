@@ -7,6 +7,11 @@
 #endif
 
 #define PICO_PC 1
+#if PICO_RP2350
+#define PSRAM_CS1_GPIO_RP2350A 8
+#define PSRAM_CS1_GPIO_RP2350B 47
+#endif
+
 #define CPU_FREQ 378
 
 // SDCARD
