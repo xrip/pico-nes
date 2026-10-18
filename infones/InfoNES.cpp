@@ -110,7 +110,14 @@ void *InfoNes_GetSPRRAM(size_t *size)
   return SPRRAM;
 }
 /* Scanline Table */
-BYTE PPU_ScanTable[263];
+BYTE PPU_ScanTable[NES_MAX_SCANLINES];
+
+/* Console timing, see InfoNES_SetRegion() */
+BYTE g_NesRegion = NES_REGION_NTSC;
+WORD g_nScanVBlankStart = 241;
+WORD g_nScanVBlankEnd = 261;
+WORD g_nStepPerScanline = 114; // 113.66
+DWORD g_nStepPerFrame = 29780; // 29780.5
 #pragma endregion
 
 bool SRAMwritten = false;
@@ -317,19 +324,79 @@ void InfoNES_Init()
   K6502_Init();
 
   // Initialize Scanline Table
-  for (nIdx = 0; nIdx < 263; ++nIdx)
+  InfoNES_SetRegion(g_NesRegion);
+}
+
+/*===================================================================*/
+/*                                                                   */
+/*      InfoNES_HeaderRegion() : TV system requested by the header   */
+/*                                                                   */
+/*===================================================================*/
+BYTE InfoNES_HeaderRegion()
+{
+  if ((NesHeader.byInfo2 & 0x0c) == 0x08)
   {
-    if (nIdx < SCAN_ON_SCREEN_START)
-      PPU_ScanTable[nIdx] = SCAN_ON_SCREEN;
-    else if (nIdx < SCAN_BOTTOM_OFF_SCREEN_START)
-      PPU_ScanTable[nIdx] = SCAN_ON_SCREEN;
-    else if (nIdx < SCAN_UNKNOWN_START)
+    // NES 2.0 byte 12: 0 NTSC, 1 PAL, 2 multi-region, 3 Dendy
+    switch (NesHeader.byReserve[4] & 0x03)
+    {
+    case 1: return NES_REGION_PAL;
+    case 3: return NES_REGION_DENDY;
+    default: return NES_REGION_NTSC;
+    }
+  }
+  // iNES byte 9 bit 0 (1 = PAL), only if bytes 12-15 are clean (no "DiskDude!" garbage)
+  if (!NesHeader.byReserve[4] && !NesHeader.byReserve[5] && !NesHeader.byReserve[6] && !NesHeader.byReserve[7] &&
+      (NesHeader.byReserve[1] & 0x01))
+    return NES_REGION_PAL;
+  return NES_REGION_NTSC;
+}
+
+/*===================================================================*/
+/*                                                                   */
+/*          InfoNES_SetRegion() : NTSC / PAL / Dendy timing          */
+/*                                                                   */
+/*===================================================================*/
+void InfoNES_SetRegion(BYTE byRegion)
+{
+  if (byRegion > NES_REGION_DENDY)
+    byRegion = NES_REGION_NTSC;
+  g_NesRegion = byRegion;
+
+  switch (byRegion)
+  {
+  case NES_REGION_PAL:
+    g_nScanVBlankStart = 241;
+    g_nScanVBlankEnd = 311;
+    g_nStepPerScanline = 107; // 341 / 3.2 = 106.56
+    g_nStepPerFrame = 33252;  // PAL APU frame counter
+    break;
+  case NES_REGION_DENDY:
+    // NTSC-like CPU, 50 Hz: 51 idle lines after the picture, NMI at line 291
+    g_nScanVBlankStart = 291;
+    g_nScanVBlankEnd = 311;
+    g_nStepPerScanline = 114;
+    g_nStepPerFrame = 29780;
+    break;
+  default:
+    g_nScanVBlankStart = 241;
+    g_nScanVBlankEnd = 261;
+    g_nStepPerScanline = 114;
+    g_nStepPerFrame = 29780;
+    break;
+  }
+
+  for (int nIdx = 0; nIdx < NES_MAX_SCANLINES; ++nIdx)
+  {
+    if (nIdx < SCAN_UNKNOWN_START)
       PPU_ScanTable[nIdx] = SCAN_ON_SCREEN;
     else if (nIdx < SCAN_VBLANK_START)
       PPU_ScanTable[nIdx] = SCAN_UNKNOWN;
     else
       PPU_ScanTable[nIdx] = SCAN_VBLANK;
   }
+
+  // sound: samples per scanline and CPU clock dependent rates
+  InfoNES_pAPUSetRegion();
 }
 
 /*===================================================================*/
@@ -680,6 +747,19 @@ bool __not_in_flash_func(InfoNES_Cycle)()
       K6502_Step(STEP_PER_SCANLINE);
     }
 
+    // Dendy: NTSC-speed CPU in a 312-line frame, so the APU frame sequencer
+    // (envelopes, length counters) must follow CPU time, not V-Sync
+    if (g_NesRegion == NES_REGION_DENDY)
+    {
+      static DWORD dwApuFrameStep = 0;
+      dwApuFrameStep += STEP_PER_SCANLINE;
+      if (dwApuFrameStep >= STEP_PER_FRAME)
+      {
+        dwApuFrameStep -= STEP_PER_FRAME;
+        InfoNES_pAPUVsync();
+      }
+    }
+
     // Frame IRQ in H-Sync
     FrameStep += STEP_PER_SCANLINE;
     if (FrameStep > STEP_PER_FRAME && FrameIRQ_Enable)
@@ -758,7 +838,7 @@ int __not_in_flash_func(InfoNES_HSync)()
 
   if ((PPU_R1 & R1_SHOW_SP) || (PPU_R1 & R1_SHOW_SCR))
   {
-    if (PPU_Scanline == SCAN_VBLANK_END)
+    if (PPU_Scanline >= SCAN_VBLANK_END)
     {
       PPU_Addr = PPU_Temp;
     }
@@ -787,12 +867,14 @@ int __not_in_flash_func(InfoNES_HSync)()
   /*-------------------------------------------------------------------*/
   /*  Next Scanline                                                    */
   /*-------------------------------------------------------------------*/
-  PPU_Scanline = (PPU_Scanline == SCAN_VBLANK_END) ? 0 : PPU_Scanline + 1;
+  PPU_Scanline = (PPU_Scanline >= SCAN_VBLANK_END) ? 0 : PPU_Scanline + 1;
 
   /*-------------------------------------------------------------------*/
   /*  Operation in the specific scanning line                          */
   /*-------------------------------------------------------------------*/
-  switch (PPU_Scanline)
+  // SCAN_VBLANK_START depends on the region: not a constant, so no "case" for it
+  const int nScanCase = (PPU_Scanline == SCAN_VBLANK_START) ? -1 : PPU_Scanline;
+  switch (nScanCase)
   {
   case SCAN_TOP_OFF_SCREEN:
     // Reset a PPU status
@@ -821,7 +903,7 @@ int __not_in_flash_func(InfoNES_HSync)()
     }
     break;
 
-  case SCAN_VBLANK_START:
+  case -1: // SCAN_VBLANK_START
     // FrameCnt + 1
     FrameCnt = (FrameCnt >= FrameSkip) ? 0 : FrameCnt + 1;
 
@@ -832,9 +914,10 @@ int __not_in_flash_func(InfoNES_HSync)()
     // Reset latch flag
     // PPU_Latch_Flag = 0;
 
-    // pAPU Sound function in V-Sync
+    // pAPU Sound function in V-Sync (Dendy: clocked by CPU time in InfoNES_Cycle)
     // if (!APU_Mute)
-    InfoNES_pAPUVsync();
+    if (g_NesRegion != NES_REGION_DENDY)
+      InfoNES_pAPUVsync();
 
     // A mapper function in V-Sync
     MapperVSync();

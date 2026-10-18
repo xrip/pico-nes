@@ -89,7 +89,8 @@ SETTINGS settings = {
     .swap_ab = false,
     .inversion = false,
     .tv_system = 0,
-    .tv_color = true
+    .tv_color = true,
+    .nes_timing = 0
 };
 
 static FATFS fs, fs1;
@@ -1055,11 +1056,24 @@ static void set_game_graphics_mode() {
     memset(&SCREEN[0][0], 0x0F, sizeof SCREEN);
 }
 
+// NTSC / PAL / Dendy: the menu setting, or for "Auto" the ROM header,
+// then the "(E)" / "(Europe)" tag of the file name for old iNES headers without a TV flag
+static BYTE detect_nes_region() {
+    if (settings.nes_timing)
+        return settings.nes_timing - 1;
+    BYTE region = InfoNES_HeaderRegion();
+    if (region == NES_REGION_NTSC && (NesHeader.byInfo2 & 0x0c) != 0x08 &&
+        (strstr(rom_filename, "(E)") || strstr(rom_filename, "(Europe)") || strstr(rom_filename, "(PAL)")))
+        region = NES_REGION_PAL;
+    return region;
+}
+
 int InfoNES_Video() {
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
         menu();
         return 0; // TODO: 1?
     }
+    InfoNES_SetRegion(detect_nes_region());
     if (InfoNES_Reset() < 0) {
         menu();
         return 1; // TODO: ?
@@ -1092,6 +1106,7 @@ void load_config() {
     f_close(&fd);
     // older (shorter) configs leave the TV fields at their defaults
     if (settings.tv_system > 1) settings.tv_system = 0;
+    if (settings.nes_timing > 3) settings.nes_timing = 0;
 #ifdef TFT
     INVERSION = settings.inversion;
 #endif
@@ -1170,6 +1185,7 @@ const MenuItem menu_items[] = {
 #endif
     { "" },
     { "NES Palette: %s", ARRAY, &settings.nes_palette, nullptr, 1, { "Default ", "Colorful" } },
+    { "Timing: %s", ARRAY, &settings.nes_timing, nullptr, 3, { "Auto ", "NTSC ", "PAL  ", "Dendy" } },
     { "" },
     { "Save state: %i", INT, &save_slot, &save, 5 },
     { "Load state: %i", INT, &save_slot, &load, 5 },
@@ -1306,6 +1322,7 @@ int menu() {
 #if SOFTTV
     graphics_set_tv(settings.tv_system == 0, settings.tv_color);
 #endif
+    if (ROM) InfoNES_SetRegion(detect_nes_region()); // timing may have been changed in the menu
 
     updatePalette(settings.palette);
     set_game_graphics_mode();
