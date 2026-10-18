@@ -350,6 +350,11 @@ extern "C" {
     volatile uint8_t fxPressedV = 0;
 }
 
+static volatile bool kbd_page_up = false;
+static volatile bool kbd_page_down = false;
+static volatile bool kbd_home = false;
+static volatile bool kbd_end = false;
+
 void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const* report,
                                              hid_keyboard_report_t const* prev_report) {
     keyboard_bits.start = isInReport(report, HID_KEY_ENTER) || isInReport(report, HID_KEY_KEYPAD_ENTER);
@@ -371,6 +376,12 @@ void __not_in_flash_func(process_kbd_report)(hid_keyboard_report_t const* report
     keyboard_bits.down = b1 || b3 || isInReport(report, HID_KEY_ARROW_DOWN) || isInReport(report, HID_KEY_S) || isInReport(report, HID_KEY_KEYPAD_2) || isInReport(report, HID_KEY_KEYPAD_5);
     keyboard_bits.left = b7 || b1 || isInReport(report, HID_KEY_ARROW_LEFT) || isInReport(report, HID_KEY_A) || isInReport(report, HID_KEY_KEYPAD_4);
     keyboard_bits.right = b9 || b3 || isInReport(report, HID_KEY_ARROW_RIGHT)  || isInReport(report, HID_KEY_D) || isInReport(report, HID_KEY_KEYPAD_6);
+
+    // file browser navigation
+    kbd_page_up = isInReport(report, HID_KEY_PAGE_UP);
+    kbd_page_down = isInReport(report, HID_KEY_PAGE_DOWN);
+    kbd_home = isInReport(report, HID_KEY_HOME);
+    kbd_end = isInReport(report, HID_KEY_END);
 
     altPressed = isInReport(report, HID_KEY_ALT_LEFT) || isInReport(report, HID_KEY_ALT_RIGHT);
     ctrlPressed = isInReport(report, HID_KEY_CONTROL_LEFT) || isInReport(report, HID_KEY_CONTROL_RIGHT);
@@ -929,6 +940,36 @@ void filebrowser(const char pathname[256], const char* executables) {
                     offset = 0;
                     current_item = 0;
                 }
+            }
+
+            if (total_files > 0 && (kbd_page_down || kbd_page_up || kbd_home || kbd_end)) {
+                const int last = total_files - 1;
+                const int per_page_half = per_page >> 1;
+                const int max_offset = total_files > per_page_half ? total_files - per_page_half : 0;
+                int pos = offset + current_item;
+                if (kbd_page_down) {
+                    pos += per_page_half;
+                    offset += per_page_half;
+                }
+                else if (kbd_page_up) {
+                    pos -= per_page_half;
+                    offset -= per_page_half;
+                }
+                else if (kbd_home) {
+                    pos = 0;
+                    offset = 0;
+                }
+                else {
+                    pos = last;
+                    offset = max_offset;
+                }
+                if (pos > last) pos = last;
+                if (pos < 0) pos = 0;
+                if (offset > max_offset) offset = max_offset;
+                if (offset < 0) offset = 0;
+                if (pos < offset) offset = pos;
+                if (pos >= offset + per_page_half) offset = pos - per_page_half + 1;
+                current_item = pos - offset;
             }
 
             if (debounce && (gamepad1_bits.start || keyboard_bits.start)) {

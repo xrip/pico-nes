@@ -360,7 +360,7 @@ static inline void __not_in_flash_func(K6502_Write)(WORD wAddr, BYTE byData)
     break;
 
   case 0x4000: /* Sound */
-    switch (wAddr & 0x1f)
+    switch (wAddr < 0x4018 ? (wAddr & 0x1f) : 0xff) // $4018-$5fff are mapper registers, not APU mirrors
     {
     case 0x00:
     case 0x01:

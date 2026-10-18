@@ -43,7 +43,7 @@ void Map5_Init()
   MapperWrite = Map5_Write;
 
   /* Write to SRAM */
-  MapperSram = Map0_Sram;
+  MapperSram = Map5_Sram;
 
   /* Write to APU */
   MapperApu = Map5_Apu;
@@ -120,8 +120,9 @@ BYTE Map5_ReadApu(WORD wAddr)
   switch (wAddr)
   {
   case 0x5204:
+    /* bit7: IRQ pending (cleared by this read), bit6: in frame */
     byRet = Map5_IRQ_Status;
-    Map5_IRQ_Status = 0;
+    Map5_IRQ_Status &= ~0x80;
     break;
 
   case 0x5205:
@@ -255,18 +256,16 @@ void Map5_Apu(WORD wAddr, BYTE byData)
     break;
 
   case 0x5203:
-    if (Map5_IRQ_Line >= 0x40)
-    {
-      Map5_IRQ_Line = byData;
-    }
-    else
-    {
-      Map5_IRQ_Line += byData;
-    }
+    /* IRQ compare scanline (absolute, 0 = never) */
+    Map5_IRQ_Line = byData;
     break;
 
   case 0x5204:
-    Map5_IRQ_Enable = byData;
+    Map5_IRQ_Enable = byData & 0x80;
+    if (Map5_IRQ_Enable && (Map5_IRQ_Status & 0x80))
+    {
+      IRQ_REQ;
+    }
     break;
 
   case 0x5205:
@@ -303,12 +302,10 @@ void Map5_Apu(WORD wAddr, BYTE byData)
 /*-------------------------------------------------------------------*/
 void Map5_Sram(WORD wAddr, BYTE byData)
 {
+  /* $6000-$7fff is the PRG-RAM page selected by $5113 (reads come from SRAMBANK) */
   if (Map5_Wram_Protect0 == 0x02 && Map5_Wram_Protect1 == 0x01)
   {
-    if (Map5_Wram_Reg[3] != 0xff)
-    {
-      Map5_Wram[0x2000 * Map5_Wram_Reg[3] + (wAddr - 0x6000)] = byData;
-    }
+    SRAMBANK[wAddr & 0x1fff] = byData;
   }
 }
 
@@ -350,25 +347,24 @@ void Map5_Write(WORD wAddr, BYTE byData)
 /*-------------------------------------------------------------------*/
 void Map5_HSync()
 {
-  if (PPU_Scanline <= 240)
+  if (PPU_Scanline < 240 && (PPU_R1 & (R1_SHOW_SCR | R1_SHOW_SP)))
   {
-    if (PPU_Scanline == Map5_IRQ_Line)
-    {
-      Map5_IRQ_Status |= 0x80;
+    Map5_IRQ_Status |= 0x40; /* in frame */
 
-      if (Map5_IRQ_Enable && Map5_IRQ_Line < 0xf0)
-      {
-        IRQ_REQ;
-      }
-      if (Map5_IRQ_Line >= 0x40)
-      {
-        Map5_IRQ_Enable = 0;
-      }
+    if (Map5_IRQ_Line != 0 && PPU_Scanline == Map5_IRQ_Line)
+    {
+      Map5_IRQ_Status |= 0x80; /* IRQ pending, until $5204 is read */
     }
   }
   else
   {
-    Map5_IRQ_Status |= 0x40;
+    Map5_IRQ_Status &= ~0x40;
+  }
+
+  /* /IRQ is level triggered: keep asserting while pending and enabled */
+  if (Map5_IRQ_Enable && (Map5_IRQ_Status & 0x80))
+  {
+    IRQ_REQ;
   }
 }
 
@@ -378,6 +374,10 @@ void Map5_HSync()
 void Map5_RenderScreen(BYTE byMode)
 {
   DWORD dwPage[8];
+
+  /* 8x8 sprites: $5120-$5127 are used for BG and sprites, $5128-$512B ignored */
+  if (!(PPU_R0 & R0_SP_SIZE))
+    byMode = 0;
 
   switch (Map5_Chr_Size)
   {

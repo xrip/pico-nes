@@ -11,6 +11,7 @@
 /*-------------------------------------------------------------------*/
 
 #include "InfoNES.h"
+#include "InfoNES_System.h" // InfoNES_MemorySet / InfoNES_MemoryCopy (Mapper 5)
 #include "InfoNES_Mapper.h"
 #include "K6502.h"
 #include <pico.h>
@@ -169,6 +170,13 @@ struct MapperTable_tag MapperTable[] =
         {251, Map251_Init},
         {252, Map252_Init},
         {255, Map255_Init},
+#if !PICO_RP2040
+        /* RP2350 only: MMC5 keeps 64 KB of PRG-RAM plus 3 KB of ExRAM, Namco 163
+           an 8 KB CHR-RAM, which the RP2040 has no room for (same code as in
+           pico-infonesPlus, where they are enabled). */
+        {5, Map5_Init},
+        {19, Map19_Init},
+#endif
         /* */
         {-1, NULL}};
 
@@ -181,12 +189,16 @@ struct MapperTable_tag MapperTable[] =
 #include "mapper/InfoNES_Mapper_002.cpp"
 #include "mapper/InfoNES_Mapper_003.cpp"
 #include "mapper/InfoNES_Mapper_004.cpp"
-//#include "mapper/InfoNES_Mapper_005.cpp"
+#if !PICO_RP2040
+#include "mapper/InfoNES_Mapper_005.cpp"
+#endif
 //#include "mapper/InfoNES_Mapper_006.cpp"
 #include "mapper/InfoNES_Mapper_007.cpp"
 #include "mapper/InfoNES_Mapper_212.cpp"
 //#include "mapper/InfoNES_Mapper_011.cpp"
-//#include "mapper/InfoNES_Mapper_019.cpp"
+#if !PICO_RP2040
+#include "mapper/InfoNES_Mapper_019.cpp"
+#endif
 //#include "mapper/InfoNES_Mapper_206.cpp"
 #include "mapper/InfoNES_Mapper_008.cpp"
 #include "mapper/InfoNES_Mapper_009.cpp"
