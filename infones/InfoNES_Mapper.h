@@ -644,4 +644,11 @@ void Map206_Write(WORD wAddr, BYTE byData);
 void Map207_Init();
 void Map207_Sram(WORD wAddr, BYTE byData);
 
+void Map153_Init();
+void Map153_Write(WORD wAddr, BYTE byData);
+void Map153_HSync();
+
+void Map210_Init();
+void Map210_Write(WORD wAddr, BYTE byData);
+
 #endif /* !InfoNES_MAPPER_H_INCLUDED */

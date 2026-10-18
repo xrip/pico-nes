@@ -95,7 +95,6 @@ struct MapperTable_tag MapperTable[] =
         {80, Map80_Init},
         {82, Map82_Init},
         {83, Map83_Init},
-        //  {  85, Map85_Init  },
         {86, Map86_Init},
         {87, Map87_Init},
         {88, Map88_Init},
@@ -177,6 +176,8 @@ struct MapperTable_tag MapperTable[] =
         {19, Map19_Init},
         /* UNROM 512: 32 KB of CHR-RAM */
         {30, Map30_Init},
+        /* VRC7: 8 KB CHR-RAM (FM sound not emulated) */
+        {85, Map85_Init},
 #endif
         /* ported from frank-nes (QuickNES) */
         {152, Map70_Init}, /* InfoNES Map70 already implements the 152 one-screen bit */
@@ -186,6 +187,11 @@ struct MapperTable_tag MapperTable[] =
         {190, Map190_Init},
         {206, Map206_Init},
         {207, Map207_Init},
+        /* ported from RetroMul */
+        {153, Map153_Init},
+        {155, Map1_Init},  /* MMC1A: same as MMC1 here */
+        {159, Map16_Init}, /* Bandai FCG with 24C01 EEPROM: as mapper 16 (EEPROM not emulated) */
+        {210, Map210_Init},
         /* */
         {-1, NULL}};
 
@@ -217,6 +223,8 @@ struct MapperTable_tag MapperTable[] =
 #include "mapper/InfoNES_Mapper_184.cpp"
 #include "mapper/InfoNES_Mapper_190.cpp"
 #include "mapper/InfoNES_Mapper_207.cpp"
+#include "mapper/InfoNES_Mapper_153.cpp"
+#include "mapper/InfoNES_Mapper_210.cpp"
 #include "mapper/InfoNES_Mapper_008.cpp"
 #include "mapper/InfoNES_Mapper_009.cpp"
 #include "mapper/InfoNES_Mapper_010.cpp"
@@ -273,7 +281,9 @@ struct MapperTable_tag MapperTable[] =
 #include "mapper/InfoNES_Mapper_080.cpp"
 #include "mapper/InfoNES_Mapper_082.cpp"
 #include "mapper/InfoNES_Mapper_083.cpp"
+#if !PICO_RP2040
 #include "mapper/InfoNES_Mapper_085.cpp"
+#endif
 #include "mapper/InfoNES_Mapper_086.cpp"
 #include "mapper/InfoNES_Mapper_087.cpp"
 #include "mapper/InfoNES_Mapper_088.cpp"
