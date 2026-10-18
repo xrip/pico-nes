@@ -927,7 +927,9 @@ void lock_start() {
 }
 
 bool filebrowser(const char pathname[256], const char* executables) {
-    bool debounce = true;
+    // An Enter/Start that selected ROM_BROWSER in the menu must be released
+    // before it can also launch the highlighted ROM in the file browser.
+    bool debounce = !gamepad1_bits.start && !keyboard_bits.start;
     char basepath[256];
     char tmp[TEXTMODE_COLS + 1];
     strcpy(basepath, pathname);
@@ -1175,7 +1177,7 @@ bool filebrowser(const char pathname[256], const char* executables) {
     }
 }
 
-int menu();
+int menu(bool opened_by_hotkey = false);
 
 // NES palette index $0F is black. Rows 0-3 and 236-239 are never drawn by InfoNES and
 // SCREEN is shared with the text mode, so clear it before showing the game picture.
@@ -1342,14 +1344,49 @@ static bool menu_item_visible(const MenuItem& item) {
     return true;
 }
 
-int menu() {
+enum : uint8_t {
+    MENU_BTN_UP     = 1u << 0,
+    MENU_BTN_DOWN   = 1u << 1,
+    MENU_BTN_LEFT   = 1u << 2,
+    MENU_BTN_RIGHT  = 1u << 3,
+    MENU_BTN_START  = 1u << 4,
+    MENU_BTN_SELECT = 1u << 5,
+    MENU_BTN_BACK   = 1u << 6
+};
+
+static uint8_t menu_buttons() {
+    uint8_t buttons = 0;
+    if (gamepad1_bits.up || keyboard_bits.up) buttons |= MENU_BTN_UP;
+    if (gamepad1_bits.down || keyboard_bits.down) buttons |= MENU_BTN_DOWN;
+    if (gamepad1_bits.left || keyboard_bits.left) buttons |= MENU_BTN_LEFT;
+    if (gamepad1_bits.right || keyboard_bits.right) buttons |= MENU_BTN_RIGHT;
+    if (gamepad1_bits.start || keyboard_bits.start) buttons |= MENU_BTN_START;
+    if (gamepad1_bits.select || keyboard_bits.select) buttons |= MENU_BTN_SELECT;
+    if (gamepad1_bits.b || keyboard_bits.b) buttons |= MENU_BTN_BACK;
+    return buttons;
+}
+
+int menu(bool opened_by_hotkey) {
     bool exit = false;
     graphics_set_mode(TEXTMODE_DEFAULT);
     char footer[TEXTMODE_COLS];
     int current_item = 0;
     int last_visible_count = -1;
+    // Consume the Start+Select combination which opened the menu. In
+    // particular, releasing Enter before Backspace must NOT close it.
+    bool wait_hotkey_release = opened_by_hotkey;
+    uint8_t prev_buttons = menu_buttons();
     while (!exit) {
         sleep_ms(25);
+        const uint8_t held = menu_buttons();
+        uint8_t pressed = held & (uint8_t)~prev_buttons;
+        prev_buttons = held;
+        if (wait_hotkey_release) {
+            pressed = 0;
+            if (!(held & (MENU_BTN_START | MENU_BTN_SELECT)))
+                wait_hotkey_release = false;
+        }
+        const bool activate = (pressed & MENU_BTN_START) && !(held & MENU_BTN_SELECT);
         // HDMI is built with VGA enabled, but uses its own RGB888 palette.
         // Hide VGA controls there, and hide dither controls in VGA RGB222.
         int visible[MENU_ITEMS_NUMBER];
@@ -1369,9 +1406,9 @@ int menu() {
             } while (menu_items[visible[current_pos]].type == NONE);
             current_item = visible[current_pos];
         };
-        if (gamepad1_bits.down || keyboard_bits.down)
+        if (pressed & MENU_BTN_DOWN)
             move_cursor(1);
-        if (gamepad1_bits.up || keyboard_bits.up)
+        if (pressed & MENU_BTN_UP)
             move_cursor(-1);
 
         // RGB333/RGB222 changes the menu height while it is open.
@@ -1402,36 +1439,36 @@ int menu() {
                     case ARRAY:
                         if (item->max_value != 0) {
                             auto* value = (uint8_t *)item->value;
-                            if ((gamepad1_bits.right || keyboard_bits.right) && *value < item->max_value) {
+                            if ((pressed & MENU_BTN_RIGHT) && *value < item->max_value) {
                                 (*value)++;
                             }
-                            if ((gamepad1_bits.left || keyboard_bits.left) && *value > 0) {
+                            if ((pressed & MENU_BTN_LEFT) && *value > 0) {
                                 (*value)--;
                             }
                         }
                         break;
                     case SAVE:
-                        if (gamepad1_bits.start || keyboard_bits.start) {
+                        if (activate) {
                             save_state((char *)rom_filename);
                             exit = true;
                         }
                         break;
                     case LOAD:
-                        if (gamepad1_bits.start || keyboard_bits.start) {
+                        if (activate) {
                             load_state((char *)rom_filename);
                             exit = true;
                         }
                         break;
                     case RETURN:
-                        if (gamepad1_bits.start || keyboard_bits.start)
+                        if (activate)
                             exit = true;
                         break;
                     case RESET:
-                        if (gamepad1_bits.start || keyboard_bits.start)
+                        if (activate)
                             nes_safe_reset();
                         break;
                     case ROM_SELECT:
-                        if (gamepad1_bits.start || keyboard_bits.start) {
+                        if (activate) {
                             exit = true;
                             /* A new PSRAM ROM starts on the next InfoNES_Main
                              * iteration; cancelling selection resumes this one. */
@@ -1441,14 +1478,14 @@ int menu() {
                         }
                         break;
                     case USB_DEVICE:
-                        if (gamepad1_bits.start || keyboard_bits.start) {
+                        if (activate) {
                             clrScr(1);
                             draw_text((char *)"Mount me as USB drive...", 30, 15, 7, 1);
                             // in_flash_drive();
                             nes_safe_reset();
                         }
                 }
-                if (nullptr != item->callback && (gamepad1_bits.start || keyboard_bits.start)) {
+                if (nullptr != item->callback && activate) {
                     exit = item->callback();
                 }
             }
@@ -1470,9 +1507,8 @@ int menu() {
             }
             draw_text(result, x, y, color, bg_color);
         }
-        if (gamepad1_bits.b || (gamepad1_bits.select && !gamepad1_bits.start) ||
-            keyboard_bits.b || (keyboard_bits.select && !keyboard_bits.start)
-        ) {
+        if ((pressed & MENU_BTN_BACK) ||
+            ((pressed & MENU_BTN_SELECT) && !(held & MENU_BTN_START))) {
             exit = true;
         }
         #ifdef TFT
@@ -1482,7 +1518,6 @@ int menu() {
             nes_safe_reset();
         }
         #endif
-        sleep_ms(100);
     }
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
 #if SOFTTV
@@ -1498,8 +1533,17 @@ int menu() {
 
 
 int InfoNES_LoadFrame() {
-    if ((keyboard_bits.start || gamepad1_bits.start) && (keyboard_bits.select || gamepad1_bits.select)) {
-        if (menu() == ROM_SELECT) {
+    // Require BOTH buttons released before accepting another Start+Select.
+    // This avoids reopening the menu when one key is held or released later.
+    static bool menu_hotkey_armed = true;
+    const uint8_t held = menu_buttons();
+    const bool start = (held & MENU_BTN_START) != 0;
+    const bool select = (held & MENU_BTN_SELECT) != 0;
+    if (!start && !select)
+        menu_hotkey_armed = true;
+    if (menu_hotkey_armed && start && select) {
+        menu_hotkey_armed = false;
+        if (menu(true) == ROM_SELECT) {
             return -2; // restart emulation for the newly selected PSRAM ROM
         }
         //if(selected == USB_DEVICE) {
