@@ -287,7 +287,7 @@ void (*MapperRenderScreen)(BYTE byMode);
 struct NesHeader_tag NesHeader;
 
 /* Mapper Number */
-BYTE MapperNo;
+WORD MapperNo;
 
 /* Mirroring 0:Horizontal 1:Vertical */
 BYTE ROM_Mirroring;
@@ -418,14 +418,22 @@ int InfoNES_Reset()
   // Get Mapper Number
   MapperNo = NesHeader.byInfo1 >> 4;
 
-  // Check bit counts of Mapper No.
-  for (nIdx = 4; nIdx < 8 && NesHeader.byReserve[nIdx] == 0; ++nIdx)
-    ;
-
-  if (nIdx == 8)
+  if ((NesHeader.byInfo2 & 0x0c) == 0x08)
   {
-    // Mapper Number is 8bits
-    MapperNo |= (NesHeader.byInfo2 & 0xf0);
+    // NES 2.0 header: bytes 8-15 are valid, mapper bits 8-11 in byte 8
+    MapperNo |= (NesHeader.byInfo2 & 0xf0) | ((NesHeader.byReserve[0] & 0x0f) << 8);
+  }
+  else
+  {
+    // Check bit counts of Mapper No. (iNES: garbage in bytes 12-15 means a "DiskDude!" header)
+    for (nIdx = 4; nIdx < 8 && NesHeader.byReserve[nIdx] == 0; ++nIdx)
+      ;
+
+    if (nIdx == 8)
+    {
+      // Mapper Number is 8bits
+      MapperNo |= (NesHeader.byInfo2 & 0xf0);
+    }
   }
 
   // Get information on the ROM
@@ -1565,21 +1573,21 @@ void __not_in_flash_func(InfoNES_GetSprHitY)()
   }
 
   const int bank = (ch >> 6) + bankOfs;
-  const int addrOfs = ((ch & 63) << 4) + ((yOfsMod & 8) << 1) + (yOfsMod & 7);
-
-  auto *data = PPUBANK[bank] + addrOfs;
+  const BYTE *tile = PPUBANK[bank] + ((ch & 63) << 4);
 
   if ((SPRRAM[SPR_Y] + 1 <= SCAN_UNKNOWN_START) && (SPRRAM[SPR_Y] > 0))
   {
     for (int nLine = 0; nLine < PPU_SP_Height; nLine++)
     {
+      // Row inside the sprite; rows 8-15 of a 8x16 sprite live in the next tile (+16 bytes)
+      const int y = yOfsMod + stride * nLine;
+      const BYTE *data = tile + ((y & 8) << 1) + (y & 7);
       if (data[0] | data[8])
       {
         // Scanline hits sprite #0
         SpriteJustHit = SPRRAM[SPR_Y] + 1 + nLine;
-        nLine = SCAN_VBLANK_END;
+        break;
       }
-      data += stride;
     }
   }
   else

@@ -288,7 +288,7 @@ struct NesHeader_tag
 extern struct NesHeader_tag NesHeader;
 
 /* Mapper No. */
-extern BYTE MapperNo;
+extern WORD MapperNo;
 
 /* Other */
 extern BYTE ROM_Mirroring;

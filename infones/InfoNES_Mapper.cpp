@@ -40,7 +40,6 @@ struct MapperTable_tag MapperTable[] =
         {7, Map7_Init},
         {11, Map11_Init},
         //{19, Map19_Init},
-        //{ 206, Map206_Init},
         {8, Map8_Init},
         {9, Map9_Init},
         {10, Map10_Init},
@@ -176,7 +175,17 @@ struct MapperTable_tag MapperTable[] =
            pico-infonesPlus, where they are enabled). */
         {5, Map5_Init},
         {19, Map19_Init},
+        /* UNROM 512: 32 KB of CHR-RAM */
+        {30, Map30_Init},
 #endif
+        /* ported from frank-nes (QuickNES) */
+        {152, Map70_Init}, /* InfoNES Map70 already implements the 152 one-screen bit */
+        {154, Map154_Init},
+        {156, Map156_Init},
+        {184, Map184_Init},
+        {190, Map190_Init},
+        {206, Map206_Init},
+        {207, Map207_Init},
         /* */
         {-1, NULL}};
 
@@ -199,7 +208,15 @@ struct MapperTable_tag MapperTable[] =
 #if !PICO_RP2040
 #include "mapper/InfoNES_Mapper_019.cpp"
 #endif
-//#include "mapper/InfoNES_Mapper_206.cpp"
+#include "mapper/InfoNES_Mapper_206.cpp"
+#if !PICO_RP2040
+#include "mapper/InfoNES_Mapper_030.cpp"
+#endif
+#include "mapper/InfoNES_Mapper_154.cpp"
+#include "mapper/InfoNES_Mapper_156.cpp"
+#include "mapper/InfoNES_Mapper_184.cpp"
+#include "mapper/InfoNES_Mapper_190.cpp"
+#include "mapper/InfoNES_Mapper_207.cpp"
 #include "mapper/InfoNES_Mapper_008.cpp"
 #include "mapper/InfoNES_Mapper_009.cpp"
 #include "mapper/InfoNES_Mapper_010.cpp"

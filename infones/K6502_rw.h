@@ -467,8 +467,9 @@ static inline void __not_in_flash_func(K6502_Write)(WORD wAddr, BYTE byData)
     SRAM[wAddr & 0x1fff] = byData;
     SRAMwritten = true;
 
-    /* Write to SRAM, when no SRAM */
-    if (!ROM_SRAM)
+    /* Write to SRAM, when no SRAM. $7EF0-$7EFF are Taito X1-005/X1-017
+       registers (mappers 80, 82, 207) even on carts with battery RAM. */
+    if (!ROM_SRAM || (wAddr & 0xfff0) == 0x7ef0)
     {
       MapperSram(wAddr, byData);
     }
