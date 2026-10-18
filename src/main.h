@@ -22,4 +22,6 @@ typedef struct __attribute__((__packed__)) {
     uint8_t nes_palette;
     bool swap_ab;
     bool inversion;
+    uint8_t tv_system; // TV-SOFT: 0 - PAL, 1 - NTSC
+    bool tv_color;     // TV-SOFT: colour on/off
 } SETTINGS;

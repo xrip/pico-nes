@@ -85,7 +85,9 @@ SETTINGS settings = {
     .player_2_input = GAMEPAD1,
     .nes_palette = 0,
     .swap_ab = false,
-    .inversion = false
+    .inversion = false,
+    .tv_system = 0,
+    .tv_color = true
 };
 
 static FATFS fs, fs1;
@@ -1076,6 +1078,8 @@ void load_config() {
     UINT br;
     f_read(&fd, &settings, sizeof(settings), &br);
     f_close(&fd);
+    // older (shorter) configs leave the TV fields at their defaults
+    if (settings.tv_system > 1) settings.tv_system = 0;
 #ifdef TFT
     INVERSION = settings.inversion;
 #endif
@@ -1101,20 +1105,6 @@ typedef struct __attribute__((__packed__)) {
     uint8_t max_value;
     char value_list[15][10];
 } MenuItem;
-
-#if SOFTTV
-typedef struct tv_out_mode_t {
-    // double color_freq;
-    float color_index;
-    COLOR_FREQ_t c_freq;
-    enum graphics_mode_t mode_bpp;
-    g_out_TV_t tv_system;
-    NUM_TV_LINES_t N_lines;
-    bool cb_sync_PI_shift_lines;
-    bool cb_sync_PI_shift_half_frame;
-} tv_out_mode_t;
-extern tv_out_mode_t tv_out_mode;
-#endif
 
 bool save() {
     char pathname[255];
@@ -1163,12 +1153,8 @@ const MenuItem menu_items[] = {
 #endif
 #if SOFTTV
     { "" },
-    { "TV system %s", ARRAY, &tv_out_mode.tv_system, nullptr, 1, { "PAL ", "NTSC" } },
-    { "TV Lines %s", ARRAY, &tv_out_mode.N_lines, nullptr, 3, { "624", "625", "524", "525" } },
-    { "Freq %s", ARRAY, &tv_out_mode.c_freq, nullptr, 1, { "3.579545", "4.433619" } },
-    { "Color %s", ARRAY, &tv_out_mode.color_index, nullptr, 1, { "BW   ", "COLOR" } },
-    { "Shift lines %s", ARRAY, &tv_out_mode.cb_sync_PI_shift_lines, nullptr, 1, { "NO ", "YES" } },
-    { "Shift half frame %s", ARRAY, &tv_out_mode.cb_sync_PI_shift_half_frame, nullptr, 1, { "NO ", "YES" } },
+    { "TV system %s", ARRAY, &settings.tv_system, nullptr, 1, { "PAL ", "NTSC" } },
+    { "Colors: %s", ARRAY, &settings.tv_color, nullptr, 1, { "NO ", "YES" } },
 #endif
     { "" },
     { "NES Palette: %s", ARRAY, &settings.nes_palette, nullptr, 1, { "Default ", "Colorful" } },
@@ -1305,6 +1291,9 @@ int menu() {
         sleep_ms(100);
     }
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
+#if SOFTTV
+    graphics_set_tv(settings.tv_system == 0, settings.tv_color);
+#endif
 
     updatePalette(settings.palette);
     set_game_graphics_mode();
@@ -1524,7 +1513,7 @@ int main() {
         gpio_put(PICO_DEFAULT_LED_PIN, false);
     }
 
-    #ifndef TFT
+    #if defined(VGA) || defined(HDMI) // SELECT_VGA lives in vga-nextgen: not linked for TFT / TV / SOFTTV
 #if ZERO2
     SELECT_VGA = false; // RP2350-PiZero has only mini-HDMI, no VGA
 #else
@@ -1546,6 +1535,9 @@ int main() {
     f_mount(&fs, "", 1);
     f_mkdir(HOME_DIR);
     load_config();
+#if SOFTTV
+    graphics_set_tv(settings.tv_system == 0, settings.tv_color);
+#endif
 
     sem_init(&vga_start_semaphore, 0, 1);
     multicore_launch_core1(render_core);

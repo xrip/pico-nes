@@ -25,6 +25,9 @@ typedef enum COLOR_FREQ_t {
     _3579545, _4433619
 } COLOR_FREQ_t;
 
+// PAL: 625 lines / 4.43 MHz, NTSC: 525 lines / 3.58 MHz; applied by the next graphics_set_mode()
+void graphics_set_tv(bool pal, bool color);
+
 // TODO: Сделать настраиваемо
 static const uint8_t textmode_palette[16] = {
     200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215
