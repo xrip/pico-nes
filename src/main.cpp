@@ -292,8 +292,14 @@ const int __not_in_flash_func(NesPalette888)[] = {
 };
 
 void updatePalette(PALETTES palette) {
+    // VGA RGB222 explicitly reduces the NES palette to the resistor DAC levels.
+    // HDMI, composite TV and TFT must always receive unquantized RGB888.
+    bool vga_rgb222 = false;
+#ifdef VGA
+    vga_rgb222 = SELECT_VGA && palette != RGB333;
+#endif
     for (uint8_t i = 0; i < 64; i++) {
-        if (palette == RGB333) {
+        if (!vga_rgb222) {
             graphics_set_palette(i, NesPalette888[i + (64 * settings.nes_palette)]);
         }
         else {
@@ -1248,6 +1254,12 @@ void save_config() {
 
 typedef bool (*menu_callback_t)();
 
+enum menu_visibility_e : uint8_t {
+    MENU_ALWAYS,
+    MENU_VGA_ONLY,
+    MENU_VGA_RGB333_ONLY
+};
+
 typedef struct __attribute__((__packed__)) {
     const char* text;
     menu_type_e type;
@@ -1255,6 +1267,7 @@ typedef struct __attribute__((__packed__)) {
     menu_callback_t callback;
     uint8_t max_value;
     char value_list[15][10];
+    menu_visibility_e visibility = MENU_ALWAYS;
 } MenuItem;
 
 bool save() {
@@ -1293,10 +1306,10 @@ const MenuItem menu_items[] = {
     { "" },
     { "Volume: %d", INT, &settings.snd_vol, nullptr, 8 },
 #if VGA
-{ "" },
-    { "Flash line: %s", ARRAY, &settings.flash_line, nullptr,1, { "NO ", "YES" } },
-    { "Flash frame: %s", ARRAY, &settings.flash_frame, nullptr,1, { "NO ", "YES" } },
-    { "VGA Mode: %s", ARRAY, &settings.palette, nullptr,1, { "RGB333", "RGB222" } },
+    { "", NONE, nullptr, nullptr, 0, {}, MENU_VGA_ONLY },
+    { "Flash line: %s", ARRAY, &settings.flash_line, nullptr, 1, { "NO ", "YES" }, MENU_VGA_RGB333_ONLY },
+    { "Flash frame: %s", ARRAY, &settings.flash_frame, nullptr, 1, { "NO ", "YES" }, MENU_VGA_RGB333_ONLY },
+    { "VGA Mode: %s", ARRAY, &settings.palette, nullptr, 1, { "RGB333", "RGB222" }, MENU_VGA_ONLY },
 #endif
 #if TFT
     { "" },
@@ -1319,30 +1332,62 @@ const MenuItem menu_items[] = {
 };
 #define MENU_ITEMS_NUMBER (sizeof(menu_items) / sizeof (MenuItem))
 
+static bool menu_item_visible(const MenuItem& item) {
+#ifdef VGA
+    if (item.visibility == MENU_VGA_ONLY)
+        return SELECT_VGA;
+    if (item.visibility == MENU_VGA_RGB333_ONLY)
+        return SELECT_VGA && settings.palette == RGB333;
+#endif
+    return true;
+}
+
 int menu() {
     bool exit = false;
     graphics_set_mode(TEXTMODE_DEFAULT);
     char footer[TEXTMODE_COLS];
-    snprintf(footer, TEXTMODE_COLS, ":: %s ::", PICO_PROGRAM_NAME);
-    draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, 0, 11, 1);
-    snprintf(footer, TEXTMODE_COLS, ":: %s build %s %s ::", PICO_PROGRAM_VERSION_STRING, __DATE__,
-             __TIME__);
-    draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, TEXTMODE_ROWS - 1, 11, 1);
     int current_item = 0;
+    int last_visible_count = -1;
     while (!exit) {
         sleep_ms(25);
-        if ((gamepad1_bits.down || keyboard_bits.down) != 0) {
-            current_item = (current_item + 1) % MENU_ITEMS_NUMBER;
-            if (menu_items[current_item].type == NONE)
-                current_item++;
+        // HDMI is built with VGA enabled, but uses its own RGB888 palette.
+        // Hide VGA controls there, and hide dither controls in VGA RGB222.
+        int visible[MENU_ITEMS_NUMBER];
+        int visible_count = 0;
+        for (int i = 0; i < MENU_ITEMS_NUMBER; ++i) {
+            if (menu_item_visible(menu_items[i]))
+                visible[visible_count++] = i;
         }
-        if ((gamepad1_bits.up || keyboard_bits.up) != 0) {
-            current_item = (current_item - 1 + MENU_ITEMS_NUMBER) % MENU_ITEMS_NUMBER;
-            if (menu_items[current_item].type == NONE)
-                current_item--;
+        if (!menu_item_visible(menu_items[current_item]))
+            current_item = 0;
+        int current_pos = 0;
+        while (visible[current_pos] != current_item)
+            ++current_pos;
+        auto move_cursor = [&](int direction) {
+            do {
+                current_pos = (current_pos + visible_count + direction) % visible_count;
+            } while (menu_items[visible[current_pos]].type == NONE);
+            current_item = visible[current_pos];
+        };
+        if (gamepad1_bits.down || keyboard_bits.down)
+            move_cursor(1);
+        if (gamepad1_bits.up || keyboard_bits.up)
+            move_cursor(-1);
+
+        // RGB333/RGB222 changes the menu height while it is open.
+        // Clear old rows and restore the header/footer on layout changes.
+        if (visible_count != last_visible_count) {
+            clrScr(0);
+            snprintf(footer, TEXTMODE_COLS, ":: %s ::", PICO_PROGRAM_NAME);
+            draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, 0, 11, 1);
+            snprintf(footer, TEXTMODE_COLS, ":: %s build %s %s ::", PICO_PROGRAM_VERSION_STRING, __DATE__,
+                     __TIME__);
+            draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, TEXTMODE_ROWS - 1, 11, 1);
+            last_visible_count = visible_count;
         }
-        for (int i = 0; i < MENU_ITEMS_NUMBER; i++) {
-            uint8_t y = i + ((TEXTMODE_ROWS - MENU_ITEMS_NUMBER) >> 1);
+        for (int row = 0; row < visible_count; ++row) {
+            int i = visible[row];
+            uint8_t y = row + ((TEXTMODE_ROWS - visible_count) >> 1);
             uint8_t x = TEXTMODE_COLS / 2 - 10;
             uint8_t color = 0xFF;
             uint8_t bg_color = 0x00;
