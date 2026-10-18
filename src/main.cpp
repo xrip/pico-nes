@@ -1032,6 +1032,15 @@ void filebrowser(const char pathname[256], const char* executables) {
 
 int menu();
 
+// NES palette index $0F is black. Rows 0-3 and 236-239 are never drawn by InfoNES and
+// SCREEN is shared with the text mode, so clear it before showing the game picture.
+static void set_game_graphics_mode() {
+    // graphics_set_mode() clears the buffer itself (VGA: memset 0 = NES grey,
+    // HDMI: clrScr() writes text-mode spaces), so fill with black after it
+    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    memset(&SCREEN[0][0], 0x0F, sizeof SCREEN);
+}
+
 int InfoNES_Video() {
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
         menu();
@@ -1041,14 +1050,14 @@ int InfoNES_Video() {
         menu();
         return 1; // TODO: ?
     }
-    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    set_game_graphics_mode();
     return 0;
 }
 
 int InfoNES_Menu() {
     graphics_set_mode(TEXTMODE_DEFAULT);
     filebrowser(HOME_DIR, (char *)"nes");
-    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    set_game_graphics_mode();
     return 1;
 }
 
@@ -1298,7 +1307,7 @@ int menu() {
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
 
     updatePalette(settings.palette);
-    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    set_game_graphics_mode();
     save_config();
     return 0;
 }

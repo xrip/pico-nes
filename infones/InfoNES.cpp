@@ -462,8 +462,9 @@ int InfoNES_Reset()
   // Reset update flag of ChrBuf
   ChrBufUpdate = 0xff;
 
-  // Reset palette table
-  InfoNES_MemorySet(PalTable, 0, sizeof PalTable);
+  // Reset palette table: black ($0F) until the game loads its palette
+  for (int i = 0; i < 32; ++i)
+    PalTable[i] = NesPalette[0x0f] | ((i & 3) ? 0 : 0x8000);
 
   // Reset APU register
   InfoNES_MemorySet(APU_Reg, 0, sizeof APU_Reg);
@@ -937,10 +938,12 @@ void __not_in_flash_func(InfoNES_DrawLine)()
   assert(WorkLine);
   pPoint = WorkLine;
 
-  // Clear a scanline if screen is off
+  // Screen off: the PPU outputs the backdrop colour ($3F00), not palette index 0
   if (!(PPU_R1 & R1_SHOW_SCR))
   {
-    InfoNES_MemorySet(pPoint, 0, NES_DISP_WIDTH << 1);
+    const WORD wBack = PalTable[0];
+    for (int i = 0; i < NES_DISP_WIDTH; ++i)
+      pPoint[i] = wBack;
   }
   else
   {
@@ -1190,7 +1193,9 @@ void __not_in_flash_func(InfoNES_DrawLine)()
 
       // pPointTop = &WorkFrame[PPU_Scanline * NES_DISP_WIDTH];
       pPointTop = WorkLine;
-      InfoNES_MemorySet(pPointTop, 0, 8 << 1);
+      // left 8 pixels clipped: backdrop colour, not palette index 0 (grey)
+      for (int i = 0; i < 8; ++i)
+        pPointTop[i] = PalTable[0];
     }
 
     /*-------------------------------------------------------------------*/
@@ -1463,7 +1468,9 @@ void __not_in_flash_func(InfoNES_DrawLine)()
 
       // pPointTop = &WorkFrame[PPU_Scanline * NES_DISP_WIDTH];
       pPointTop = WorkLine;
-      InfoNES_MemorySet(pPointTop, 0, 8 << 1);
+      // left 8 pixels clipped: backdrop colour, not palette index 0 (grey)
+      for (int i = 0; i < 8; ++i)
+        pPointTop[i] = PalTable[0];
     }
 
     if (nSprCnt >= 8)
