@@ -292,8 +292,14 @@ const int __not_in_flash_func(NesPalette888)[] = {
 };
 
 void updatePalette(PALETTES palette) {
+    // VGA RGB222 explicitly reduces the NES palette to the resistor DAC levels.
+    // HDMI, composite TV and TFT must always receive unquantized RGB888.
+    bool vga_rgb222 = false;
+#ifdef VGA
+    vga_rgb222 = SELECT_VGA && palette != RGB333;
+#endif
     for (uint8_t i = 0; i < 64; i++) {
-        if (palette == RGB333) {
+        if (!vga_rgb222) {
             graphics_set_palette(i, NesPalette888[i + (64 * settings.nes_palette)]);
         }
         else {
@@ -1169,7 +1175,28 @@ bool filebrowser(const char pathname[256], const char* executables) {
     }
 }
 
-int menu();
+int menu(bool opened_by_hotkey = false);
+
+// NES palette index $0F is black. Rows 0-3 and 236-239 are never drawn by InfoNES and
+// SCREEN is shared with the text mode, so clear it before showing the game picture.
+static void set_game_graphics_mode() {
+    // graphics_set_mode() clears the buffer itself (VGA: memset 0 = NES grey,
+    // HDMI: clrScr() writes text-mode spaces), so fill with black after it
+    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    memset(&SCREEN[0][0], 0x0F, sizeof SCREEN);
+}
+
+// NTSC / PAL / Dendy: the menu setting, or for "Auto" the ROM header,
+// then the "(E)" / "(Europe)" tag of the file name for old iNES headers without a TV flag
+static BYTE detect_nes_region() {
+    if (settings.nes_timing)
+        return settings.nes_timing - 1;
+    BYTE region = InfoNES_HeaderRegion();
+    if (region == NES_REGION_NTSC && (NesHeader.byInfo2 & 0x0c) != 0x08 &&
+        (strstr(rom_filename, "(E)") || strstr(rom_filename, "(Europe)") || strstr(rom_filename, "(PAL)")))
+        region = NES_REGION_PAL;
+    return region;
+}
 
 // NES palette index $0F is black. Rows 0-3 and 236-239 are never drawn by InfoNES and
 // SCREEN is shared with the text mode, so clear it before showing the game picture.
@@ -1248,6 +1275,12 @@ void save_config() {
 
 typedef bool (*menu_callback_t)();
 
+enum menu_visibility_e : uint8_t {
+    MENU_ALWAYS,
+    MENU_VGA_ONLY,
+    MENU_VGA_RGB333_ONLY
+};
+
 typedef struct __attribute__((__packed__)) {
     const char* text;
     menu_type_e type;
@@ -1255,6 +1288,7 @@ typedef struct __attribute__((__packed__)) {
     menu_callback_t callback;
     uint8_t max_value;
     char value_list[15][10];
+    menu_visibility_e visibility = MENU_ALWAYS;
 } MenuItem;
 
 bool save() {
@@ -1293,10 +1327,10 @@ const MenuItem menu_items[] = {
     { "" },
     { "Volume: %d", INT, &settings.snd_vol, nullptr, 8 },
 #if VGA
-{ "" },
-    { "Flash line: %s", ARRAY, &settings.flash_line, nullptr,1, { "NO ", "YES" } },
-    { "Flash frame: %s", ARRAY, &settings.flash_frame, nullptr,1, { "NO ", "YES" } },
-    { "VGA Mode: %s", ARRAY, &settings.palette, nullptr,1, { "RGB333", "RGB222" } },
+    { "", NONE, nullptr, nullptr, 0, {}, MENU_VGA_ONLY },
+    { "Flash line: %s", ARRAY, &settings.flash_line, nullptr, 1, { "NO ", "YES" }, MENU_VGA_RGB333_ONLY },
+    { "Flash frame: %s", ARRAY, &settings.flash_frame, nullptr, 1, { "NO ", "YES" }, MENU_VGA_RGB333_ONLY },
+    { "VGA Mode: %s", ARRAY, &settings.palette, nullptr, 1, { "RGB333", "RGB222" }, MENU_VGA_ONLY },
 #endif
 #if TFT
     { "" },
@@ -1319,30 +1353,97 @@ const MenuItem menu_items[] = {
 };
 #define MENU_ITEMS_NUMBER (sizeof(menu_items) / sizeof (MenuItem))
 
-int menu() {
+static bool menu_item_visible(const MenuItem& item) {
+#ifdef VGA
+    if (item.visibility == MENU_VGA_ONLY)
+        return SELECT_VGA;
+    if (item.visibility == MENU_VGA_RGB333_ONLY)
+        return SELECT_VGA && settings.palette == RGB333;
+#endif
+    return true;
+}
+
+enum : uint8_t {
+    MENU_BTN_UP     = 1u << 0,
+    MENU_BTN_DOWN   = 1u << 1,
+    MENU_BTN_LEFT   = 1u << 2,
+    MENU_BTN_RIGHT  = 1u << 3,
+    MENU_BTN_START  = 1u << 4,
+    MENU_BTN_SELECT = 1u << 5,
+    MENU_BTN_BACK   = 1u << 6
+};
+
+static uint8_t menu_buttons() {
+    uint8_t buttons = 0;
+    if (gamepad1_bits.up || keyboard_bits.up) buttons |= MENU_BTN_UP;
+    if (gamepad1_bits.down || keyboard_bits.down) buttons |= MENU_BTN_DOWN;
+    if (gamepad1_bits.left || keyboard_bits.left) buttons |= MENU_BTN_LEFT;
+    if (gamepad1_bits.right || keyboard_bits.right) buttons |= MENU_BTN_RIGHT;
+    if (gamepad1_bits.start || keyboard_bits.start) buttons |= MENU_BTN_START;
+    if (gamepad1_bits.select || keyboard_bits.select) buttons |= MENU_BTN_SELECT;
+    if (gamepad1_bits.b || keyboard_bits.b) buttons |= MENU_BTN_BACK;
+    return buttons;
+}
+
+int menu(bool opened_by_hotkey) {
     bool exit = false;
     graphics_set_mode(TEXTMODE_DEFAULT);
     char footer[TEXTMODE_COLS];
-    snprintf(footer, TEXTMODE_COLS, ":: %s ::", PICO_PROGRAM_NAME);
-    draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, 0, 11, 1);
-    snprintf(footer, TEXTMODE_COLS, ":: %s build %s %s ::", PICO_PROGRAM_VERSION_STRING, __DATE__,
-             __TIME__);
-    draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, TEXTMODE_ROWS - 1, 11, 1);
     int current_item = 0;
+    int last_visible_count = -1;
+    // Consume the Start+Select combination which opened the menu. In
+    // particular, releasing Enter before Backspace must NOT close it.
+    bool wait_hotkey_release = opened_by_hotkey;
+    uint8_t prev_buttons = menu_buttons();
     while (!exit) {
         sleep_ms(25);
-        if ((gamepad1_bits.down || keyboard_bits.down) != 0) {
-            current_item = (current_item + 1) % MENU_ITEMS_NUMBER;
-            if (menu_items[current_item].type == NONE)
-                current_item++;
+        const uint8_t held = menu_buttons();
+        uint8_t pressed = held & (uint8_t)~prev_buttons;
+        prev_buttons = held;
+        if (wait_hotkey_release) {
+            pressed = 0;
+            if (!(held & (MENU_BTN_START | MENU_BTN_SELECT)))
+                wait_hotkey_release = false;
         }
-        if ((gamepad1_bits.up || keyboard_bits.up) != 0) {
-            current_item = (current_item - 1 + MENU_ITEMS_NUMBER) % MENU_ITEMS_NUMBER;
-            if (menu_items[current_item].type == NONE)
-                current_item--;
+        const bool activate = (pressed & MENU_BTN_START) && !(held & MENU_BTN_SELECT);
+        // HDMI is built with VGA enabled, but uses its own RGB888 palette.
+        // Hide VGA controls there, and hide dither controls in VGA RGB222.
+        int visible[MENU_ITEMS_NUMBER];
+        int visible_count = 0;
+        for (int i = 0; i < MENU_ITEMS_NUMBER; ++i) {
+            if (menu_item_visible(menu_items[i]))
+                visible[visible_count++] = i;
         }
-        for (int i = 0; i < MENU_ITEMS_NUMBER; i++) {
-            uint8_t y = i + ((TEXTMODE_ROWS - MENU_ITEMS_NUMBER) >> 1);
+        if (!menu_item_visible(menu_items[current_item]))
+            current_item = 0;
+        int current_pos = 0;
+        while (visible[current_pos] != current_item)
+            ++current_pos;
+        auto move_cursor = [&](int direction) {
+            do {
+                current_pos = (current_pos + visible_count + direction) % visible_count;
+            } while (menu_items[visible[current_pos]].type == NONE);
+            current_item = visible[current_pos];
+        };
+        if (pressed & MENU_BTN_DOWN)
+            move_cursor(1);
+        if (pressed & MENU_BTN_UP)
+            move_cursor(-1);
+
+        // RGB333/RGB222 changes the menu height while it is open.
+        // Clear old rows and restore the header/footer on layout changes.
+        if (visible_count != last_visible_count) {
+            clrScr(0);
+            snprintf(footer, TEXTMODE_COLS, ":: %s ::", PICO_PROGRAM_NAME);
+            draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, 0, 11, 1);
+            snprintf(footer, TEXTMODE_COLS, ":: %s build %s %s ::", PICO_PROGRAM_VERSION_STRING, __DATE__,
+                     __TIME__);
+            draw_text(footer, TEXTMODE_COLS / 2 - strlen(footer) / 2, TEXTMODE_ROWS - 1, 11, 1);
+            last_visible_count = visible_count;
+        }
+        for (int row = 0; row < visible_count; ++row) {
+            int i = visible[row];
+            uint8_t y = row + ((TEXTMODE_ROWS - visible_count) >> 1);
             uint8_t x = TEXTMODE_COLS / 2 - 10;
             uint8_t color = 0xFF;
             uint8_t bg_color = 0x00;
@@ -1357,28 +1458,28 @@ int menu() {
                     case ARRAY:
                         if (item->max_value != 0) {
                             auto* value = (uint8_t *)item->value;
-                            if ((gamepad1_bits.right || keyboard_bits.right) && *value < item->max_value) {
+                            if ((pressed & MENU_BTN_RIGHT) && *value < item->max_value) {
                                 (*value)++;
                             }
-                            if ((gamepad1_bits.left || keyboard_bits.left) && *value > 0) {
+                            if ((pressed & MENU_BTN_LEFT) && *value > 0) {
                                 (*value)--;
                             }
                         }
                         break;
                     case SAVE:
-                        if (gamepad1_bits.start || keyboard_bits.start) {
+                        if (activate) {
                             save_state((char *)rom_filename);
                             exit = true;
                         }
                         break;
                     case LOAD:
-                        if (gamepad1_bits.start || keyboard_bits.start) {
+                        if (activate) {
                             load_state((char *)rom_filename);
                             exit = true;
                         }
                         break;
                     case RETURN:
-                        if (gamepad1_bits.start || keyboard_bits.start)
+                        if (activate)
                             exit = true;
                         break;
                     case RESET:
@@ -1386,7 +1487,7 @@ int menu() {
                             nes_safe_reset();
                         break;
                     case ROM_SELECT:
-                        if (gamepad1_bits.start || keyboard_bits.start) {
+                        if (activate) {
                             exit = true;
                             /* A new PSRAM ROM starts on the next InfoNES_Main
                              * iteration; cancelling selection resumes this one. */
@@ -1396,14 +1497,14 @@ int menu() {
                         }
                         break;
                     case USB_DEVICE:
-                        if (gamepad1_bits.start || keyboard_bits.start) {
+                        if (activate) {
                             clrScr(1);
                             draw_text((char *)"Mount me as USB drive...", 30, 15, 7, 1);
                             // in_flash_drive();
                             nes_safe_reset();
                         }
                 }
-                if (nullptr != item->callback && (gamepad1_bits.start || keyboard_bits.start)) {
+                if (nullptr != item->callback && activate) {
                     exit = item->callback();
                 }
             }
@@ -1425,9 +1526,8 @@ int menu() {
             }
             draw_text(result, x, y, color, bg_color);
         }
-        if (gamepad1_bits.b || (gamepad1_bits.select && !gamepad1_bits.start) ||
-            keyboard_bits.b || (keyboard_bits.select && !keyboard_bits.start)
-        ) {
+        if ((pressed & MENU_BTN_BACK) ||
+            ((pressed & MENU_BTN_SELECT) && !(held & MENU_BTN_START))) {
             exit = true;
         }
         #ifdef TFT
@@ -1437,7 +1537,6 @@ int menu() {
             nes_safe_reset();
         }
         #endif
-        sleep_ms(100);
     }
     graphics_set_flashmode(settings.flash_line, settings.flash_frame);
 #if SOFTTV
