@@ -927,9 +927,7 @@ void lock_start() {
 }
 
 bool filebrowser(const char pathname[256], const char* executables) {
-    // An Enter/Start that selected ROM_BROWSER in the menu must be released
-    // before it can also launch the highlighted ROM in the file browser.
-    bool debounce = !gamepad1_bits.start && !keyboard_bits.start;
+    bool debounce = true;
     char basepath[256];
     char tmp[TEXTMODE_COLS + 1];
     strcpy(basepath, pathname);
@@ -1178,6 +1176,27 @@ bool filebrowser(const char pathname[256], const char* executables) {
 }
 
 int menu(bool opened_by_hotkey = false);
+
+// NES palette index $0F is black. Rows 0-3 and 236-239 are never drawn by InfoNES and
+// SCREEN is shared with the text mode, so clear it before showing the game picture.
+static void set_game_graphics_mode() {
+    // graphics_set_mode() clears the buffer itself (VGA: memset 0 = NES grey,
+    // HDMI: clrScr() writes text-mode spaces), so fill with black after it
+    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    memset(&SCREEN[0][0], 0x0F, sizeof SCREEN);
+}
+
+// NTSC / PAL / Dendy: the menu setting, or for "Auto" the ROM header,
+// then the "(E)" / "(Europe)" tag of the file name for old iNES headers without a TV flag
+static BYTE detect_nes_region() {
+    if (settings.nes_timing)
+        return settings.nes_timing - 1;
+    BYTE region = InfoNES_HeaderRegion();
+    if (region == NES_REGION_NTSC && (NesHeader.byInfo2 & 0x0c) != 0x08 &&
+        (strstr(rom_filename, "(E)") || strstr(rom_filename, "(Europe)") || strstr(rom_filename, "(PAL)")))
+        region = NES_REGION_PAL;
+    return region;
+}
 
 // NES palette index $0F is black. Rows 0-3 and 236-239 are never drawn by InfoNES and
 // SCREEN is shared with the text mode, so clear it before showing the game picture.
@@ -1464,7 +1483,7 @@ int menu(bool opened_by_hotkey) {
                             exit = true;
                         break;
                     case RESET:
-                        if (activate)
+                        if (gamepad1_bits.start || keyboard_bits.start)
                             nes_safe_reset();
                         break;
                     case ROM_SELECT:
@@ -1533,17 +1552,8 @@ int menu(bool opened_by_hotkey) {
 
 
 int InfoNES_LoadFrame() {
-    // Require BOTH buttons released before accepting another Start+Select.
-    // This avoids reopening the menu when one key is held or released later.
-    static bool menu_hotkey_armed = true;
-    const uint8_t held = menu_buttons();
-    const bool start = (held & MENU_BTN_START) != 0;
-    const bool select = (held & MENU_BTN_SELECT) != 0;
-    if (!start && !select)
-        menu_hotkey_armed = true;
-    if (menu_hotkey_armed && start && select) {
-        menu_hotkey_armed = false;
-        if (menu(true) == ROM_SELECT) {
+    if ((keyboard_bits.start || gamepad1_bits.start) && (keyboard_bits.select || gamepad1_bits.select)) {
+        if (menu() == ROM_SELECT) {
             return -2; // restart emulation for the newly selected PSRAM ROM
         }
         //if(selected == USB_DEVICE) {
