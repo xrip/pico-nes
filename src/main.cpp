@@ -1229,6 +1229,27 @@ static BYTE detect_nes_region() {
     return region;
 }
 
+// NES palette index $0F is black. Rows 0-3 and 236-239 are never drawn by InfoNES and
+// SCREEN is shared with the text mode, so clear it before showing the game picture.
+static void set_game_graphics_mode() {
+    // graphics_set_mode() clears the buffer itself (VGA: memset 0 = NES grey,
+    // HDMI: clrScr() writes text-mode spaces), so fill with black after it
+    graphics_set_mode(GRAPHICSMODE_DEFAULT);
+    memset(&SCREEN[0][0], 0x0F, sizeof SCREEN);
+}
+
+// NTSC / PAL / Dendy: the menu setting, or for "Auto" the ROM header,
+// then the "(E)" / "(Europe)" tag of the file name for old iNES headers without a TV flag
+static BYTE detect_nes_region() {
+    if (settings.nes_timing)
+        return settings.nes_timing - 1;
+    BYTE region = InfoNES_HeaderRegion();
+    if (region == NES_REGION_NTSC && (NesHeader.byInfo2 & 0x0c) != 0x08 &&
+        (strstr(rom_filename, "(E)") || strstr(rom_filename, "(Europe)") || strstr(rom_filename, "(PAL)")))
+        region = NES_REGION_PAL;
+    return region;
+}
+
 int InfoNES_Video() {
     if (!parseROM(reinterpret_cast<const uint8_t *>(rom))) {
         menu();
