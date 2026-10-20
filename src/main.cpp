@@ -112,6 +112,9 @@ extern "C" void __no_inline_not_in_flash_func(nes_safe_reset)(void) {
     set_sys_clock_khz(150000, false);
     vreg_set_voltage(VREG_VOLTAGE_1_10);
     sleep_ms(10);
+#else
+    save_and_disable_interrupts();
+    set_sys_clock_khz(125000, false);
 #endif
     watchdog_reboot(0, 0, 10);
     while (true) tight_loop_contents();
@@ -711,10 +714,36 @@ void __scratch_x("render") render_core() {
 }
 
 
+/* Flash is an external chip, its size does not depend on RP2040/RP2350 or
+ * the board header.  Read it from JEDEC ID (0x9F) like murmulator_os2:
+ * the third ID byte is log2(capacity in bytes).  Called once from main()
+ * before overclocking, core1 and PSRAM; falls back to the board default. */
+static size_t flash_bytes = PICO_FLASH_SIZE_BYTES;
+
+static void __no_inline_not_in_flash_func(detect_flash_size)(void) {
+    uint8_t tx[4] = { 0x9f, 0, 0, 0 };
+    uint8_t rx[4] = { 0 };
+    const uint32_t ints = save_and_disable_interrupts();
+#if !PICO_RP2040
+    /* the SDK re-enters XIP with the boot-time QMI M0 timing */
+    const uint32_t timing = qmi_hw->m[0].timing;
+#endif
+    flash_do_cmd(tx, rx, sizeof tx);
+#if !PICO_RP2040
+    qmi_hw->m[0].timing = timing;
+#endif
+    restore_interrupts(ints);
+    /* 16 MiB is the XIP window of one chip select */
+    if (rx[3] >= 20 && rx[3] <= 24)
+        flash_bytes = (size_t)1 << rx[3];
+}
+
 /* The flash slot begins at 1 MiB and reserves one sector for the ROM path.
  * Keep a flash fallback for boards without a populated/working QSPI PSRAM. */
 static size_t flash_rom_capacity(void) {
-    return (size_t)PICO_FLASH_SIZE_BYTES - FLASH_TARGET_OFFSET - FLASH_SECTOR_SIZE;
+    if (flash_bytes <= FLASH_TARGET_OFFSET + FLASH_SECTOR_SIZE)
+        return 0;
+    return flash_bytes - FLASH_TARGET_OFFSET - FLASH_SECTOR_SIZE;
 }
 
 bool filebrowser_loadfile(const char pathname[256]) {
@@ -927,7 +956,9 @@ void lock_start() {
 }
 
 bool filebrowser(const char pathname[256], const char* executables) {
-    bool debounce = true;
+    // An Enter/Start that selected ROM_BROWSER in the menu must be released
+    // before it can also launch the highlighted ROM in the file browser.
+    bool debounce = !gamepad1_bits.start && !keyboard_bits.start;
     char basepath[256];
     char tmp[TEXTMODE_COLS + 1];
     strcpy(basepath, pathname);
@@ -1483,7 +1514,7 @@ int menu(bool opened_by_hotkey) {
                             exit = true;
                         break;
                     case RESET:
-                        if (gamepad1_bits.start || keyboard_bits.start)
+                        if (activate)
                             nes_safe_reset();
                         break;
                     case ROM_SELECT:
@@ -1552,8 +1583,17 @@ int menu(bool opened_by_hotkey) {
 
 
 int InfoNES_LoadFrame() {
-    if ((keyboard_bits.start || gamepad1_bits.start) && (keyboard_bits.select || gamepad1_bits.select)) {
-        if (menu() == ROM_SELECT) {
+    // Require BOTH buttons released before accepting another Start+Select.
+    // This avoids reopening the menu when one key is held or released later.
+    static bool menu_hotkey_armed = true;
+    const uint8_t held = menu_buttons();
+    const bool start = (held & MENU_BTN_START) != 0;
+    const bool select = (held & MENU_BTN_SELECT) != 0;
+    if (!start && !select)
+        menu_hotkey_armed = true;
+    if (menu_hotkey_armed && start && select) {
+        menu_hotkey_armed = false;
+        if (menu(true) == ROM_SELECT) {
             return -2; // restart emulation for the newly selected PSRAM ROM
         }
         //if(selected == USB_DEVICE) {
@@ -1757,6 +1797,9 @@ static void __not_in_flash_func(nes_flash_timings)(uint32_t target_hz) {
 #endif
 
 int main() {
+#ifndef BUILD_IN_GAMES
+    detect_flash_size();
+#endif
 #if !PICO_RP2040
     vreg_disable_voltage_limit();
     vreg_set_voltage(VREG_VOLTAGE_1_60);
